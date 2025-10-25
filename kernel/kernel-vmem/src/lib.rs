@@ -249,10 +249,12 @@ impl VirtAddr {
 
 /// Implement common functionality for page tables.
 macro_rules! table_common {
-    ($T:ident, $Index:ident) => {
+    ($name:tt, $T:ident, $Index:ident) => {
+        #[doc = concat!("The `", stringify!($name), "` page table.")]
         #[repr(transparent)]
         pub struct $T(PageTable);
 
+        #[doc = concat!("An index into the `", stringify!($name), "` page table.")]
         #[derive(Copy, Clone)]
         #[repr(transparent)]
         pub struct $Index(usize);
@@ -298,36 +300,46 @@ macro_rules! table_common {
     };
 }
 
-table_common!(Pml4, Pml4Index);
-table_common!(Pdpt, PdptIndex);
-table_common!(Pd, PdIndex);
-table_common!(Pt, PtIndex);
+table_common!(PML4, Pml4PageTable, Pml4Index);
+table_common!(PDPT, PdptPageTable, PdptIndex);
+table_common!(PD, PdPageTable, PdIndex);
+table_common!(PT, PtPageTable, PtIndex);
 
-/// Map a physical frame as a [`Pml4`] typed table.
+/// Map a physical frame as a [`Pml4PageTable`] typed table.
 #[inline]
-pub fn as_pml4<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut Pml4 {
-    unsafe { &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<Pml4>() }
+pub fn as_pml4<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut Pml4PageTable {
+    unsafe {
+        &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa))
+            .cast::<Pml4PageTable>()
+    }
 }
 
-/// Map a physical frame as a [`Pdpt`] typed table.
+/// Map a physical frame as a [`PdptPageTable`] typed table.
 #[inline]
-pub fn as_pdpt<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut Pdpt {
-    unsafe { &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<Pdpt>() }
+pub fn as_pdpt<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut PdptPageTable {
+    unsafe {
+        &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa))
+            .cast::<PdptPageTable>()
+    }
 }
 
-/// Map a physical frame as a [`Pd`] typed table.
+/// Map a physical frame as a [`PdPageTable`] typed table.
 #[inline]
-pub fn as_pd<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut Pd {
-    unsafe { &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<Pd>() }
+pub fn as_pd<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut PdPageTable {
+    unsafe {
+        &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<PdPageTable>()
+    }
 }
 
-/// Map a physical frame as a [`Pt`] typed table.
+/// Map a physical frame as a [`PtPageTable`] typed table.
 #[inline]
-pub fn as_pt<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut Pt {
-    unsafe { &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<Pt>() }
+pub fn as_pt<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut PtPageTable {
+    unsafe {
+        &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<PtPageTable>()
+    }
 }
 
-impl Pml4 {
+impl Pml4PageTable {
     #[inline]
     pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
         unsafe { self.entry_mut(va.pml4_index()) }
@@ -343,7 +355,7 @@ impl Pml4 {
     }
 }
 
-impl Pdpt {
+impl PdptPageTable {
     #[inline]
     pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
         unsafe { self.entry_mut(va.pdpt_index()) }
@@ -373,7 +385,7 @@ impl Pdpt {
     }
 }
 
-impl Pd {
+impl PdPageTable {
     #[inline]
     pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
         unsafe { self.entry_mut(va.pd_index()) }
@@ -403,7 +415,7 @@ impl Pd {
     }
 }
 
-impl Pt {
+impl PtPageTable {
     #[inline]
     pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
         unsafe { self.entry_mut(va.pt_index()) }

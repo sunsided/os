@@ -2,7 +2,7 @@
 
 use bitfield_struct::bitfield;
 
-/// A 4-level x86-64 **page table page** (512 u64 entries), 4 KiB aligned.
+/// A 4-level x86-64 **page table page** (512 `u64` entries), 4 KiB aligned.
 ///
 /// This wrapper provides a concrete layout for manipulating entries
 /// after mapping the table via `PhysMapper`.
