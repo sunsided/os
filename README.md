@@ -6,6 +6,7 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
   - [Building the Project](#building-the-project)
+    - [Quick Start](#quick-start)
     - [Rust targets](#rust-targets)
     - [Pitfalls for Compiling](#pitfalls-for-compiling)
     - [Example Build Commands](#example-build-commands)
@@ -14,6 +15,16 @@
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## Building the Project
+
+### Quick Start
+
+To build and run the project on QEMU, use:
+
+```shell
+just package && just run-qemu
+# or
+just package-release && just run-qemu
+```
 
 ### Rust targets
 
