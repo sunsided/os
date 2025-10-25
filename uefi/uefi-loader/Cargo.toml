@@ -18,6 +18,7 @@ qemu = ["dep:kernel-qemu"]
 kernel-acpi = { path = "../../kernel/kernel-acpi" }
 kernel-info = { path = "../../kernel/kernel-info" }
 kernel-qemu = { path = "../../kernel/kernel-qemu", optional = true }
+kernel-vmem = { path = "../../kernel/kernel-vmem" }
 uefi = { workspace = true, features = ["alloc", "panic_handler"] }
 
 [lints]

@@ -75,6 +75,14 @@ clean:
     @rm -r {{ build-local-dir }} || true
     @cargo clean
 
+# Build and open the docs
+docs:
+    @just build-docs --open
+
+# Build the docs
+build-docs *ARGS:
+    @cargo doc --no-deps --all-features {{ ARGS }}
+
 # Build all packages with default settings
 build: uefi kernel
 

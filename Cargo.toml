@@ -14,6 +14,8 @@ license = "EUPL-1.2"
 publish = false
 
 [workspace.dependencies]
+bitfield-struct = "0.12.0"
+bitflags = "2.10.0"
 uefi = { version = "0.35", default-features = false }
 
 [workspace.lints.clippy]
