@@ -28,6 +28,34 @@ impl PageTable {
             *e = PageTableEntry::default();
         }
     }
+
+    /// Internal helper: get a mutable entry reference by index.
+    ///
+    /// # Safety
+    /// `PageTable` exposes only `as_ptr()`; we provide a small, contained unsafe.
+    #[inline]
+    pub unsafe fn entry<I>(&mut self, idx: I) -> &PageTableEntry
+    where
+        I: Into<usize>,
+    {
+        let idx = idx.into();
+        debug_assert!(idx < 512);
+        unsafe { &(*self.as_ptr().add(idx)) }
+    }
+
+    /// Internal helper: get a mutable entry reference by index.
+    ///
+    /// # Safety
+    /// `PageTable` exposes only `as_ptr()`; we provide a small, contained unsafe.
+    #[inline]
+    pub unsafe fn entry_mut<I>(&mut self, idx: I) -> &mut PageTableEntry
+    where
+        I: Into<usize>,
+    {
+        let idx = idx.into();
+        debug_assert!(idx < 512);
+        unsafe { &mut *self.as_ptr().add(idx) }
+    }
 }
 
 /// A 64-bit `x86_64` page-table entry.

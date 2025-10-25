@@ -215,54 +215,48 @@ pub trait FrameAlloc {
 pub trait PhysMapper {
     /// Convert a *physical* address to a usable mutable pointer in the current address space.
     /// Loader: often identity or HHDM. Kernel: via HHDM.
+    ///
+    /// # Safety
+    /// Needs evaluation
     unsafe fn phys_to_mut<'a, T>(&self, pa: PhysAddr) -> &'a mut T;
 }
 
 impl VirtAddr {
     /// Extract the PML4 index (bits 47-39 of the virtual address).
     #[inline]
-    const fn pml4_index(self) -> usize {
-        ((self.0 >> 39) & 0x1ff) as usize
+    const fn pml4_index(self) -> Pml4Index {
+        Pml4Index(((self.0 >> 39) & 0x1ff) as usize)
     }
 
     /// Extract the PDPT index (bits 38-30 of the virtual address).
     #[inline]
-    const fn pdpt_index(self) -> usize {
-        ((self.0 >> 30) & 0x1ff) as usize
+    const fn pdpt_index(self) -> PdptIndex {
+        PdptIndex(((self.0 >> 30) & 0x1ff) as usize)
     }
 
     /// Extract the PD index (bits 29-21 of the virtual address).
     #[inline]
-    const fn pd_index(self) -> usize {
-        ((self.0 >> 21) & 0x1ff) as usize
+    const fn pd_index(self) -> PdIndex {
+        PdIndex(((self.0 >> 21) & 0x1ff) as usize)
     }
 
     /// Extract the PT index (bits 20-12 of the virtual address).
     #[inline]
-    const fn pt_index(self) -> usize {
-        ((self.0 >> 12) & 0x1ff) as usize
+    const fn pt_index(self) -> PtIndex {
+        PtIndex(((self.0 >> 12) & 0x1ff) as usize)
     }
 }
 
-/// A PML4 page table.
-#[repr(transparent)]
-pub struct Pml4(PageTable);
-
-/// A PDPT page table.
-#[repr(transparent)]
-pub struct Pdpt(PageTable);
-
-/// A PD page table.
-#[repr(transparent)]
-pub struct Pd(PageTable);
-
-/// A PT (leaf) page table.
-#[repr(transparent)]
-pub struct Pt(PageTable);
-
 /// Implement common functionality for page tables.
 macro_rules! table_common {
-    ($T:ty) => {
+    ($T:ident, $Index:ident) => {
+        #[repr(transparent)]
+        pub struct $T(PageTable);
+
+        #[derive(Copy, Clone)]
+        #[repr(transparent)]
+        pub struct $Index(usize);
+
         impl $T {
             #[inline]
             pub fn zero(&mut self) {
@@ -274,10 +268,13 @@ macro_rules! table_common {
                 &mut self.0
             }
 
+            /// Get a mutable entry reference by index.
+            ///
+            /// `PageTable` exposes only `as_ptr()`; we provide a small, contained unsafe.
             #[inline]
-            unsafe fn entry_mut(&mut self, idx: usize) -> &mut PageTableEntry {
-                debug_assert!(idx < 512);
-                unsafe { &mut *self.0.as_ptr().add(idx) }
+            unsafe fn entry_mut(&mut self, idx: $Index) -> &mut PageTableEntry {
+                debug_assert!(idx.0 < 512);
+                unsafe { &mut *self.0.as_ptr().add(idx.0) }
             }
         }
 
@@ -292,13 +289,19 @@ macro_rules! table_common {
                 Self(pt)
             }
         }
+
+        impl From<$Index> for usize {
+            fn from(i: $Index) -> Self {
+                i.0
+            }
+        }
     };
 }
 
-table_common!(Pml4);
-table_common!(Pdpt);
-table_common!(Pd);
-table_common!(Pt);
+table_common!(Pml4, Pml4Index);
+table_common!(Pdpt, PdptIndex);
+table_common!(Pd, PdIndex);
+table_common!(Pt, PtIndex);
 
 /// Map a physical frame as a [`Pml4`] typed table.
 #[inline]
@@ -440,15 +443,6 @@ pub struct Tables {
 #[inline]
 unsafe fn get_table<'a, M: PhysMapper>(m: &M, phys: PhysAddr) -> &'a mut PageTable {
     unsafe { m.phys_to_mut::<PageTable>(phys) }
-}
-
-/// Internal helper: get a mutable entry reference by index.
-///
-/// `PageTable` exposes only `as_ptr()`; we provide a small, contained unsafe.
-#[inline]
-unsafe fn entry_mut(tbl: &mut PageTable, idx: usize) -> &mut PageTableEntry {
-    debug_assert!(idx < 512);
-    unsafe { &mut *tbl.as_ptr().add(idx) }
 }
 
 /// Apply `Flags` to a (leaf or non-leaf) entry. For non-leaf tables you typically
@@ -609,21 +603,21 @@ pub fn map_one<A: FrameAlloc, M: PhysMapper>(
             PageSize::Size1G => {
                 // PDPTE leaf: phys bits 51:30, low 30 bits zero.
                 let pdpt = get_table::<M>(map, leaf_phys);
-                let e = entry_mut(pdpt, va.pdpt_index());
+                let e = pdpt.entry_mut(va.pdpt_index());
                 e.set_addr(pa.0);
                 apply_flags(e, flags | Flags::PS, true);
             }
             PageSize::Size2M => {
                 // PDE leaf: phys bits 51:21, low 21 bits zero.
                 let pd = get_table::<M>(map, leaf_phys);
-                let e = entry_mut(pd, va.pd_index());
+                let e = pd.entry_mut(va.pd_index());
                 e.set_addr(pa.0);
                 apply_flags(e, flags | Flags::PS, true);
             }
             PageSize::Size4K => {
                 // PTE leaf: phys bits 51:12, low 12 bits zero.
                 let pt = get_table::<M>(map, leaf_phys);
-                let e = entry_mut(pt, va.pt_index());
+                let e = pt.entry_mut(va.pt_index());
                 e.set_addr(pa.0);
                 apply_flags(e, flags, is_huge_leaf);
             }
@@ -714,10 +708,6 @@ mod tests {
         }
     }
 
-    unsafe fn entry(tbl: &mut PageTable, idx: usize) -> &mut PageTableEntry {
-        unsafe { entry_mut(tbl, idx) }
-    }
-
     #[test]
     fn map_one_4k_creates_tables_and_leaf() {
         // Reserve 64 frames (= 256 KiB) for the test "physical memory".
@@ -754,27 +744,27 @@ mod tests {
 
             // PML4
             let pml4 = get_table(&phys, root_pa);
-            let e4 = entry(pml4, va.pml4_index());
+            let e4 = pml4.entry(va.pml4_index());
             assert!(e4.present());
             let pdpt_pa = PhysAddr(e4.addr());
 
             // PDPT
             let pdpt = get_table(&phys, pdpt_pa);
-            let e3 = entry(pdpt, va.pdpt_index());
+            let e3 = pdpt.entry(va.pdpt_index());
             assert!(e3.present());
             assert!(!e3.ps());
             let pd_pa = PhysAddr(e3.addr());
 
             // PD
             let pd = get_table(&phys, pd_pa);
-            let e2 = entry(pd, va.pd_index());
+            let e2 = pd.entry(va.pd_index());
             assert!(e2.present());
             assert!(!e2.ps());
             let pt_pa = PhysAddr(e2.addr());
 
             // PT (leaf)
             let pt = get_table(&phys, pt_pa);
-            let e1 = entry(pt, va.pt_index());
+            let e1 = pt.entry(va.pt_index());
             // Expected leaf encoding: phys|flags (no PS for 4K).
             assert!(e1.present());
             assert_eq!(e1.addr(), pa.0);
@@ -810,11 +800,11 @@ mod tests {
 
         unsafe {
             let pml4 = get_table(&phys, root_pa);
-            let pdpt_pa = PhysAddr(entry(pml4, va.pml4_index()).addr());
+            let pdpt_pa = PhysAddr(pml4.entry(va.pml4_index()).addr());
             let pdpt = get_table(&phys, pdpt_pa);
-            let pd_pa = PhysAddr(entry(pdpt, va.pdpt_index()).addr());
+            let pd_pa = PhysAddr(pdpt.entry(va.pdpt_index()).addr());
             let pd = get_table(&phys, pd_pa);
-            let pde = entry(pd, va.pd_index());
+            let pde = pd.entry(va.pd_index());
             assert!(pde.present());
             assert!(pde.ps());
             assert!(pde.writable());
@@ -848,9 +838,9 @@ mod tests {
         unsafe {
             // Walk to PDPT and verify leaf with PS=1.
             let pml4 = get_table(&phys, root_pa);
-            let pdpt_pa = PhysAddr(entry(pml4, va.pml4_index()).addr());
+            let pdpt_pa = PhysAddr(pml4.entry(va.pml4_index()).addr());
             let pdpt = get_table(&phys, pdpt_pa);
-            let pdpte = entry(pdpt, va.pdpt_index());
+            let pdpte = pdpt.entry(va.pdpt_index());
             assert!(pdpte.present());
             assert!(pdpte.ps());
             assert!(pdpte.writable());
