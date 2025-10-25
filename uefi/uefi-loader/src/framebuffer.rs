@@ -1,6 +1,5 @@
 //! # GOP for the Kernel
 
-use crate::{trace, trace_usize};
 use kernel_info::FramebufferInfo;
 use uefi::boot::ScopedProtocol;
 use uefi::proto::console::gop::{GraphicsOutput, Mode, PixelFormat};
@@ -16,38 +15,6 @@ pub fn get_framebuffer() -> Result<FramebufferInfo, Status> {
             return Err(Status::UNSUPPORTED);
         }
     };
-
-    let count = iter_modes(&gop).iter().count();
-    trace("Found ");
-    trace_usize(count);
-    trace(" GOP modes\n");
-
-    let mode = gop.current_mode_info();
-    let (framebuffer_width, framebuffer_height) = mode.resolution();
-    trace("Current mode ");
-    trace_usize(framebuffer_width);
-    trace(" x ");
-    trace_usize(framebuffer_height);
-    trace(" px\n");
-
-    // Prefer 1080p over others; if none found, pick the largest one.
-    if let Some(mode) = iter_modes(&gop).iter().find(|mode| {
-        let (_w, h) = mode.info().resolution();
-        h == 1080
-    }) {
-        if let Err(err) = gop.set_mode(mode) {
-            uefi::println!("Failed to set GOP mode: {err:?}");
-            return Err(Status::UNSUPPORTED);
-        }
-    } else if let Some(mode) = iter_modes(&gop).iter().next() {
-        if let Err(err) = gop.set_mode(mode) {
-            uefi::println!("Failed to set GOP mode: {err:?}");
-            return Err(Status::UNSUPPORTED);
-        }
-    } else {
-        uefi::println!("No suitable GOP graphics mode found.");
-        return Err(Status::UNSUPPORTED);
-    }
 
     let mode = gop.current_mode_info();
     let (framebuffer_width, framebuffer_height) = mode.resolution();
@@ -105,19 +72,6 @@ pub fn get_framebuffer() -> Result<FramebufferInfo, Status> {
     };
 
     Ok(fb)
-}
-
-/// Iterate modes by resolution.
-fn iter_modes(gop: &ScopedProtocol<GraphicsOutput>) -> Option<Mode> {
-    gop.modes()
-        .filter(|mode| {
-            mode.info().pixel_format() == PixelFormat::Bgr
-                || mode.info().pixel_format() == PixelFormat::Rgb
-        })
-        .max_by_key(|mode| {
-            let (w, h) = mode.info().resolution();
-            w * h
-        })
 }
 
 /// Fetch the Graphics Output Protocol (GOP).
