@@ -9,16 +9,18 @@ mod elf;
 mod file_system;
 mod framebuffer;
 mod memory;
+mod memory_mapper;
 mod rsdp;
 
 use crate::elf::ElfHeader;
 use crate::file_system::load_file;
 use crate::framebuffer::get_framebuffer;
+use crate::memory_mapper::UefiIdentityMapper;
 use crate::rsdp::find_rsdp_addr;
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
-use kernel_acpi::validate_rsdp;
+use kernel_acpi::rsdp::AcpiRoots;
 use kernel_info::{KernelBootInfo, KernelEntry, MemoryMapInfo};
 use uefi::boot::MemoryType;
 use uefi::cstr16;
@@ -99,16 +101,24 @@ fn efi_main() -> Status {
         }
     };
 
+    let mapper = UefiIdentityMapper;
+
     // Locate RSDP before exiting boot services; if not found, set 0.
-    let mut rsdp_addr: u64 = find_rsdp_addr();
+    let rsdp_addr: u64 = find_rsdp_addr();
 
     #[cfg(feature = "qemu")]
     {
-        if rsdp_addr != 0 {
-            let ok = unsafe { validate_rsdp(rsdp_addr).is_some() };
-            if !ok {
-                trace("RSDP checksum fail; ignoring\n");
-                rsdp_addr = 0;
+        if let Some(roots) = unsafe { AcpiRoots::parse(&mapper, rsdp_addr) } {
+            if let Some(addr) = roots.rsdt_addr {
+                trace("Found RSDT for ACPI 1.0 at ");
+                trace_u64(addr);
+                trace("\n");
+            } else if let Some(addr) = roots.xsdt_addr {
+                trace("Found XSDT for ACPI 2.0 at ");
+                trace_u64(addr);
+                trace("\n");
+            } else {
+                trace("Found unknown ACPI variant\n");
             }
         } else {
             trace("No ACPI RSDP found in UEFI configuration table\n");
