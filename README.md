@@ -5,8 +5,9 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [Pitfalls for Compiling](#pitfalls-for-compiling)
-- [Example Build Command](#example-build-command)
+  - [Pitfalls for Compiling](#pitfalls-for-compiling)
+  - [Example Build Command](#example-build-command)
+- [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -39,3 +40,7 @@ Or, manually:
 ```sh
 cargo build --package uefi-loader --target x86_64-unknown-uefi
 ```
+
+# License
+
+Licensed under the European Union Public Licence (EUPL), Version 1.2.
