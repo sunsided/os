@@ -8,4 +8,4 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [uefi/uefi-loader/src/main.rs](./uefi/uefi-loader/src/main.rs)
 
-- Line [176](./uefi/uefi-loader/src/main.rs#L176): Not sure if this is correct!
+- Line [180](./uefi/uefi-loader/src/main.rs#L180): Not sure if this is correct!

@@ -14,7 +14,7 @@ use crate::file_system::load_file;
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
-use kernel_info::{KernelBootInfo, KernelEntry};
+use kernel_info::{FramebufferInfo, KernelBootInfo, KernelEntry, MemoryMapInfo};
 use uefi::boot::{MemoryType, ScopedProtocol};
 use uefi::cstr16;
 use uefi::mem::memory_map::MemoryMap;
@@ -147,19 +147,23 @@ fn efi_main() -> Status {
     let rsdp_addr: u64 = /* find via config tables, else 0 */ 0;
 
     let boot_info = KernelBootInfo {
-        framebuffer_ptr: framebuffer_ptr as u64,
-        framebuffer_size: framebuffer_size as u64,
-        framebuffer_width: framebuffer_width as u64,
-        framebuffer_height: framebuffer_height as u64,
-        framebuffer_stride: framebuffer_stride as u64,
-        framebuffer_format,
-        framebuffer_masks,
-        // Memory map fields — fill right after exit_boot_services returns the owned map:
-        mmap_ptr: 0,
-        mmap_len: 0,
-        mmap_desc_size: 0,
-        mmap_desc_version: 0,
+        // Memory map fields are filled right after exit_boot_services returns the owned map:
+        mmap: MemoryMapInfo {
+            mmap_ptr: 0,
+            mmap_len: 0,
+            mmap_desc_size: 0,
+            mmap_desc_version: 0,
+        },
         rsdp_addr,
+        fb: FramebufferInfo {
+            framebuffer_ptr: framebuffer_ptr as u64,
+            framebuffer_size: framebuffer_size as u64,
+            framebuffer_width: framebuffer_width as u64,
+            framebuffer_height: framebuffer_height as u64,
+            framebuffer_stride: framebuffer_stride as u64,
+            framebuffer_format,
+            framebuffer_masks,
+        },
     };
 
     let boot_info = Box::new(boot_info);
@@ -204,10 +208,10 @@ fn efi_main() -> Status {
     }
 
     // Fill BootInfo with the copy.
-    boot_info.mmap_ptr = mmap_copy_ptr as u64;
-    boot_info.mmap_len = mmap_length as u64;
-    boot_info.mmap_desc_size = owned_map.meta().desc_size as u64;
-    boot_info.mmap_desc_version = owned_map.meta().desc_version;
+    boot_info.mmap.mmap_ptr = mmap_copy_ptr as u64;
+    boot_info.mmap.mmap_len = mmap_length as u64;
+    boot_info.mmap.mmap_desc_size = owned_map.meta().desc_size as u64;
+    boot_info.mmap.mmap_desc_version = owned_map.meta().desc_version;
 
     // Ensure the memory map copy continues to exist.
     core::mem::forget(mmap_copy);
@@ -280,28 +284,28 @@ fn trace_boot_info(boot_info: &KernelBootInfo) {
     trace_usize(core::ptr::from_ref(boot_info) as usize);
     trace("\n");
     trace(" MMAP ptr = ");
-    trace_u64(boot_info.mmap_ptr);
+    trace_u64(boot_info.mmap.mmap_ptr);
     trace(", MMAP len = ");
-    trace_u64(boot_info.mmap_len);
+    trace_u64(boot_info.mmap.mmap_len);
     trace(", MMAP desc size = ");
-    trace_u64(boot_info.mmap_desc_size);
+    trace_u64(boot_info.mmap.mmap_desc_size);
     trace(", MMAP desc version = ");
-    trace_usize(usize::try_from(boot_info.mmap_desc_version).unwrap_or_default());
+    trace_usize(usize::try_from(boot_info.mmap.mmap_desc_version).unwrap_or_default());
     trace(", rsdp addr = ");
-    trace_usize(usize::try_from(boot_info.mmap_desc_version).unwrap_or_default());
+    trace_usize(usize::try_from(boot_info.mmap.mmap_desc_version).unwrap_or_default());
     trace("\n");
     trace("   FB ptr = ");
-    trace_u64(boot_info.framebuffer_ptr);
+    trace_u64(boot_info.fb.framebuffer_ptr);
     trace(", FB size = ");
-    trace_u64(boot_info.framebuffer_size);
+    trace_u64(boot_info.fb.framebuffer_size);
     trace(", FB width = ");
-    trace_u64(boot_info.framebuffer_width);
+    trace_u64(boot_info.fb.framebuffer_width);
     trace(", FB height = ");
-    trace_u64(boot_info.framebuffer_height);
+    trace_u64(boot_info.fb.framebuffer_height);
     trace(", FB stride = ");
-    trace_u64(boot_info.framebuffer_stride);
+    trace_u64(boot_info.fb.framebuffer_stride);
     trace(", FB format = ");
-    match boot_info.framebuffer_format {
+    match boot_info.fb.framebuffer_format {
         kernel_info::BootPixelFormat::Rgb => trace("RGB"),
         kernel_info::BootPixelFormat::Bgr => trace("BGR"),
         kernel_info::BootPixelFormat::Bitmask => trace("Bitmask"),

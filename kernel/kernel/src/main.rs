@@ -5,7 +5,7 @@
 #![allow(unsafe_code)]
 
 use core::hint::spin_loop;
-use kernel_info::{BootPixelFormat, KernelBootInfo};
+use kernel_info::{BootPixelFormat, FramebufferInfo, KernelBootInfo};
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -91,7 +91,7 @@ fn kernel_main(bi: &KernelBootInfo) -> ! {
     }
 
     #[cfg(feature = "qemu")]
-    match bi.framebuffer_format {
+    match bi.fb.framebuffer_format {
         BootPixelFormat::Rgb => kernel_qemu::dbg_print("RGB framebuffer\n"),
         BootPixelFormat::Bgr => kernel_qemu::dbg_print("BGR framebuffer\n"),
         BootPixelFormat::Bitmask => kernel_qemu::dbg_print("Bitmask framebuffer\n"),
@@ -99,27 +99,27 @@ fn kernel_main(bi: &KernelBootInfo) -> ! {
     }
 
     loop {
-        unsafe { fill_solid(bi, 255, 0, 0) };
+        unsafe { fill_solid(&bi.fb, 255, 0, 0) };
         spin_loop();
     }
 }
 
 #[allow(clippy::missing_safety_doc)]
-pub unsafe fn fill_solid(bi: &KernelBootInfo, r: u8, g: u8, b: u8) {
+pub unsafe fn fill_solid(fb: &FramebufferInfo, r: u8, g: u8, b: u8) {
     unsafe {
-        if matches!(bi.framebuffer_format, BootPixelFormat::BltOnly) {
+        if matches!(fb.framebuffer_format, BootPixelFormat::BltOnly) {
             return; // nothing to draw to
         }
 
-        let mut p = bi.framebuffer_ptr as *mut u8;
+        let mut p = fb.framebuffer_ptr as *mut u8;
         let bpp = 4; // common on PC GOP; for Bitmask you could compute bpp from masks
-        let row_bytes = bi.framebuffer_stride * bpp;
+        let row_bytes = fb.framebuffer_stride * bpp;
         let row_bytes = usize::try_from(row_bytes).unwrap_or_default(); // TODO: Use a panic here
 
-        for _y in 0..bi.framebuffer_height {
+        for _y in 0..fb.framebuffer_height {
             let mut row = p;
-            for _x in 0..bi.framebuffer_width {
-                match bi.framebuffer_format {
+            for _x in 0..fb.framebuffer_width {
+                match fb.framebuffer_format {
                     BootPixelFormat::Rgb => {
                         core::ptr::write_unaligned(row.add(0), r);
                         core::ptr::write_unaligned(row.add(1), g);
@@ -154,32 +154,32 @@ fn trace_boot_info(boot_info: &KernelBootInfo) {
     trace_usize(core::ptr::from_ref(boot_info) as usize);
     trace("\n");
     trace(" MMAP ptr = ");
-    trace_num(boot_info.mmap_ptr);
+    trace_num(boot_info.mmap.mmap_ptr);
     trace(", MMAP len = ");
-    trace_num(boot_info.mmap_len);
+    trace_num(boot_info.mmap.mmap_len);
     trace(", MMAP desc size = ");
-    trace_num(boot_info.mmap_desc_size);
+    trace_num(boot_info.mmap.mmap_desc_size);
     trace(", MMAP desc version = ");
-    trace_num(boot_info.mmap_desc_version);
+    trace_num(boot_info.mmap.mmap_desc_version);
     trace(", rsdp addr = ");
-    trace_num(boot_info.mmap_desc_version);
+    trace_num(boot_info.mmap.mmap_desc_version);
     trace("\n");
     trace("   FB ptr = ");
-    trace_num(boot_info.framebuffer_ptr);
+    trace_num(boot_info.fb.framebuffer_ptr);
     trace(", FB size = ");
-    trace_num(boot_info.framebuffer_size);
+    trace_num(boot_info.fb.framebuffer_size);
     trace(", FB width = ");
-    trace_num(boot_info.framebuffer_width);
+    trace_num(boot_info.fb.framebuffer_width);
     trace(", FB height = ");
-    trace_num(boot_info.framebuffer_height);
+    trace_num(boot_info.fb.framebuffer_height);
     trace(", FB stride = ");
-    trace_num(boot_info.framebuffer_stride);
+    trace_num(boot_info.fb.framebuffer_stride);
     trace(", FB format = ");
-    match boot_info.framebuffer_format {
-        kernel_info::BootPixelFormat::Rgb => trace("RGB"),
-        kernel_info::BootPixelFormat::Bgr => trace("BGR"),
-        kernel_info::BootPixelFormat::Bitmask => trace("Bitmask"),
-        kernel_info::BootPixelFormat::BltOnly => trace("BltOnly"),
+    match boot_info.fb.framebuffer_format {
+        BootPixelFormat::Rgb => trace("RGB"),
+        BootPixelFormat::Bgr => trace("BGR"),
+        BootPixelFormat::Bitmask => trace("Bitmask"),
+        BootPixelFormat::BltOnly => trace("BltOnly"),
     }
     trace("\n");
 }

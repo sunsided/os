@@ -15,7 +15,19 @@ pub type KernelEntry = extern "win64" fn(*const KernelBootInfo) -> !;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct KernelBootInfo {
-    // ---------------- Memory map (optional but recommended) ----------------
+    /// Memory map information.
+    pub mmap: MemoryMapInfo,
+
+    /// RSDP (ACPI 2.0+) physical address, or 0 if not provided.
+    pub rsdp_addr: u64,
+
+    /// Framebuffer information, passed from UEFI GOP.
+    pub fb: FramebufferInfo,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct MemoryMapInfo {
     /// Pointer to the raw UEFI memory map buffer (array of `EFI_MEMORY_DESCRIPTOR` bytes).
     /// Pass 0 if you’re not handing the map to the kernel yet.
     pub mmap_ptr: u64,
@@ -28,12 +40,11 @@ pub struct KernelBootInfo {
 
     /// Descriptor version (from UEFI). Kernel can check it matches expectations.
     pub mmap_desc_version: u32,
+}
 
-    // ---------------- Firmware tables (optional) ----------------
-    /// RSDP (ACPI 2.0+) physical address, or 0 if not provided.
-    pub rsdp_addr: u64,
-
-    // ---------------- Framebuffer ----------------
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct FramebufferInfo {
     /// Linear framebuffer base address (CPU physical address). Valid to write after `ExitBootServices`.
     pub framebuffer_ptr: u64,
 
