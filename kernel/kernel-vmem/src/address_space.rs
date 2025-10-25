@@ -3,8 +3,8 @@
 #![allow(dead_code)]
 
 use crate::{
-    Flags, FrameAlloc, PageSize, PhysAddr, PhysMapper, Pml4PageTable, VirtAddr, apply_flags, as_pd,
-    as_pdpt, as_pml4, as_pt, get_table,
+    Flags, FrameAlloc, PageSize, PageTable, PdPageTable, PdptPageTable, PhysAddr, PhysMapper,
+    Pml4PageTable, PtPageTable, VirtAddr, apply_flags, get_table,
 };
 
 pub struct AddressSpace<'m, M: PhysMapper> {
@@ -49,7 +49,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
         size: PageSize,
     ) -> Result<(PhysAddr, bool), &'static str> {
         // PML4
-        let pml4 = as_pml4(self.mapper, self.root_phys);
+        let pml4 = self.pml4();
         let e4 = pml4.entry_mut_by_va(va);
         let pdpt_phys = if e4.present() {
             PhysAddr(e4.addr())
@@ -179,5 +179,39 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
         unsafe {
             core::arch::asm!("mov cr3, {}", in(reg) self.root_phys.0, options(nostack, preserves_flags));
         }
+    }
+}
+
+/// Map a physical frame as a [`Pml4PageTable`] typed table.
+#[inline]
+pub fn as_pml4<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut Pml4PageTable {
+    unsafe {
+        &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa))
+            .cast::<Pml4PageTable>()
+    }
+}
+
+/// Map a physical frame as a [`PdptPageTable`] typed table.
+#[inline]
+pub fn as_pdpt<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut PdptPageTable {
+    unsafe {
+        &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa))
+            .cast::<PdptPageTable>()
+    }
+}
+
+/// Map a physical frame as a [`PdPageTable`] typed table.
+#[inline]
+pub fn as_pd<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut PdPageTable {
+    unsafe {
+        &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<PdPageTable>()
+    }
+}
+
+/// Map a physical frame as a [`PtPageTable`] typed table.
+#[inline]
+pub fn as_pt<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut PtPageTable {
+    unsafe {
+        &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<PtPageTable>()
     }
 }
