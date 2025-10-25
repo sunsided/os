@@ -37,6 +37,13 @@ name = "kernel-info"
 version = "0.0.0"
 
 [[package]]
+name = "kernel-mmap"
+version = "0.0.0"
+dependencies = [
+ "kernel-info",
+]
+
+[[package]]
 name = "kernel-qemu"
 version = "0.0.0"
 

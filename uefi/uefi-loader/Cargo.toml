@@ -22,3 +22,9 @@ uefi = { workspace = true, features = ["alloc", "panic_handler"] }
 
 [lints]
 workspace = true
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

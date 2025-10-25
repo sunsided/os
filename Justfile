@@ -86,27 +86,30 @@ build-release: uefi-release kernel-release
 
 # Build the UEFI loader (default build)
 uefi *ARGS:
-    cargo uefi {{ ARGS }}
+    @cd uefi/uefi-loader && cargo build
 
 # Build the UEFI loader (debug build)
 uefi-debug *ARGS:
-    cargo uefi-debug {{ ARGS }}
+    @cd uefi/uefi-loader && cargo build
 
 # Build the UEFI loader (release build)
 uefi-release *ARGS:
-    cargo uefi-release {{ ARGS }}
+    @cd uefi/uefi-loader && cargo build --release
 
 # Build the Kernel (default build)
 kernel *ARGS:
-    cargo kernel {{ ARGS }}
+    @cd kernel/kernel && cargo build
+    @readelf -l target/x86_64-unknown-none/debug/kernel
 
 # Build the Kernel (debug build)
 kernel-debug *ARGS:
-    cargo kernel-debug {{ ARGS }}
+    @cd kernel/kernel && cargo build
+    @readelf -l target/x86_64-unknown-none/debug/kernel
 
 # Build the Kernel (release build)
 kernel-release *ARGS:
-    cargo kernel-release {{ ARGS }}
+    @cd kernel/kernel && cargo build --release
+    @readelf -l target/x86_64-unknown-none/release/kernel
 
 # Ensures the target directory exists.
 [private]
@@ -144,6 +147,18 @@ run-qemu *ARGS: package
       -drive "if=pflash,format=raw,readonly=on,file={{ _ofmv-code-path }}" \
       -drive "if=pflash,format=raw,file={{ _ofmv-local-vars-path }}" \
       -drive "format=raw,file=fat:rw:{{ _esp-local-dir }}" \
-      -debugcon stdio -global isa-debugcon.iobase=0x402 \
+     -debugcon stdio -global isa-debugcon.iobase=0x402 \
       -net none \
+      {{ ARGS }}
+
+# Run the firmware in QEMU using OVMF (no graphic, no debug serial)
+run-qemu-nographic *ARGS: package
+    qemu-system-x86_64 \
+      -machine q35 \
+      -m 256 \
+      -drive "if=pflash,format=raw,readonly=on,file={{ _ofmv-code-path }}" \
+      -drive "if=pflash,format=raw,file={{ _ofmv-local-vars-path }}" \
+      -drive "format=raw,file=fat:rw:{{ _esp-local-dir }}" \
+      -net none \
+      -nographic \
       {{ ARGS }}

@@ -1,0 +1,17 @@
+[package]
+name = "kernel-mmap"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+
+[dependencies]
+kernel-info = { path = "../kernel-info" }
+
+[lints]
+workspace = true
