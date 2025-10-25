@@ -69,6 +69,7 @@
 //! on which level the translation stops.
 
 #![cfg_attr(not(test), no_std)]
+#![allow(unsafe_code)]
 
 mod page_table;
 
@@ -123,6 +124,7 @@ bitflags::bitflags! {
     /// and indicate page status (e.g., accessed or dirty).
     /// They apply to all paging levels (PTE, PDE, PDPTE, PML4E),
     /// except where noted (e.g., `PS` only valid for PDE/PDPTE).
+    #[derive(Copy, Clone)]
     pub struct Flags: u64 {
         /// Page is present in physical memory.
         ///
@@ -240,6 +242,183 @@ const fn pt_index(va: VirtAddr) -> usize {
     ((va.0 >> 12) & 0x1ff) as usize
 }
 
+/// A PML4 page table.
+#[repr(transparent)]
+pub struct Pml4(PageTable);
+
+/// A PDPT page table.
+#[repr(transparent)]
+pub struct Pdpt(PageTable);
+
+/// A PD page table.
+#[repr(transparent)]
+pub struct Pd(PageTable);
+
+/// A PT (leaf) page table.
+#[repr(transparent)]
+pub struct Pt(PageTable);
+
+/// Implement common functionality for page tables.
+macro_rules! table_common {
+    ($T:ty) => {
+        impl $T {
+            #[inline]
+            pub fn zero(&mut self) {
+                self.0.zero()
+            }
+
+            #[inline]
+            pub const fn as_page_table_mut(&mut self) -> &mut PageTable {
+                &mut self.0
+            }
+
+            #[inline]
+            unsafe fn entry_mut(&mut self, idx: usize) -> &mut PageTableEntry {
+                debug_assert!(idx < 512);
+                unsafe { &mut *self.0.as_ptr().add(idx) }
+            }
+        }
+
+        impl AsMut<PageTable> for $T {
+            fn as_mut(&mut self) -> &mut PageTable {
+                &mut self.0
+            }
+        }
+
+        impl From<PageTable> for $T {
+            fn from(pt: PageTable) -> Self {
+                Self(pt)
+            }
+        }
+    };
+}
+
+table_common!(Pml4);
+table_common!(Pdpt);
+table_common!(Pd);
+table_common!(Pt);
+
+/// Map a physical frame as a [`Pml4`] typed table.
+#[inline]
+pub fn as_pml4<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut Pml4 {
+    unsafe { &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<Pml4>() }
+}
+
+/// Map a physical frame as a [`Pdpt`] typed table.
+#[inline]
+pub fn as_pdpt<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut Pdpt {
+    unsafe { &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<Pdpt>() }
+}
+
+/// Map a physical frame as a [`Pd`] typed table.
+#[inline]
+pub fn as_pd<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut Pd {
+    unsafe { &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<Pd>() }
+}
+
+/// Map a physical frame as a [`Pt`] typed table.
+#[inline]
+pub fn as_pt<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut Pt {
+    unsafe { &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<Pt>() }
+}
+
+impl Pml4 {
+    #[inline]
+    pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
+        unsafe { self.entry_mut(pml4_index(va)) }
+    }
+
+    /// Initialize a non-leaf entry to point to a PDPT table.
+    pub fn link_pdpt(&mut self, va: VirtAddr, pdpt_phys: PhysAddr) {
+        let e = self.entry_mut_by_va(va);
+        e.set_present(true);
+        e.set_writable(true);
+        e.set_ps(false);
+        e.set_addr(pdpt_phys.0);
+    }
+}
+
+impl Pdpt {
+    #[inline]
+    pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
+        unsafe { self.entry_mut(pdpt_index(va)) }
+    }
+
+    /// Non-leaf: link to a PD table.
+    pub fn link_pd(&mut self, va: VirtAddr, pd_phys: PhysAddr) {
+        let e = self.entry_mut_by_va(va);
+        e.set_present(true);
+        e.set_writable(true);
+        e.set_ps(false);
+        e.set_addr(pd_phys.0);
+    }
+
+    /// **Leaf (1 GiB):** set PDPTE as 1 GiB mapping.
+    pub fn map_1g_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: Flags) {
+        let e = self.entry_mut_by_va(va);
+        e.set_addr(pa.0);
+        e.set_present(true);
+        e.set_ps(true);
+        e.set_writable(flags.contains(Flags::WRITABLE));
+        e.set_user(flags.contains(Flags::USER));
+        e.set_write_through(flags.contains(Flags::WT));
+        e.set_cache_disable(flags.contains(Flags::CD));
+        e.set_global(flags.contains(Flags::GLOBAL));
+        e.set_nx(flags.contains(Flags::NX));
+    }
+}
+
+impl Pd {
+    #[inline]
+    pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
+        unsafe { self.entry_mut(pd_index(va)) }
+    }
+
+    /// Non-leaf: link to a PT table.
+    pub fn link_pt(&mut self, va: VirtAddr, pt_phys: PhysAddr) {
+        let e = self.entry_mut_by_va(va);
+        e.set_present(true);
+        e.set_writable(true);
+        e.set_ps(false);
+        e.set_addr(pt_phys.0);
+    }
+
+    /// **Leaf (2 MiB):** set PDE as 2 MiB mapping.
+    pub fn map_2m_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: Flags) {
+        let e = self.entry_mut_by_va(va);
+        e.set_addr(pa.0);
+        e.set_present(true);
+        e.set_ps(true);
+        e.set_writable(flags.contains(Flags::WRITABLE));
+        e.set_user(flags.contains(Flags::USER));
+        e.set_write_through(flags.contains(Flags::WT));
+        e.set_cache_disable(flags.contains(Flags::CD));
+        e.set_global(flags.contains(Flags::GLOBAL));
+        e.set_nx(flags.contains(Flags::NX));
+    }
+}
+
+impl Pt {
+    #[inline]
+    pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
+        unsafe { self.entry_mut(pt_index(va)) }
+    }
+
+    /// **Leaf (4 KiB):** set PTE as 4 KiB mapping (no PS).
+    pub fn map_4k_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: Flags) {
+        let e = self.entry_mut_by_va(va);
+        e.set_addr(pa.0);
+        e.set_present(true);
+        e.set_ps(false);
+        e.set_writable(flags.contains(Flags::WRITABLE));
+        e.set_user(flags.contains(Flags::USER));
+        e.set_write_through(flags.contains(Flags::WT));
+        e.set_cache_disable(flags.contains(Flags::CD));
+        e.set_global(flags.contains(Flags::GLOBAL));
+        e.set_nx(flags.contains(Flags::NX));
+    }
+}
+
 /// Handles to key paging structures owned by the caller.
 ///
 /// The minimal thing we track here is the physical address of the **active PML4**.
@@ -270,20 +449,10 @@ unsafe fn entry_mut(tbl: &mut PageTable, idx: usize) -> &mut PageTableEntry {
     unsafe { &mut *tbl.as_ptr().add(idx) }
 }
 
-/// Initialize a non-leaf entry to point to `child_phys` as a lower-level table.
-#[inline]
-fn set_nonleaf_to(entry: &mut PageTableEntry, child_phys: PhysAddr) {
-    entry.set_present(true);
-    entry.set_writable(true);
-    entry.set_ps(false);
-    entry.set_addr(child_phys.0);
-    // leave USER/WT/CD/GLOBAL/NX/ACCESSED/DIRTY at defaults for table pointers
-}
-
 /// Apply `Flags` to a (leaf or non-leaf) entry. For non-leaf tables you typically
 /// keep USER/WT/CD/GLOBAL/NX = false, but we only set bits explicitly present in `flags`.
 #[inline]
-const fn apply_flags(e: &mut PageTableEntry, flags: &Flags, is_leaf_huge: bool) {
+const fn apply_flags(e: &mut PageTableEntry, flags: Flags, is_leaf_huge: bool) {
     if flags.contains(Flags::PRESENT) {
         e.set_present(true);
     }
@@ -341,59 +510,54 @@ pub fn ensure_chain<A: FrameAlloc, M: PhysMapper>(
     va: VirtAddr,
     size: PageSize,
 ) -> Result<(PhysAddr, bool), &'static str> {
-    unsafe {
-        // PML4
-        let pml4 = get_table::<M>(map, root);
-        let i4 = pml4_index(va);
-        let e4 = entry_mut(pml4, i4);
-        let pdpt_phys = if e4.present() {
-            PhysAddr(e4.addr())
-        } else {
-            let f = alloc.alloc_4k().ok_or("OOM for PDPT")?;
-            // Zero the new table
-            get_table::<M>(map, f).zero();
-            set_nonleaf_to(e4, f);
-            f
-        };
+    // PML4
+    let pml4 = as_pml4(map, root);
+    let e4 = pml4.entry_mut_by_va(va);
+    let pdpt_phys = if e4.present() {
+        PhysAddr(e4.addr())
+    } else {
+        let f = alloc.alloc_4k().ok_or("OOM for PDPT")?;
+        as_pdpt(map, f).zero();
+        pml4.link_pdpt(va, f);
+        f
+    };
 
-        // PDPT
-        let pdpt = get_table::<M>(map, pdpt_phys);
-        let i3 = pdpt_index(va);
-        let e3 = entry_mut(pdpt, i3);
-        if matches!(size, PageSize::Size1G) {
-            // Caller will set PS and final flags in the PDPT entry.
-            return Ok((pdpt_phys, true));
-        }
-        let pd_phys = if !e3.present() || e3.ps() {
-            // Either no entry yet or a conflicting huge mapping: allocate a PD.
-            let f = alloc.alloc_4k().ok_or("OOM for PD")?;
-            get_table::<M>(map, f).zero();
-            set_nonleaf_to(e3, f);
-            f
-        } else {
-            PhysAddr(e3.addr())
-        };
-
-        // PD
-        let pd = get_table::<M>(map, pd_phys);
-        let i2 = pd_index(va);
-        let e2 = entry_mut(pd, i2);
-        if matches!(size, PageSize::Size2M) {
-            // Caller will set PS and final flags in the PD entry.
-            return Ok((pd_phys, true));
-        }
-        let pt_phys = if !e2.present() || e2.ps() {
-            // Either no entry yet or a conflicting huge mapping: allocate a PT.
-            let f = alloc.alloc_4k().ok_or("OOM for PT")?;
-            get_table::<M>(map, f).zero();
-            set_nonleaf_to(e2, f);
-            f
-        } else {
-            PhysAddr(e2.addr())
-        };
-
-        Ok((pt_phys, false))
+    // PDPT
+    let pdpt = as_pdpt(map, pdpt_phys);
+    if matches!(size, PageSize::Size1G) {
+        // Caller will fill PDPTE (set PS + final flags).
+        return Ok((pdpt_phys, true));
     }
+    let e3 = pdpt.entry_mut_by_va(va);
+    let pd_phys = if !e3.present() || e3.ps() {
+        // no entry yet OR conflicting 1 GiB leaf → allocate PD
+        let f = alloc.alloc_4k().ok_or("OOM for PD")?;
+        as_pd(map, f).zero();
+        pdpt.link_pd(va, f);
+        f
+    } else {
+        PhysAddr(e3.addr())
+    };
+
+    // PD
+    let pd = as_pd(map, pd_phys);
+    if matches!(size, PageSize::Size2M) {
+        // Caller will fill PDE (set PS + final flags).
+        return Ok((pd_phys, true));
+    }
+    let e2 = pd.entry_mut_by_va(va);
+    let pt_phys = if !e2.present() || e2.ps() {
+        // no entry yet OR conflicting 2 MiB leaf → allocate PT
+        let f = alloc.alloc_4k().ok_or("OOM for PT")?;
+        as_pt(map, f).zero();
+        pd.link_pt(va, f);
+        f
+    } else {
+        PhysAddr(e2.addr())
+    };
+
+    // PT leaf for 4 KiB
+    Ok((pt_phys, false))
 }
 
 /// Map a single page at `va → pa` with `size` and `flags`.
@@ -446,7 +610,7 @@ pub fn map_one<A: FrameAlloc, M: PhysMapper>(
                 let i = pdpt_index(va);
                 let e = entry_mut(pdpt, i);
                 e.set_addr(pa.0);
-                apply_flags(e, &(flags | Flags::PS), true);
+                apply_flags(e, flags | Flags::PS, true);
             }
             PageSize::Size2M => {
                 // PDE leaf: phys bits 51:21, low 21 bits zero.
@@ -454,7 +618,7 @@ pub fn map_one<A: FrameAlloc, M: PhysMapper>(
                 let i = pd_index(va);
                 let e = entry_mut(pd, i);
                 e.set_addr(pa.0);
-                apply_flags(e, &(flags | Flags::PS), true);
+                apply_flags(e, flags | Flags::PS, true);
             }
             PageSize::Size4K => {
                 // PTE leaf: phys bits 51:12, low 12 bits zero.
@@ -462,7 +626,7 @@ pub fn map_one<A: FrameAlloc, M: PhysMapper>(
                 let i = pt_index(va);
                 let e = entry_mut(pt, i);
                 e.set_addr(pa.0);
-                apply_flags(e, &flags, is_huge_leaf);
+                apply_flags(e, flags, is_huge_leaf);
             }
         }
     }
