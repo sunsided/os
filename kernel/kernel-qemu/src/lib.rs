@@ -1,6 +1,6 @@
 //! # Kernel QEMU Helpers
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 #![allow(unsafe_code)]
 
 /// The port number for QEMU's debug port.

@@ -75,6 +75,18 @@ clean:
     @rm -r {{ build-local-dir }} || true
     @cargo clean
 
+# Run test in all projects
+test *ARGS:
+    @cargo test --all-features --lib {{ ARGS }}
+
+# Build and open the docs
+docs:
+    @just build-docs --open
+
+# Build the docs
+build-docs *ARGS:
+    @cargo doc --no-deps --all-features {{ ARGS }}
+
 # Build all packages with default settings
 build: uefi kernel
 

@@ -69,7 +69,7 @@ pub struct ElfHeader {
 impl ElfHeader {
     const EI_MAGIC_BYTES: [u8; 4] = [0x7F, b'E', b'L', b'F'];
 
-    /// Parse a 64-bit little-endian `x86_64` ELF image and collect `PT_LOAD` segments.
+    /// Parse a 64-bit little-endian x86-64 ELF image and collect `PT_LOAD` segments.
     /// Returns `Status::UNSUPPORTED` for any validation or bounds failure.
     pub fn parse_elf64(bytes: &[u8]) -> Result<Self, Status> {
         // Bounds for header

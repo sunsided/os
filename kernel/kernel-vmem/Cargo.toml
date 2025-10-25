@@ -1,5 +1,5 @@
 [package]
-name = "kernel"
+name = "kernel-vmem"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,14 +10,9 @@ keywords.workspace = true
 categories.workspace = true
 license.workspace = true
 
-[features]
-default = ["qemu"]
-qemu = ["dep:kernel-qemu"]
-
 [dependencies]
-kernel-info = { path = "../kernel-info" }
-kernel-qemu = { path = "../../kernel/kernel-qemu", optional = true }
-kernel-vmem = { path = "../../kernel/kernel-vmem" }
+bitfield-struct.workspace = true
+bitflags.workspace = true
 
 [lints]
 workspace = true
