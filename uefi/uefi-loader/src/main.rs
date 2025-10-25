@@ -206,6 +206,7 @@ fn efi_main() -> Status {
     run_kernel(&parsed, boot_info);
 }
 
+/// Jump into the kernel code.
 fn run_kernel(parsed: &ElfHeader, boot_info: &KernelBootInfo) -> ! {
     trace("UEFI is now jumping into Kernel land. Bye, bye ...\n");
     let entry: KernelEntry = unsafe { core::mem::transmute(parsed.entry) };
@@ -213,6 +214,7 @@ fn run_kernel(parsed: &ElfHeader, boot_info: &KernelBootInfo) -> ! {
     entry(bi_ptr)
 }
 
+/// Fetch the Graphics Output Protocol (GOP).
 fn get_gop() -> Result<ScopedProtocol<GraphicsOutput>, uefi::Error> {
     let handle = boot::get_handle_for_protocol::<GraphicsOutput>().map_err(|e| {
         uefi::println!("Failed to get GOP handle: {e:?}");
@@ -226,6 +228,14 @@ fn get_gop() -> Result<ScopedProtocol<GraphicsOutput>, uefi::Error> {
     Ok(gop)
 }
 
+/// Allocate a buffer to hold a copy of the memory map returned from `ExitBootServices`.
+///
+/// This seems to be the opposite of an exact science:
+/// * After boot services were exited, allocation is impossible.
+/// * The number of descriptors changes over time.
+///
+/// As a result, we now overallocate to hopefully have enough headroom
+/// to contain the memory map _after_ exiting.
 fn allocate_mmap_buffer() -> Result<Vec<u8>, Status> {
     const EXTRA_DESCS: usize = 32;
 
