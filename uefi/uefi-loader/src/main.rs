@@ -4,12 +4,16 @@
 #![no_main]
 #![allow(unsafe_code)]
 
-#[cfg(not(all(target_arch = "x86_64", target_vendor = "unknown", target_os = "uefi")))]
-compile_error!("uefi-loader must be built with --target x86_64-unknown-uefi");
-
 use uefi::prelude::*;
 
 #[entry]
 fn main() -> Status {
+    if uefi::helpers::init().is_err() {
+        return Status::UNSUPPORTED;
+    }
+
+    uefi::println!("Hello from UEFI Loader!");
+    boot::stall(1_000_000);
+
     Status::SUCCESS
 }

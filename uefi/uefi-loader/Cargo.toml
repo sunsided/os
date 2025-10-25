@@ -11,7 +11,7 @@ categories.workspace = true
 license.workspace = true
 
 [dependencies]
-uefi = { workspace = true, features = ["panic_handler"] }
+uefi = { workspace = true, features = ["logger", "panic_handler"] }
 
 [lints]
 workspace = true

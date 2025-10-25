@@ -27,9 +27,6 @@ of `cargo build`, or use any of the aliases defined
 in [`.cargo/config.toml`](.cargo/config.toml) (such
 as `cargo uefi-dev`).
 
-The individual packages use compile-time guards to
-ensure that the correct target triple is selected.
-
 ### Example Build Commands
 
 ```sh
