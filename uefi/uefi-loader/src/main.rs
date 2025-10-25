@@ -75,19 +75,24 @@ fn efi_main() -> Status {
 
     // Note: We have not yet loaded segments nor jumped to the kernel.
     // Next step will allocate memory, copy PT_LOAD segments, zero BSS, exit boot services and jump.
+    uefi::println!("Booting kernel ...");
 
     // Exit boot services (must be last UEFI call)
     // After this returns, do not call any UEFI APIs (incl. println!).
-    uefi::println!("Exiting boot services.");
-
     unsafe {
         // You can pass Some(MemoryType) if you want to tag the map allocation differently.
         let _owned_map = boot::exit_boot_services(None);
     }
 
-    // For now, we just return success; jumping will be implemented in the next step.
-    let _ = boot_info; // suppress unused for now
-    Status::SUCCESS
+    // Off we pop.
+    run_kernel(&parsed, &boot_info);
+}
+
+fn run_kernel(parsed: &ElfHeader, boot_info: &BootInfo) -> ! {
+    type KernelEntry = extern "C" fn(*const BootInfo) -> !;
+    let entry: KernelEntry = unsafe { core::mem::transmute(parsed.entry) };
+    let bi_ptr: *const BootInfo = boot_info as *const BootInfo;
+    entry(bi_ptr)
 }
 
 fn get_gop() -> Result<ScopedProtocol<GraphicsOutput>, uefi::Error> {
