@@ -10,11 +10,6 @@ keywords.workspace = true
 categories.workspace = true
 license.workspace = true
 
-[lib]
-# Produce a normal rlib so rustc will also make an ELF executable image for the target.
-# (We will load the ELF segments ourselves in the UEFI loader.)
-crate-type = ["rlib"]
-
 [dependencies]
 
 [lints]

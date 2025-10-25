@@ -54,6 +54,12 @@ pub fn load_file(path: &CStr16) -> Result<Vec<u8>, Status> {
         }
     };
 
+    // Seek back for actual reading
+    if let Err(e) = file.set_position(0) {
+        uefi::println!("Failed to seek to file start: {e:?}");
+        return Err(Status::UNSUPPORTED);
+    }
+
     let Ok(size) = usize::try_from(size) else {
         uefi::println!("Failed to get file size: invalid pointer widths");
         return Err(Status::UNSUPPORTED);

@@ -78,8 +78,12 @@ fn efi_main() -> Status {
     // TODO: Parse ELF64, allocate/load PT_LOAD segments, get `entry_addr` (usize).
     // let entry_addr: usize = ...;
 
+    uefi::println!("UEFI Loader: kernel.elf loaded");
+    boot::stall(1_000_000);
+
     // Exit boot services (must be last UEFI call)
     // After this returns, do not call any UEFI APIs (incl. println!).
+    uefi::println!("Exiting boot services.");
     unsafe {
         // You can pass Some(MemoryType) if you want to tag the map allocation differently.
         let _owned_map = boot::exit_boot_services(None);
