@@ -1,8 +1,8 @@
 //! # GOP for the Kernel
 
-use kernel_info::FramebufferInfo;
+use kernel_info::{BootPixelFormat, BootPixelMasks, FramebufferInfo};
 use uefi::boot::ScopedProtocol;
-use uefi::proto::console::gop::{GraphicsOutput, Mode, PixelFormat};
+use uefi::proto::console::gop::{GraphicsOutput, PixelFormat};
 use uefi::{Status, boot};
 
 /// Fetch an optimal framebuffer for the Kernel.
@@ -21,8 +21,8 @@ pub fn get_framebuffer() -> Result<FramebufferInfo, Status> {
 
     let (framebuffer_format, framebuffer_masks) = match mode.pixel_format() {
         PixelFormat::Rgb => (
-            kernel_info::BootPixelFormat::Rgb,
-            kernel_info::BootPixelMasks {
+            BootPixelFormat::Rgb,
+            BootPixelMasks {
                 red_mask: 0,
                 green_mask: 0,
                 blue_mask: 0,
@@ -30,8 +30,8 @@ pub fn get_framebuffer() -> Result<FramebufferInfo, Status> {
             },
         ),
         PixelFormat::Bgr => (
-            kernel_info::BootPixelFormat::Bgr,
-            kernel_info::BootPixelMasks {
+            BootPixelFormat::Bgr,
+            BootPixelMasks {
                 red_mask: 0,
                 green_mask: 0,
                 blue_mask: 0,
@@ -41,8 +41,8 @@ pub fn get_framebuffer() -> Result<FramebufferInfo, Status> {
         PixelFormat::Bitmask if mode.pixel_bitmask().is_some() => {
             let mask = mode.pixel_bitmask().unwrap();
             (
-                kernel_info::BootPixelFormat::Bitmask,
-                kernel_info::BootPixelMasks {
+                BootPixelFormat::Bitmask,
+                BootPixelMasks {
                     red_mask: mask.red,
                     green_mask: mask.green,
                     blue_mask: mask.blue,

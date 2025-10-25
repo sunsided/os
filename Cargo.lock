@@ -29,6 +29,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "kernel-acpi"
+version = "0.0.0"
+
+[[package]]
 name = "kernel-info"
 version = "0.0.0"
 
@@ -120,6 +124,7 @@ dependencies = [
 name = "uefi-loader"
 version = "0.0.0"
 dependencies = [
+ "kernel-acpi",
  "kernel-info",
  "kernel-qemu",
  "uefi",
