@@ -12,6 +12,7 @@ mod memory;
 use crate::elf::ElfHeader;
 use crate::file_system::load_file;
 use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::vec;
 use kernel_info::{KernelBootInfo, KernelEntry};
 use uefi::boot::{MemoryType, ScopedProtocol};
@@ -19,6 +20,16 @@ use uefi::cstr16;
 use uefi::mem::memory_map::MemoryMap;
 use uefi::prelude::*;
 use uefi::proto::console::gop::{GraphicsOutput, PixelFormat};
+
+fn trace<S>(message: S)
+where
+    S: AsRef<[u8]>,
+{
+    #[cfg(feature = "qemu")]
+    {
+        kernel_qemu::dbg_print(message);
+    }
+}
 
 #[entry]
 #[allow(clippy::too_many_lines)]
@@ -28,11 +39,7 @@ fn efi_main() -> Status {
         return Status::UNSUPPORTED;
     }
 
-    #[cfg(feature = "qemu")]
-    {
-        kernel_qemu::dbg_print("UEFI Loader reporting to QEMU");
-    }
-
+    trace("UEFI Loader reporting to QEMU\n");
     uefi::println!("UEFI Loader: starting up");
 
     let elf_bytes = match load_file(cstr16!("\\EFI\\Boot\\kernel.elf")) {
@@ -143,6 +150,7 @@ fn efi_main() -> Status {
     // Note: We have not yet loaded PT_LOAD segments; jumping may crash until we implement it.
     // Current step exits boot services and jumps to the kernel entry with GOP BootInfo.
     uefi::println!("Booting kernel ...");
+    trace("Booting kernel ...\n");
 
     // Ensure all UEFI protocol guards are dropped before exiting boot services.
     drop(gop); // TODO: Not sure if this is correct!
@@ -162,9 +170,9 @@ fn efi_main() -> Status {
     };
 
     // Pre-allocate a buffer while UEFI allocator is still alive.
-    let mut mmap_copy = vec![0u8; memory_map_size];
+    let mmap_allocated_size = memory_map_size * 2; // TODO: The previous size was incorrect!
+    let mut mmap_copy = vec![0u8; mmap_allocated_size];
     let mmap_copy_ptr = mmap_copy.as_mut_ptr();
-    let mmap_copy_cap = mmap_copy.len();
 
     // Exit boot services — after this, the UEFI allocator must not be used anymore.
     let owned_map = unsafe { boot::exit_boot_services(None) };
@@ -174,10 +182,10 @@ fn efi_main() -> Status {
     let mmap_length = owned_map.buffer().len();
 
     // Safety: ensure the buffer is large enough (or bail/panic in dev builds).
-    assert!(
-        mmap_length <= mmap_copy_cap,
-        "preallocated mmap buffer too small"
-    );
+    if mmap_length > mmap_allocated_size {
+        trace("Memory map size assertion failed\n");
+        return Status::BUFFER_TOO_SMALL;
+    }
     unsafe {
         core::ptr::copy_nonoverlapping(src, mmap_copy_ptr, mmap_length);
     }
@@ -196,6 +204,7 @@ fn efi_main() -> Status {
 }
 
 fn run_kernel(parsed: &ElfHeader, boot_info: &KernelBootInfo) -> ! {
+    trace("UEFI is now jumping into Kernel land. Bye, bye ...\n");
     let entry: KernelEntry = unsafe { core::mem::transmute(parsed.entry) };
     let bi_ptr: *const KernelBootInfo = boot_info as *const KernelBootInfo;
     entry(bi_ptr)

@@ -178,17 +178,16 @@ pub fn load_pt_load_segments(elf_bytes: &[u8], hdr: &ElfHeader) -> Result<(), St
         let ptr =
             boot::allocate_pages(AllocateType::Address(alloc_start), mem_type, pages as usize)
                 .map_err(|_| Status::UNSUPPORTED)?;
-        if ptr.as_ptr() as u64 != alloc_start {
-            return Err(Status::UNSUPPORTED);
-        }
+        // Compute the in-segment base pointer based on what firmware returned.
+        // We requested [alloc_start, alloc_end), so seg_start may be inside that range.
+        let base = ptr.as_ptr() as u64;
+        let in_seg_off = seg_start - alloc_start; // safe: seg_start >= alloc_start by construction
+        let dst_seg_ptr = (base + in_seg_off) as *mut u8;
 
-        // Zero initialize the in-memory size
+        // Zero initialize the in-memory size for this segment (.bss etc.)
+        let mem_len = usize::try_from(seg.memsz).map_err(|_| Status::UNSUPPORTED)?;
         unsafe {
-            ptr::write_bytes(
-                seg_start as *mut u8,
-                0,
-                usize::try_from(seg.memsz).unwrap_or_default(), // TODO: Replace this unwrap with a proper error
-            );
+            ptr::write_bytes(dst_seg_ptr, 0, mem_len);
         }
 
         // Copy file payload if any
@@ -200,11 +199,7 @@ pub fn load_pt_load_segments(elf_bytes: &[u8], hdr: &ElfHeader) -> Result<(), St
                 return Err(Status::UNSUPPORTED);
             }
             unsafe {
-                ptr::copy_nonoverlapping(
-                    elf_bytes.as_ptr().add(src_off),
-                    seg.vaddr as *mut u8,
-                    file_len,
-                );
+                ptr::copy_nonoverlapping(elf_bytes.as_ptr().add(src_off), dst_seg_ptr, file_len);
             }
         }
     }
