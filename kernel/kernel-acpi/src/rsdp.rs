@@ -1,6 +1,6 @@
 //! # RSDP/XSDP (Root/Extended System Description Pointer)
 
-use crate::{PhysMap, sum};
+use crate::{PhysMapRo, sum};
 
 pub struct AcpiRoots {
     pub rsdp_addr: u64,
@@ -42,7 +42,7 @@ impl AcpiRoots {
     /// It validates the supported ACPI 1.0/2.0 variants by revision and checksum/extended checksum.
     #[must_use]
     #[allow(clippy::similar_names)]
-    pub unsafe fn parse(map: &impl PhysMap, rsdp_addr: u64) -> Option<Self> {
+    pub unsafe fn parse(map: &impl PhysMapRo, rsdp_addr: u64) -> Option<Self> {
         if rsdp_addr == 0 {
             return None;
         }

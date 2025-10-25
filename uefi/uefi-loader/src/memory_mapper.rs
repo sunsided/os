@@ -1,11 +1,11 @@
 //! # Physical Memory Mapper
 
 use core::{ptr::NonNull, slice};
-use kernel_acpi::PhysMap;
+use kernel_acpi::PhysMapRo;
 
 pub struct UefiIdentityMapper;
 
-impl PhysMap for UefiIdentityMapper {
+impl PhysMapRo for UefiIdentityMapper {
     /// # Safety
     /// We're just assuming here that this operation is safe.
     unsafe fn map_ro<'a>(&self, paddr: u64, len: usize) -> &'a [u8] {
