@@ -71,10 +71,12 @@
 #![cfg_attr(not(test), no_std)]
 #![allow(unsafe_code)]
 
+mod address_space;
 mod page_table;
 
 extern crate alloc;
 
+pub use crate::address_space::AddressSpace;
 pub use crate::page_table::{PageTable, PageTableEntry};
 
 /// A memory address as it is used in pointers.
@@ -641,6 +643,7 @@ pub fn map_one<A: FrameAlloc, M: PhysMapper>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::address_space::AddressSpace;
     use alloc::vec::Vec;
 
     /// A trivial **bump** allocator: always hands out the next 4 KiB frame.
@@ -735,21 +738,21 @@ mod tests {
         unsafe {
             get_table(&phys, root_pa).zero();
         }
+        let aspace = AddressSpace::new(&phys, root_pa);
 
         // Pick a virtual+physical pair for mapping (must be 4 KiB aligned).
         let va = VirtAddr(0xffff_8000_0000_0000); // arbitrary higher-half VA
         let pa = PhysAddr(0x0000_0000_0030_0000); // 3 * 2^20 = 3 MiB, aligned to 4 KiB
 
-        map_one(
-            &mut alloc,
-            &phys,
-            root_pa,
-            va,
-            pa,
-            PageSize::Size4K,
-            Flags::WRITABLE | Flags::GLOBAL | Flags::NX,
-        )
-        .unwrap();
+        aspace
+            .map_one(
+                &mut alloc,
+                va,
+                pa,
+                PageSize::Size4K,
+                Flags::WRITABLE | Flags::GLOBAL | Flags::NX,
+            )
+            .expect("map_one");
 
         unsafe {
             // Walk the tables again and verify entries were created and look sane.
@@ -796,19 +799,13 @@ mod tests {
         unsafe {
             get_table(&phys, root_pa).zero();
         }
+        let aspace = AddressSpace::new(&phys, root_pa);
 
         let va = VirtAddr(0xffff_8000_2000_0000); // arbitrary VA aligned to 2 MiB
         let pa = PhysAddr(0x0000_0000_0400_0000); // 64 MiB (aligned to 2 MiB)
-        map_one(
-            &mut alloc,
-            &phys,
-            root_pa,
-            va,
-            pa,
-            PageSize::Size2M,
-            Flags::WRITABLE,
-        )
-        .unwrap();
+        aspace
+            .map_one(&mut alloc, va, pa, PageSize::Size2M, Flags::WRITABLE)
+            .expect("map_one");
 
         unsafe {
             let pml4 = get_table(&phys, root_pa);
@@ -833,19 +830,13 @@ mod tests {
         unsafe {
             get_table(&phys, root_pa).zero();
         }
+        let aspace = AddressSpace::new(&phys, root_pa);
 
         let va = VirtAddr(0x0000_4000_0000_0000); // arbitrary VA aligned to 1 GiB
         let pa = PhysAddr(0x0000_0000_4000_0000); // 1 GiB (aligned to 1 GiB)
-        map_one(
-            &mut alloc,
-            &phys,
-            root_pa,
-            va,
-            pa,
-            PageSize::Size1G,
-            Flags::WRITABLE,
-        )
-        .unwrap();
+        aspace
+            .map_one(&mut alloc, va, pa, PageSize::Size1G, Flags::WRITABLE)
+            .expect("map_one");
 
         unsafe {
             // Walk to PDPT and verify leaf with PS=1.
