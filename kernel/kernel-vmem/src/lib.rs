@@ -3,13 +3,12 @@
 //! Minimal x86-64 paging helpers for a hobby OS loader/kernel.
 //!
 //! ## What you get
+//! - An [`address space`](address_space) describing a `PML4` root page table.
 //! - Tiny [`PhysAddr`]/[`VirtAddr`] newtypes (u64) to avoid mixing address kinds.
 //! - A [`PageSize`] enum for 4 KiB / 2 MiB / 1 GiB mappings.
 //! - x86-64 page-table [`Flags`] with practical explanations.
 //! - A 4 KiB-aligned [`PageTable`] wrapper and index helpers.
 //! - A tiny allocator/mapper interface ([`FrameAlloc`], [`PhysMapper`]).
-//! - [`ensure_chain`] to allocate missing intermediate tables on the path.
-//! - [`map_one`] to create a single mapping of any supported page size.
 //!
 //! ## x86-64 Virtual Address → Physical Address Walk
 //!
@@ -71,7 +70,7 @@
 #![cfg_attr(not(test), no_std)]
 #![allow(unsafe_code)]
 
-mod address_space;
+pub mod address_space;
 mod page_table;
 
 extern crate alloc;
