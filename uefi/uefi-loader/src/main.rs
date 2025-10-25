@@ -4,14 +4,12 @@
 #![no_main]
 #![allow(unsafe_code, dead_code)]
 
+mod file_system;
 mod memory;
 
-extern crate alloc;
-
-use alloc::vec;
+use crate::file_system::load_file;
 use uefi::cstr16;
 use uefi::prelude::*;
-use uefi::proto::media::file::{File, FileAttribute, FileMode, RegularFile};
 
 #[repr(C)]
 pub struct BootInfo {
@@ -69,70 +67,13 @@ fn efi_main() -> Status {
 
     uefi::println!("UEFI Loader: starting up");
 
-    let image_handle = boot::image_handle();
-    let mut sfs = match boot::get_image_file_system(image_handle) {
-        Ok(fs) => fs,
-        Err(e) => {
-            uefi::println!("Failed to get file system: {e:?}");
-            return Status::UNSUPPORTED;
+    let elf_bytes = match load_file(cstr16!("\\EFI\\Boot\\kernel.elf")) {
+        Ok(bytes) => bytes,
+        Err(status) => {
+            uefi::println!("Failed to load kernel.elf. Exiting.");
+            return status;
         }
     };
-
-    let mut dir = match sfs.open_volume() {
-        Ok(dir) => dir,
-        Err(e) => {
-            uefi::println!("Failed to open root directory: {e:?}");
-            return Status::UNSUPPORTED;
-        }
-    };
-
-    let path = cstr16!("\\EFI\\Boot\\kernel.elf");
-    let handle = match dir.open(path, FileMode::Read, FileAttribute::empty()) {
-        Ok(handle) => handle,
-        Err(e) => {
-            uefi::println!("Failed to read kernel.elf: {e:?}");
-            return Status::UNSUPPORTED;
-        }
-    };
-
-    let Some(mut file) = handle.into_regular_file() else {
-        uefi::println!("Failed to read kernel.elf: not a file");
-        return Status::UNSUPPORTED;
-    };
-
-    // Get file size
-    if let Err(e) = file.set_position(RegularFile::END_OF_FILE) {
-        uefi::println!("Failed to seek to file end: {e:?}");
-        return Status::UNSUPPORTED;
-    }
-
-    let size = match file.get_position() {
-        Ok(size) => size,
-        Err(e) => {
-            uefi::println!("Failed to get file size: {e:?}");
-            return Status::UNSUPPORTED;
-        }
-    };
-
-    let Ok(size) = usize::try_from(size) else {
-        uefi::println!("Failed to get file size: invalid pointer widths");
-        return Status::UNSUPPORTED;
-    };
-
-    // Provide a buffer for the file contents
-    let mut buf = vec![0u8; size];
-    let read = match file.read(&mut buf) {
-        Ok(size) => size,
-        Err(e) => {
-            uefi::println!("Failed to read file contents: {e:?}");
-            return Status::UNSUPPORTED;
-        }
-    };
-
-    if read != size {
-        uefi::println!("Mismatch in file size: read {read} bytes, expected {size} bytes");
-        return Status::UNSUPPORTED;
-    }
 
     // TODO: Parse ELF64, allocate/load PT_LOAD segments, get `entry_addr` (usize).
     // let entry_addr: usize = ...;
