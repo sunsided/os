@@ -14,10 +14,11 @@ mod rsdp;
 use crate::elf::ElfHeader;
 use crate::file_system::load_file;
 use crate::framebuffer::get_framebuffer;
-use crate::rsdp::{find_rsdp_addr, validate_rsdp};
+use crate::rsdp::find_rsdp_addr;
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
+use kernel_acpi::validate_rsdp;
 use kernel_info::{KernelBootInfo, KernelEntry, MemoryMapInfo};
 use uefi::boot::MemoryType;
 use uefi::cstr16;
@@ -104,7 +105,7 @@ fn efi_main() -> Status {
     #[cfg(feature = "qemu")]
     {
         if rsdp_addr != 0 {
-            let ok = unsafe { validate_rsdp(rsdp_addr) };
+            let ok = unsafe { validate_rsdp(rsdp_addr).is_some() };
             if !ok {
                 trace("RSDP checksum fail; ignoring\n");
                 rsdp_addr = 0;
