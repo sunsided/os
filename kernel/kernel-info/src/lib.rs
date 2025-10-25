@@ -3,23 +3,28 @@
 #![no_std]
 #![deny(unsafe_code)]
 
-pub type KernelEntry = extern "C" fn(*const KernelBootInfo) -> !;
+/// Kernel function pointer.
+///
+/// # ABI
+/// The ABI is defined as `win64` since the kernel is called from a UEFI
+/// (PE/COFF) application.
+pub type KernelEntry = extern "win64" fn(*const KernelBootInfo) -> !;
 
 /// Information the kernel needs right after `ExitBootServices`.
-/// Keep this `#[repr(C)]` and prefer fixed-size integers over `usize` at the ABI boundary.
+/// Keep this `#[repr(C)]` and prefer fixed-size integers over `u64` at the ABI boundary.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct KernelBootInfo {
     // ---------------- Memory map (optional but recommended) ----------------
     /// Pointer to the raw UEFI memory map buffer (array of `EFI_MEMORY_DESCRIPTOR` bytes).
     /// Pass 0 if you’re not handing the map to the kernel yet.
-    pub mmap_ptr: usize,
+    pub mmap_ptr: u64,
 
     /// Length of the memory map buffer in **bytes**.
-    pub mmap_len: usize,
+    pub mmap_len: u64,
 
     /// Size of a single memory descriptor in bytes (`EFI_MEMORY_DESCRIPTOR_VERSION` dependent).
-    pub mmap_desc_size: usize,
+    pub mmap_desc_size: u64,
 
     /// Descriptor version (from UEFI). Kernel can check it matches expectations.
     pub mmap_desc_version: u32,
@@ -30,19 +35,19 @@ pub struct KernelBootInfo {
 
     // ---------------- Framebuffer ----------------
     /// Linear framebuffer base address (CPU physical address). Valid to write after `ExitBootServices`.
-    pub framebuffer_ptr: usize,
+    pub framebuffer_ptr: u64,
 
     /// Total framebuffer size in **bytes**. Helpful for bounds checks.
-    pub framebuffer_size: usize,
+    pub framebuffer_size: u64,
 
     /// Visible width in **pixels**.
-    pub framebuffer_width: usize,
+    pub framebuffer_width: u64,
 
     /// Visible height in **pixels**.
-    pub framebuffer_height: usize,
+    pub framebuffer_height: u64,
 
     /// Pixels per scanline (a.k.a. stride). May be >= width due to padding.
-    pub framebuffer_stride: usize,
+    pub framebuffer_stride: u64,
 
     /// Pixel format tag (Rgb/Bgr/Bitmask/BltOnly). If `BltOnly`, you cannot draw directly.
     pub framebuffer_format: BootPixelFormat,

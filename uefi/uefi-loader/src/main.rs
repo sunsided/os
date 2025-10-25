@@ -31,13 +31,23 @@ where
     }
 }
 
-fn trace_num<N>(number: N)
+fn trace_usize<N>(number: N)
 where
     N: Into<usize>,
 {
     #[cfg(feature = "qemu")]
     {
         kernel_qemu::dbg_print_usize(number);
+    }
+}
+
+fn trace_u64<N>(number: N)
+where
+    N: Into<u64>,
+{
+    #[cfg(feature = "qemu")]
+    {
+        kernel_qemu::dbg_print_u64(number);
     }
 }
 
@@ -137,11 +147,11 @@ fn efi_main() -> Status {
     let rsdp_addr: u64 = /* find via config tables, else 0 */ 0;
 
     let boot_info = KernelBootInfo {
-        framebuffer_ptr: framebuffer_ptr as usize,
-        framebuffer_size,
-        framebuffer_width,
-        framebuffer_height,
-        framebuffer_stride,
+        framebuffer_ptr: framebuffer_ptr as u64,
+        framebuffer_size: framebuffer_size as u64,
+        framebuffer_width: framebuffer_width as u64,
+        framebuffer_height: framebuffer_height as u64,
+        framebuffer_stride: framebuffer_stride as u64,
         framebuffer_format,
         framebuffer_masks,
         // Memory map fields — fill right after exit_boot_services returns the owned map:
@@ -184,9 +194,9 @@ fn efi_main() -> Status {
     // Safety: ensure the buffer is large enough (or bail/panic in dev builds).
     if mmap_length > mmap_copy.len() {
         trace("Memory map size assertion failed: Expected ");
-        trace_num(mmap_copy.len());
+        trace_usize(mmap_copy.len());
         trace(", got ");
-        trace_num(mmap_length);
+        trace_usize(mmap_length);
         return Status::BUFFER_TOO_SMALL;
     }
     unsafe {
@@ -194,9 +204,9 @@ fn efi_main() -> Status {
     }
 
     // Fill BootInfo with the copy.
-    boot_info.mmap_ptr = mmap_copy_ptr as usize;
-    boot_info.mmap_len = mmap_length;
-    boot_info.mmap_desc_size = owned_map.meta().desc_size;
+    boot_info.mmap_ptr = mmap_copy_ptr as u64;
+    boot_info.mmap_len = mmap_length as u64;
+    boot_info.mmap_desc_size = owned_map.meta().desc_size as u64;
     boot_info.mmap_desc_version = owned_map.meta().desc_version;
 
     // Ensure the memory map copy continues to exist.
@@ -208,7 +218,8 @@ fn efi_main() -> Status {
 
 /// Jump into the kernel code.
 fn run_kernel(parsed: &ElfHeader, boot_info: &KernelBootInfo) -> ! {
-    trace("UEFI is now jumping into Kernel land. Bye, bye ...\n");
+    trace_boot_info(boot_info);
+    trace("UEFI is now jumping into Kernel land. Ciao Kakao ...\n");
     let entry: KernelEntry = unsafe { core::mem::transmute(parsed.entry) };
     let bi_ptr: *const KernelBootInfo = boot_info as *const KernelBootInfo;
     entry(bi_ptr)
@@ -261,4 +272,40 @@ fn allocate_mmap_buffer() -> Result<Vec<u8>, Status> {
     // Pre-allocate a buffer while UEFI allocator is still alive.
     let buf = vec![0u8; needed_size];
     Ok(buf)
+}
+
+fn trace_boot_info(boot_info: &KernelBootInfo) {
+    trace("Boot Info in UEFI Loader:\n");
+    trace("   BI ptr = ");
+    trace_usize(core::ptr::from_ref(boot_info) as usize);
+    trace("\n");
+    trace(" MMAP ptr = ");
+    trace_u64(boot_info.mmap_ptr);
+    trace(", MMAP len = ");
+    trace_u64(boot_info.mmap_len);
+    trace(", MMAP desc size = ");
+    trace_u64(boot_info.mmap_desc_size);
+    trace(", MMAP desc version = ");
+    trace_usize(usize::try_from(boot_info.mmap_desc_version).unwrap_or_default());
+    trace(", rsdp addr = ");
+    trace_usize(usize::try_from(boot_info.mmap_desc_version).unwrap_or_default());
+    trace("\n");
+    trace("   FB ptr = ");
+    trace_u64(boot_info.framebuffer_ptr);
+    trace(", FB size = ");
+    trace_u64(boot_info.framebuffer_size);
+    trace(", FB width = ");
+    trace_u64(boot_info.framebuffer_width);
+    trace(", FB height = ");
+    trace_u64(boot_info.framebuffer_height);
+    trace(", FB stride = ");
+    trace_u64(boot_info.framebuffer_stride);
+    trace(", FB format = ");
+    match boot_info.framebuffer_format {
+        kernel_info::BootPixelFormat::Rgb => trace("RGB"),
+        kernel_info::BootPixelFormat::Bgr => trace("BGR"),
+        kernel_info::BootPixelFormat::Bitmask => trace("Bitmask"),
+        kernel_info::BootPixelFormat::BltOnly => trace("BltOnly"),
+    }
+    trace("\n");
 }

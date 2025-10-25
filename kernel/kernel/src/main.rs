@@ -30,6 +30,11 @@ static mut BOOT_STACK: Aligned<BOOT_STACK_SIZE> = Aligned([0; BOOT_STACK_SIZE]);
 /// # UEFI Interaction
 /// The UEFI loader will jump here after `ExitBootServices`.
 ///
+/// # ABI
+/// The ABI is defined as `win64` since the kernel is called from a UEFI
+/// (PE/COFF) application. This passes the `boot_info` pointer as `RCX`
+/// (as opposed to `RDI` for the SysV ABI).
+///
 /// # Naked function & Stack
 /// This is a naked function in order to set up the stack ourselves. Without
 /// the `naked` attribute (and the [`naked_asm`](core::arch::naked_asm) instruction), Rust
@@ -38,15 +43,24 @@ static mut BOOT_STACK: Aligned<BOOT_STACK_SIZE> = Aligned([0; BOOT_STACK_SIZE]);
 /// here, this would cause UB.
 #[unsafe(no_mangle)]
 #[unsafe(naked)]
-pub unsafe extern "C" fn _start_kernel(_boot_info: *const KernelBootInfo) {
+pub unsafe extern "win64" fn _start_kernel(_boot_info: *const KernelBootInfo) {
     core::arch::naked_asm!(
         "cli",
-        "lea rax, [rip + {stack_sym}]", // load effective address of BOOT_STACK into rax
-        "add rax, {stack_size}",        // rax = &BOOT_STACK + BOOT_STACK_SIZE
-        "mov rsp, rax",                 // switch stack to top of BOOT_STACK
-        "xor rbp, rbp",                 // clear frame pointer
-        // keep boot_info in RDI
-        "jmp {rust_entry}",             // jump to main entry point (and never return)
+
+        // save RCX (boot_info per Win64)
+        "mov r12, rcx",
+
+        // Build our stack
+        "lea rax, [rip + {stack_sym}]",
+        "add rax, {stack_size}",
+        "mov rsp, rax",
+        "xor rbp, rbp",
+
+        // Restore boot_info into the expected arg register (SysV/C ABI)
+        "mov rdi, r12",
+
+        // Jump to Rust entry and never return
+        "jmp {rust_entry}",
         stack_sym = sym BOOT_STACK,
         stack_size = const BOOT_STACK_SIZE,
         rust_entry = sym kernel_entry,
@@ -73,6 +87,7 @@ fn kernel_main(bi: &KernelBootInfo) -> ! {
     #[cfg(feature = "qemu")]
     {
         kernel_qemu::dbg_print("Entering Kernel main loop ...\n");
+        trace_boot_info(bi);
     }
 
     #[cfg(feature = "qemu")]
@@ -99,6 +114,7 @@ pub unsafe fn fill_solid(bi: &KernelBootInfo, r: u8, g: u8, b: u8) {
         let mut p = bi.framebuffer_ptr as *mut u8;
         let bpp = 4; // common on PC GOP; for Bitmask you could compute bpp from masks
         let row_bytes = bi.framebuffer_stride * bpp;
+        let row_bytes = usize::try_from(row_bytes).unwrap_or_default(); // TODO: Use a panic here
 
         for _y in 0..bi.framebuffer_height {
             let mut row = p;
@@ -125,4 +141,45 @@ pub unsafe fn fill_solid(bi: &KernelBootInfo, r: u8, g: u8, b: u8) {
             p = p.add(row_bytes);
         }
     }
+}
+
+#[cfg(feature = "qemu")]
+fn trace_boot_info(boot_info: &KernelBootInfo) {
+    use kernel_qemu::dbg_print as trace;
+    use kernel_qemu::dbg_print_u64 as trace_num;
+    use kernel_qemu::dbg_print_usize as trace_usize;
+
+    trace("Boot Info in Kernel:\n");
+    trace("   BI ptr = ");
+    trace_usize(core::ptr::from_ref(boot_info) as usize);
+    trace("\n");
+    trace(" MMAP ptr = ");
+    trace_num(boot_info.mmap_ptr);
+    trace(", MMAP len = ");
+    trace_num(boot_info.mmap_len);
+    trace(", MMAP desc size = ");
+    trace_num(boot_info.mmap_desc_size);
+    trace(", MMAP desc version = ");
+    trace_num(boot_info.mmap_desc_version);
+    trace(", rsdp addr = ");
+    trace_num(boot_info.mmap_desc_version);
+    trace("\n");
+    trace("   FB ptr = ");
+    trace_num(boot_info.framebuffer_ptr);
+    trace(", FB size = ");
+    trace_num(boot_info.framebuffer_size);
+    trace(", FB width = ");
+    trace_num(boot_info.framebuffer_width);
+    trace(", FB height = ");
+    trace_num(boot_info.framebuffer_height);
+    trace(", FB stride = ");
+    trace_num(boot_info.framebuffer_stride);
+    trace(", FB format = ");
+    match boot_info.framebuffer_format {
+        kernel_info::BootPixelFormat::Rgb => trace("RGB"),
+        kernel_info::BootPixelFormat::Bgr => trace("BGR"),
+        kernel_info::BootPixelFormat::Bitmask => trace("Bitmask"),
+        kernel_info::BootPixelFormat::BltOnly => trace("BltOnly"),
+    }
+    trace("\n");
 }
