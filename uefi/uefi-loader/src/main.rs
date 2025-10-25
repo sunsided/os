@@ -10,19 +10,11 @@ mod memory;
 
 use crate::elf::ElfHeader;
 use crate::file_system::load_file;
+use kernel_info::{KernelBootInfo, KernelEntry};
 use uefi::boot::ScopedProtocol;
 use uefi::cstr16;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
-
-#[repr(C)]
-pub struct BootInfo {
-    pub framebuffer_ptr: u64,
-    pub framebuffer_width: usize,
-    pub framebuffer_height: usize,
-    pub framebuffer_stride: usize,
-    pub reserved: u32,
-}
 
 #[entry]
 fn efi_main() -> Status {
@@ -65,7 +57,7 @@ fn efi_main() -> Status {
 
     let mode = gop.current_mode_info();
     let mut fb = gop.frame_buffer();
-    let boot_info = BootInfo {
+    let boot_info = KernelBootInfo {
         framebuffer_ptr: fb.as_mut_ptr() as u64,
         framebuffer_width: mode.resolution().0,
         framebuffer_height: mode.resolution().1,
@@ -73,9 +65,12 @@ fn efi_main() -> Status {
         reserved: 0,
     };
 
-    // Note: We have not yet loaded segments nor jumped to the kernel.
-    // Next step will allocate memory, copy PT_LOAD segments, zero BSS, exit boot services and jump.
+    // Note: We have not yet loaded PT_LOAD segments; jumping may crash until we implement it.
+    // Current step exits boot services and jumps to the kernel entry with GOP BootInfo.
     uefi::println!("Booting kernel ...");
+
+    // Ensure all UEFI protocol guards are dropped before exiting boot services.
+    drop(gop);
 
     // Exit boot services (must be last UEFI call)
     // After this returns, do not call any UEFI APIs (incl. println!).
@@ -88,10 +83,9 @@ fn efi_main() -> Status {
     run_kernel(&parsed, &boot_info);
 }
 
-fn run_kernel(parsed: &ElfHeader, boot_info: &BootInfo) -> ! {
-    type KernelEntry = extern "C" fn(*const BootInfo) -> !;
+fn run_kernel(parsed: &ElfHeader, boot_info: &KernelBootInfo) -> ! {
     let entry: KernelEntry = unsafe { core::mem::transmute(parsed.entry) };
-    let bi_ptr: *const BootInfo = boot_info as *const BootInfo;
+    let bi_ptr: *const KernelBootInfo = boot_info as *const KernelBootInfo;
     entry(bi_ptr)
 }
 

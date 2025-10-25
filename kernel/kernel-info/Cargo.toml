@@ -1,5 +1,5 @@
 [package]
-name = "kernel"
+name = "kernel-info"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,7 +11,6 @@ categories.workspace = true
 license.workspace = true
 
 [dependencies]
-kernel-info = { path = "../kernel-info" }
 
 [lints]
 workspace = true

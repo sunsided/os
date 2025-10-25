@@ -5,15 +5,7 @@
 #![allow(unsafe_code)]
 
 use core::hint::spin_loop;
-
-#[repr(C)]
-pub struct BootInfo {
-    pub framebuffer_ptr: u64,
-    pub framebuffer_width: usize,
-    pub framebuffer_height: usize,
-    pub framebuffer_stride: usize,
-    pub reserved: u32,
-}
+use kernel_info::KernelBootInfo;
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -33,7 +25,7 @@ static mut BOOT_STACK: Aligned<BOOT_STACK_SIZE> = Aligned([0; BOOT_STACK_SIZE]);
 
 /// Our kernel entry point symbol. The UEFI loader will jump here *after* `ExitBootServices`.
 #[unsafe(no_mangle)]
-pub extern "C" fn _start_kernel(_boot_info: *const BootInfo) -> ! {
+pub extern "C" fn _start_kernel(_boot_info: *const KernelBootInfo) -> ! {
     unsafe {
         let base: *mut u8 = core::ptr::addr_of_mut!(BOOT_STACK).cast();
         let top = base.add(BOOT_STACK_SIZE);

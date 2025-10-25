@@ -11,6 +11,7 @@ categories.workspace = true
 license.workspace = true
 
 [dependencies]
+kernel-info = { path = "../../kernel/kernel-info" }
 uefi = { workspace = true, features = ["alloc", "panic_handler"] }
 
 [lints]
