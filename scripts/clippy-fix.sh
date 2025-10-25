@@ -15,6 +15,6 @@ find . -type f -name Cargo.toml | while read -r cargo_toml; do
   echo "Running clippy --fix in $dir"
   (
     cd "$dir"
-    cargo clippy --fix --allow-staged --allow-staged --all-features "$@"
+    cargo clippy --fix --allow-staged --all-features "$@"
   )
 done

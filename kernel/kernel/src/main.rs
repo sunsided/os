@@ -9,9 +9,9 @@ use core::hint::spin_loop;
 #[repr(C)]
 pub struct BootInfo {
     pub framebuffer_ptr: u64,
-    pub framebuffer_width: u32,
-    pub framebuffer_height: u32,
-    pub framebuffer_stride: u32,
+    pub framebuffer_width: usize,
+    pub framebuffer_height: usize,
+    pub framebuffer_stride: usize,
     pub reserved: u32,
 }
 
