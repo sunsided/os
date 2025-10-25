@@ -134,5 +134,6 @@ run-qemu *ARGS: package
       -drive "if=pflash,format=raw,readonly=on,file={{ _ofmv-code-path }}" \
       -drive "if=pflash,format=raw,file={{ _ofmv-local-vars-path }}" \
       -drive "format=raw,file=fat:rw:{{ _esp-local-dir }}" \
+      -debugcon stdio -global isa-debugcon.iobase=0x402 \
       -net none \
       {{ ARGS }}

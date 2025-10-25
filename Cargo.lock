@@ -25,10 +25,15 @@ name = "kernel"
 version = "0.0.0"
 dependencies = [
  "kernel-info",
+ "kernel-qemu",
 ]
 
 [[package]]
 name = "kernel-info"
+version = "0.0.0"
+
+[[package]]
+name = "kernel-qemu"
 version = "0.0.0"
 
 [[package]]
@@ -116,6 +121,7 @@ name = "uefi-loader"
 version = "0.0.0"
 dependencies = [
  "kernel-info",
+ "kernel-qemu",
  "uefi",
 ]
 

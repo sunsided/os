@@ -2,8 +2,14 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use core::mem::size_of;
-use core::ptr::read_unaligned;
+use core::ptr::{self, read_unaligned};
 use uefi::Status;
+use uefi::boot::{self, AllocateType, MemoryType};
+
+const PAGE_SIZE: u64 = 4096;
+const PF_X: u32 = 0x1;
+const PF_W: u32 = 0x2;
+const PF_R: u32 = 0x4;
 
 // Minimal ELF64 definitions
 #[repr(C)]
@@ -126,4 +132,82 @@ impl ElfHeader {
             segments,
         })
     }
+}
+
+#[allow(clippy::inline_always)]
+#[inline(always)]
+fn align_down(x: u64, a: u64) -> u64 {
+    debug_assert!(a.is_power_of_two());
+    x & !(a - 1)
+}
+
+#[allow(clippy::inline_always)]
+#[inline(always)]
+fn align_up(x: u64, a: u64) -> u64 {
+    debug_assert!(a.is_power_of_two());
+    (x + a - 1) & !(a - 1)
+}
+
+/// Load all `PT_LOAD` segments into memory at their virtual addresses.
+/// Returns `UNSUPPORTED` if exact address allocation fails or bounds are invalid.
+pub fn load_pt_load_segments(elf_bytes: &[u8], hdr: &ElfHeader) -> Result<(), Status> {
+    for seg in &hdr.segments {
+        if seg.memsz == 0 {
+            continue;
+        }
+
+        // Calculate page-aligned allocation range that fully covers the segment
+        let seg_start = seg.vaddr;
+        let seg_end = seg
+            .vaddr
+            .checked_add(seg.memsz)
+            .ok_or(Status::UNSUPPORTED)?;
+        let alloc_start = align_down(seg_start, PAGE_SIZE);
+        let alloc_end = align_up(seg_end, PAGE_SIZE);
+        let pages = (alloc_end - alloc_start) / PAGE_SIZE;
+
+        // Executable segments in LOADER_CODE, others in LOADER_DATA
+        let mem_type = if (seg.flags & PF_X) != 0 {
+            MemoryType::LOADER_CODE
+        } else {
+            MemoryType::LOADER_DATA
+        };
+
+        // Reserve the exact address range
+        // UEFI allocate_pages returns a pointer to the allocated region.
+        let ptr =
+            boot::allocate_pages(AllocateType::Address(alloc_start), mem_type, pages as usize)
+                .map_err(|_| Status::UNSUPPORTED)?;
+        if ptr.as_ptr() as u64 != alloc_start {
+            return Err(Status::UNSUPPORTED);
+        }
+
+        // Zero initialize the in-memory size
+        unsafe {
+            ptr::write_bytes(
+                seg_start as *mut u8,
+                0,
+                usize::try_from(seg.memsz).unwrap_or_default(), // TODO: Replace this unwrap with a proper error
+            );
+        }
+
+        // Copy file payload if any
+        if seg.filesz != 0 {
+            let src_off = usize::try_from(seg.offset).map_err(|_| Status::UNSUPPORTED)?;
+            let file_len = usize::try_from(seg.filesz).map_err(|_| Status::UNSUPPORTED)?;
+            let src_end = src_off.checked_add(file_len).ok_or(Status::UNSUPPORTED)?;
+            if src_end > elf_bytes.len() {
+                return Err(Status::UNSUPPORTED);
+            }
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    elf_bytes.as_ptr().add(src_off),
+                    seg.vaddr as *mut u8,
+                    file_len,
+                );
+            }
+        }
+    }
+
+    Ok(())
 }

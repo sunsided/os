@@ -26,6 +26,11 @@ static mut BOOT_STACK: Aligned<BOOT_STACK_SIZE> = Aligned([0; BOOT_STACK_SIZE]);
 /// Our kernel entry point symbol. The UEFI loader will jump here *after* `ExitBootServices`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn _start_kernel(boot_info: *const KernelBootInfo) -> ! {
+    #[cfg(feature = "qemu")]
+    {
+        kernel_qemu::dbg_print("Kernel reporting to QEMU");
+    }
+
     // Not actually passing memory but a pointer to the stack.
     #[allow(clippy::pointers_in_nomem_asm_block)]
     unsafe {

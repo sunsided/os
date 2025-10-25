@@ -28,6 +28,11 @@ fn efi_main() -> Status {
         return Status::UNSUPPORTED;
     }
 
+    #[cfg(feature = "qemu")]
+    {
+        kernel_qemu::dbg_print("UEFI Loader reporting to QEMU");
+    }
+
     uefi::println!("UEFI Loader: starting up");
 
     let elf_bytes = match load_file(cstr16!("\\EFI\\Boot\\kernel.elf")) {
@@ -43,6 +48,12 @@ fn efi_main() -> Status {
         uefi::println!("kernel.elf is not a valid x86_64 ELF64");
         return Status::UNSUPPORTED;
     };
+
+    uefi::println!("Loading kernel into memory ...");
+    if let Err(e) = elf::load_pt_load_segments(&elf_bytes, &parsed) {
+        uefi::println!("Failed to load PT_LOAD segments: {e:?}");
+        return Status::UNSUPPORTED;
+    }
 
     uefi::println!(
         "UEFI Loader: kernel.elf loaded: entry=0x{:x}, segments={}",
