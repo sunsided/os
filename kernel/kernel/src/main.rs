@@ -43,7 +43,7 @@ static mut BOOT_STACK: Aligned<BOOT_STACK_SIZE> = Aligned([0; BOOT_STACK_SIZE]);
 /// here, this would cause UB.
 #[unsafe(no_mangle)]
 #[unsafe(naked)]
-pub unsafe extern "win64" fn _start_kernel(_boot_info: *const KernelBootInfo) {
+pub extern "win64" fn _start_kernel(_boot_info: *const KernelBootInfo) {
     core::arch::naked_asm!(
         "cli",
 

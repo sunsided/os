@@ -7,19 +7,20 @@ extern crate alloc;
 
 mod elf;
 mod file_system;
+mod framebuffer;
 mod memory;
 
 use crate::elf::ElfHeader;
 use crate::file_system::load_file;
+use crate::framebuffer::get_framebuffer;
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
-use kernel_info::{FramebufferInfo, KernelBootInfo, KernelEntry, MemoryMapInfo};
-use uefi::boot::{MemoryType, ScopedProtocol};
+use kernel_info::{KernelBootInfo, KernelEntry, MemoryMapInfo};
+use uefi::boot::MemoryType;
 use uefi::cstr16;
 use uefi::mem::memory_map::MemoryMap;
 use uefi::prelude::*;
-use uefi::proto::console::gop::{GraphicsOutput, PixelFormat};
 
 fn trace<S>(message: S)
 where
@@ -87,63 +88,15 @@ fn efi_main() -> Status {
         parsed.entry,
         parsed.segments.len()
     );
-    boot::stall(500_000);
 
-    uefi::println!("Obtaining Graphics Output Protocol (GOP)");
-    let mut gop = match get_gop() {
-        Ok(gop) => gop,
-        Err(e) => {
-            uefi::println!("Failed to get GOP: {e:?}");
-            return Status::UNSUPPORTED;
+    let fb = match get_framebuffer() {
+        Ok(fb) => fb,
+        Err(status) => {
+            return status;
         }
     };
 
-    let mode = gop.current_mode_info();
-    let (framebuffer_width, framebuffer_height) = mode.resolution();
-
-    let (framebuffer_format, framebuffer_masks) = match mode.pixel_format() {
-        PixelFormat::Rgb => (
-            kernel_info::BootPixelFormat::Rgb,
-            kernel_info::BootPixelMasks {
-                red_mask: 0,
-                green_mask: 0,
-                blue_mask: 0,
-                alpha_mask: 0,
-            },
-        ),
-        PixelFormat::Bgr => (
-            kernel_info::BootPixelFormat::Bgr,
-            kernel_info::BootPixelMasks {
-                red_mask: 0,
-                green_mask: 0,
-                blue_mask: 0,
-                alpha_mask: 0,
-            },
-        ),
-        PixelFormat::Bitmask if mode.pixel_bitmask().is_some() => {
-            let mask = mode.pixel_bitmask().unwrap();
-            (
-                kernel_info::BootPixelFormat::Bitmask,
-                kernel_info::BootPixelMasks {
-                    red_mask: mask.red,
-                    green_mask: mask.green,
-                    blue_mask: mask.blue,
-                    alpha_mask: mask.reserved,
-                },
-            )
-        }
-        PixelFormat::BltOnly | PixelFormat::Bitmask => {
-            uefi::println!("Unsupported pixel format: Bitmask");
-            return Status::UNSUPPORTED;
-        }
-    };
-
-    let mut fb = gop.frame_buffer();
-    let framebuffer_ptr = fb.as_mut_ptr();
-    let framebuffer_size = fb.size();
-    let framebuffer_stride = mode.stride();
-
-    // (Optional) locate RSDP before exiting boot services; if not found, set 0.
+    // Locate RSDP before exiting boot services; if not found, set 0.
     let rsdp_addr: u64 = /* find via config tables, else 0 */ 0;
 
     let boot_info = KernelBootInfo {
@@ -155,15 +108,7 @@ fn efi_main() -> Status {
             mmap_desc_version: 0,
         },
         rsdp_addr,
-        fb: FramebufferInfo {
-            framebuffer_ptr: framebuffer_ptr as u64,
-            framebuffer_size: framebuffer_size as u64,
-            framebuffer_width: framebuffer_width as u64,
-            framebuffer_height: framebuffer_height as u64,
-            framebuffer_stride: framebuffer_stride as u64,
-            framebuffer_format,
-            framebuffer_masks,
-        },
+        fb,
     };
 
     let boot_info = Box::new(boot_info);
@@ -175,9 +120,6 @@ fn efi_main() -> Status {
     // Current step exits boot services and jumps to the kernel entry with GOP BootInfo.
     uefi::println!("Booting kernel ...");
     trace("Booting kernel ...\n");
-
-    // Ensure all UEFI protocol guards are dropped before exiting boot services.
-    drop(gop); // TODO: Not sure if this is correct!
 
     // Pre-allocate a buffer while UEFI allocator is still alive.
     let mut mmap_copy = match allocate_mmap_buffer() {
@@ -227,20 +169,6 @@ fn run_kernel(parsed: &ElfHeader, boot_info: &KernelBootInfo) -> ! {
     let entry: KernelEntry = unsafe { core::mem::transmute(parsed.entry) };
     let bi_ptr: *const KernelBootInfo = boot_info as *const KernelBootInfo;
     entry(bi_ptr)
-}
-
-/// Fetch the Graphics Output Protocol (GOP).
-fn get_gop() -> Result<ScopedProtocol<GraphicsOutput>, uefi::Error> {
-    let handle = boot::get_handle_for_protocol::<GraphicsOutput>().map_err(|e| {
-        uefi::println!("Failed to get GOP handle: {e:?}");
-        uefi::Error::new(Status::ABORTED, ())
-    })?;
-
-    let gop = boot::open_protocol_exclusive::<GraphicsOutput>(handle).map_err(|e| {
-        uefi::println!("Failed to open GOP exlusively: {e:?}");
-        uefi::Error::new(Status::ABORTED, ())
-    })?;
-    Ok(gop)
 }
 
 /// Allocate a buffer to hold a copy of the memory map returned from `ExitBootServices`.
