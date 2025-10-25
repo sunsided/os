@@ -10,7 +10,13 @@ keywords.workspace = true
 categories.workspace = true
 license.workspace = true
 
+[features]
+default = ["qemu"]
+qemu = ["dep:kernel-qemu"]
+
 [dependencies]
+kernel-info = { path = "../kernel-info" }
+kernel-qemu = { path = "../../kernel/kernel-qemu", optional = true }
 
 [lints]
 workspace = true

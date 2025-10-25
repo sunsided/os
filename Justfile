@@ -1,36 +1,51 @@
 # Defaults (override via env or on the CLI)
+
 set shell := ["bash", "-cu"]
 
 # These locations and file names vary per distribution.
 # You can try to find them using `just find-ovmf`.
+
 ovmf-dir := "/usr/share/OVMF"
 ovmf-code-file := "OVMF_CODE_4M.fd"
 ovmf-vars-file := "OVMF_VARS_4M.fd"
 
 # Where to build and how to name artifacts.
+
 build-local-dir := "qemu"
 uefi-image-file := "uefi.img"
 
 # Assembled paths for the OVMF UEFI code and variable templates.
+
 _ofmv-code-path := ovmf-dir / ovmf-code-file
 _ofmv-vars-path := ovmf-dir / ovmf-vars-file
 
 # Where to store the local copy of the UEFI vars.
+
 _ofmv-local-vars-path := build-local-dir / "uefi-vars.fd"
 
 # Where to package the local development files for QEMU runs.
+
 _esp-local-dir := build-local-dir / "esp"
 _uefi-local-dir := _esp-local-dir / "EFI/Boot"
 
 # How to rename the example EFI binary for easier access.
+
 _uefi-local-file := "BootX64.efi"
 _uefi-local-path := _uefi-local-dir / _uefi-local-file
 
+# How to rename the example EFI binary for easier access.
+
+_kernel-local-file := "kernel.elf"
+_kernel-local-path := _uefi-local-dir / _kernel-local-file
+
 # Where to store the image
+
 _uefi-image-path := build-local-dir / "uefi.img"
 
 # Target triples
+
 _uefi_target_triple := "x86_64-unknown-uefi"
+_none_target_triple := "x86_64-unknown-none"
 
 [private]
 help:
@@ -55,14 +70,19 @@ fix *ARGS:
 todo:
     @scripts/update-todos.sh
 
+# Clean the targets
+clean:
+    @rm -r {{ build-local-dir }} || true
+    @cargo clean
+
 # Build all packages with default settings
-build: uefi
+build: uefi kernel
 
 # Build all packages in debug mode
-build-debug: uefi-debug
+build-debug: uefi-debug kernel-debug
 
 # Build all packages in release mode
-build-release: uefi-release
+build-release: uefi-release kernel-release
 
 # Build the UEFI loader (default build)
 uefi *ARGS:
@@ -75,6 +95,18 @@ uefi-debug *ARGS:
 # Build the UEFI loader (release build)
 uefi-release *ARGS:
     cargo uefi-release {{ ARGS }}
+
+# Build the Kernel (default build)
+kernel *ARGS:
+    cargo kernel {{ ARGS }}
+
+# Build the Kernel (debug build)
+kernel-debug *ARGS:
+    cargo kernel-debug {{ ARGS }}
+
+# Build the Kernel (release build)
+kernel-release *ARGS:
+    cargo kernel-release {{ ARGS }}
 
 # Ensures the target directory exists.
 [private]
@@ -94,13 +126,15 @@ package: package-debug
 package-debug: reset-uefi-vars build-debug
     @rm {{ _uefi-local-dir / "*.efi" }} || true
     @cp "target/{{ _uefi_target_triple }}/debug/uefi-loader.efi" "{{ _uefi-local-path }}"
-    @echo "Updated {{ _uefi-local-path }}"
+    @cp "target/{{ _none_target_triple }}/debug/kernel" "{{ _kernel-local-path }}"
+    @echo "Updated {{ _uefi-local-path }} and {{ _kernel-local-path }}"
 
 # Package the build artifacts into the target dir
 package-release: reset-uefi-vars build-release
     @rm {{ _uefi-local-dir / "*.efi" }} || true
     @cp "target/{{ _uefi_target_triple }}/release/uefi-loader.efi" "{{ _uefi-local-path }}"
-    @echo "Updated {{ _uefi-local-path }}"
+    @cp "target/{{ _none_target_triple }}/release/kernel" "{{ _kernel-local-path }}"
+    @echo "Updated {{ _uefi-local-path }} and {{ _kernel-local-path }}"
 
 # Run the firmware in QEMU using OVMF (pass arguments like -nographic)
 run-qemu *ARGS: package
@@ -110,5 +144,6 @@ run-qemu *ARGS: package
       -drive "if=pflash,format=raw,readonly=on,file={{ _ofmv-code-path }}" \
       -drive "if=pflash,format=raw,file={{ _ofmv-local-vars-path }}" \
       -drive "format=raw,file=fat:rw:{{ _esp-local-dir }}" \
+      -debugcon stdio -global isa-debugcon.iobase=0x402 \
       -net none \
       {{ ARGS }}

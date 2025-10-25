@@ -1,5 +1,5 @@
 [package]
-name = "uefi-loader"
+name = "kernel-info"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,14 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 license.workspace = true
 
-[features]
-default = ["qemu"]
-qemu = ["dep:kernel-qemu"]
-
 [dependencies]
-kernel-info = { path = "../../kernel/kernel-info" }
-kernel-qemu = { path = "../../kernel/kernel-qemu", optional = true }
-uefi = { workspace = true, features = ["alloc", "panic_handler"] }
 
 [lints]
 workspace = true

@@ -23,6 +23,18 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 [[package]]
 name = "kernel"
 version = "0.0.0"
+dependencies = [
+ "kernel-info",
+ "kernel-qemu",
+]
+
+[[package]]
+name = "kernel-info"
+version = "0.0.0"
+
+[[package]]
+name = "kernel-qemu"
+version = "0.0.0"
 
 [[package]]
 name = "log"
@@ -108,6 +120,8 @@ dependencies = [
 name = "uefi-loader"
 version = "0.0.0"
 dependencies = [
+ "kernel-info",
+ "kernel-qemu",
  "uefi",
 ]
 
