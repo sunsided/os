@@ -12,8 +12,8 @@ mod memory;
 use crate::elf::ElfHeader;
 use crate::file_system::load_file;
 use alloc::boxed::Box;
-use alloc::string::String;
 use alloc::vec;
+use alloc::vec::Vec;
 use kernel_info::{KernelBootInfo, KernelEntry};
 use uefi::boot::{MemoryType, ScopedProtocol};
 use uefi::cstr16;
@@ -31,6 +31,16 @@ where
     }
 }
 
+fn trace_num<N>(number: N)
+where
+    N: Into<usize>,
+{
+    #[cfg(feature = "qemu")]
+    {
+        kernel_qemu::dbg_print_usize(number);
+    }
+}
+
 #[entry]
 #[allow(clippy::too_many_lines)]
 fn efi_main() -> Status {
@@ -40,7 +50,7 @@ fn efi_main() -> Status {
     }
 
     trace("UEFI Loader reporting to QEMU\n");
-    uefi::println!("UEFI Loader: starting up");
+    uefi::println!("Attempting to load kernel.elf ...");
 
     let elf_bytes = match load_file(cstr16!("\\EFI\\Boot\\kernel.elf")) {
         Ok(bytes) => bytes,
@@ -56,14 +66,14 @@ fn efi_main() -> Status {
         return Status::UNSUPPORTED;
     };
 
-    uefi::println!("Loading kernel into memory ...");
+    uefi::println!("Loading kernel segments into memory ...");
     if let Err(e) = elf::load_pt_load_segments(&elf_bytes, &parsed) {
         uefi::println!("Failed to load PT_LOAD segments: {e:?}");
         return Status::UNSUPPORTED;
     }
 
     uefi::println!(
-        "UEFI Loader: kernel.elf loaded: entry=0x{:x}, segments={}",
+        "kernel.elf loaded successfully: entry=0x{:x}, segments={}",
         parsed.entry,
         parsed.segments.len()
     );
@@ -155,23 +165,13 @@ fn efi_main() -> Status {
     // Ensure all UEFI protocol guards are dropped before exiting boot services.
     drop(gop); // TODO: Not sure if this is correct!
 
-    // Introspect the memory map.
-    let memory_map_size = match boot::memory_map(MemoryType::LOADER_DATA) {
-        Ok(map) => {
-            let size = map.meta().map_size;
-            assert!(size < 64 * 1024, "memory map too large");
-            uefi::println!("Memory map: {:#?} (will allocate {size} bytes)", map);
-            size
-        }
-        Err(e) => {
-            uefi::println!("Failed to get memory map: {e:?}");
-            return Status::UNSUPPORTED;
+    // Pre-allocate a buffer while UEFI allocator is still alive.
+    let mut mmap_copy = match allocate_mmap_buffer() {
+        Ok(buf) => buf,
+        Err(status) => {
+            return status;
         }
     };
-
-    // Pre-allocate a buffer while UEFI allocator is still alive.
-    let mmap_allocated_size = memory_map_size * 2; // TODO: The previous size was incorrect!
-    let mut mmap_copy = vec![0u8; mmap_allocated_size];
     let mmap_copy_ptr = mmap_copy.as_mut_ptr();
 
     // Exit boot services — after this, the UEFI allocator must not be used anymore.
@@ -182,8 +182,11 @@ fn efi_main() -> Status {
     let mmap_length = owned_map.buffer().len();
 
     // Safety: ensure the buffer is large enough (or bail/panic in dev builds).
-    if mmap_length > mmap_allocated_size {
-        trace("Memory map size assertion failed\n");
+    if mmap_length > mmap_copy.len() {
+        trace("Memory map size assertion failed: Expected ");
+        trace_num(mmap_copy.len());
+        trace(", got ");
+        trace_num(mmap_length);
         return Status::BUFFER_TOO_SMALL;
     }
     unsafe {
@@ -221,4 +224,31 @@ fn get_gop() -> Result<ScopedProtocol<GraphicsOutput>, uefi::Error> {
         uefi::Error::new(Status::ABORTED, ())
     })?;
     Ok(gop)
+}
+
+fn allocate_mmap_buffer() -> Result<Vec<u8>, Status> {
+    const EXTRA_DESCS: usize = 32;
+
+    // Introspect the memory map.
+    let probe = match boot::memory_map(MemoryType::LOADER_DATA) {
+        Ok(probe) => probe,
+        Err(e) => {
+            uefi::println!("Failed to get memory map: {e:?}");
+            return Err(Status::UNSUPPORTED);
+        }
+    };
+
+    let desc_size = probe.meta().desc_size;
+    let mut needed_size = probe.meta().map_size;
+
+    // We won't use `probe`'s buffer; drop it now to reduce churn.
+    drop(probe);
+
+    // Pre-allocate our own buffer with slack for extra descriptors.
+    // Rule of thumb: + N * desc_size; N=16..64 is usually plenty in QEMU/OVMF.
+    needed_size += EXTRA_DESCS * desc_size;
+
+    // Pre-allocate a buffer while UEFI allocator is still alive.
+    let buf = vec![0u8; needed_size];
+    Ok(buf)
 }
