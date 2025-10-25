@@ -14,45 +14,75 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     }
 }
 
+/// Stack size.
 const BOOT_STACK_SIZE: usize = 64 * 1024;
 
-#[repr(align(16))] // keep stack 16-byte aligned
+/// 16-byte aligned stack
+#[repr(align(16))]
 struct Aligned<const N: usize>([u8; N]);
 
 #[unsafe(link_section = ".bss.boot")]
 #[unsafe(no_mangle)]
 static mut BOOT_STACK: Aligned<BOOT_STACK_SIZE> = Aligned([0; BOOT_STACK_SIZE]);
 
-/// Our kernel entry point symbol. The UEFI loader will jump here *after* `ExitBootServices`.
+/// The kernel entry point
+///
+/// # UEFI Interaction
+/// The UEFI loader will jump here after `ExitBootServices`.
+///
+/// # Naked function & Stack
+/// This is a naked function in order to set up the stack ourselves. Without
+/// the `naked` attribute (and the [`naked_asm`](core::arch::naked_asm) instruction), Rust
+/// compiler would apply its own assumptions based on the C ABI and would attempt to
+/// unwind the stack on the call into [`kernel_entry`]. Since we're clearing out the stack
+/// here, this would cause UB.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn _start_kernel(boot_info: *const KernelBootInfo) -> ! {
+#[unsafe(naked)]
+pub unsafe extern "C" fn _start_kernel(_boot_info: *const KernelBootInfo) {
+    core::arch::naked_asm!(
+        "cli",
+        "lea rax, [rip + {stack_sym}]", // load effective address of BOOT_STACK into rax
+        "add rax, {stack_size}",        // rax = &BOOT_STACK + BOOT_STACK_SIZE
+        "mov rsp, rax",                 // switch stack to top of BOOT_STACK
+        "xor rbp, rbp",                 // clear frame pointer
+        // keep boot_info in RDI
+        "jmp {rust_entry}",             // jump to main entry point (and never return)
+        stack_sym = sym BOOT_STACK,
+        stack_size = const BOOT_STACK_SIZE,
+        rust_entry = sym kernel_entry,
+    );
+}
+
+/// Kernel entry running on normal stack.
+///
+/// # Notes
+/// * `no_mangle` is used so that [`_start_kernel`] can jump to it by name.
+/// * It uses C ABI to have a defined convention when calling in from ASM.
+/// * The [`_start_kernel`] function keeps `boot_info` in `RDI`, matching C ABI expectations.
+#[unsafe(no_mangle)]
+extern "C" fn kernel_entry(boot_info: *const KernelBootInfo) -> ! {
     #[cfg(feature = "qemu")]
-    {
-        kernel_qemu::dbg_print("Kernel reporting to QEMU");
-    }
+    kernel_qemu::dbg_print("Kernel reporting to QEMU!\n");
 
-    // Not actually passing memory but a pointer to the stack.
-    #[allow(clippy::pointers_in_nomem_asm_block)]
-    unsafe {
-        let base: *mut u8 = core::ptr::addr_of_mut!(BOOT_STACK).cast();
-        let top = base.add(BOOT_STACK_SIZE);
-        core::arch::asm!(
-            "cli",              // mask interrupts while switching stacks
-            "mov rsp, {top}",   // set stack pointer to top of stack
-            "xor rbp, rbp",     // set stack pointer base to zero
-            top = in(reg) top,
-            options(nomem, preserves_flags),
-        );
-    }
-
-    // TODO: Enable interrupts after messing with the stack.
-
-    // TODO: Assert pointer is not null.
-    let boot_info = unsafe { &*boot_info };
-    kernel_main(boot_info);
+    // (You can enable interrupts here when ready.)
+    let bi = unsafe { &*boot_info };
+    kernel_main(bi)
 }
 
 fn kernel_main(bi: &KernelBootInfo) -> ! {
+    #[cfg(feature = "qemu")]
+    {
+        kernel_qemu::dbg_print("Entering Kernel main loop ...\n");
+    }
+
+    #[cfg(feature = "qemu")]
+    match bi.framebuffer_format {
+        BootPixelFormat::Rgb => kernel_qemu::dbg_print("RGB framebuffer\n"),
+        BootPixelFormat::Bgr => kernel_qemu::dbg_print("BGR framebuffer\n"),
+        BootPixelFormat::Bitmask => kernel_qemu::dbg_print("Bitmask framebuffer\n"),
+        BootPixelFormat::BltOnly => kernel_qemu::dbg_print("BltOnly framebuffer\n"),
+    }
+
     loop {
         unsafe { fill_solid(bi, 255, 0, 0) };
         spin_loop();
