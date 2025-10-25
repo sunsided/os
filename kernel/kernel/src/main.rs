@@ -26,13 +26,22 @@ static mut BOOT_STACK: Aligned<BOOT_STACK_SIZE> = Aligned([0; BOOT_STACK_SIZE]);
 /// Our kernel entry point symbol. The UEFI loader will jump here *after* `ExitBootServices`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn _start_kernel(boot_info: *const KernelBootInfo) -> ! {
+    // TODO: Disable interrupts before messing with the stack.
+
     // Not actually passing memory but a pointer to the stack.
     #[allow(clippy::pointers_in_nomem_asm_block)]
     unsafe {
         let base: *mut u8 = core::ptr::addr_of_mut!(BOOT_STACK).cast();
         let top = base.add(BOOT_STACK_SIZE);
-        core::arch::asm!("mov rsp, {}", in(reg) top, options(nostack, nomem));
+        core::arch::asm!(
+            "mov rsp, {top}",
+            "xor rbp, rbp", // set stack pointer base to zero
+            top = in(reg) top,
+            options(nomem, preserves_flags),
+        );
     }
+
+    // TODO: Enable interrupts after messing with the stack.
 
     // TODO: Assert pointer is not null.
     let boot_info = unsafe { &*boot_info };
