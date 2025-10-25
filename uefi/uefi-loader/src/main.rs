@@ -9,10 +9,12 @@ mod elf;
 mod file_system;
 mod framebuffer;
 mod memory;
+mod rsdp;
 
 use crate::elf::ElfHeader;
 use crate::file_system::load_file;
 use crate::framebuffer::get_framebuffer;
+use crate::rsdp::{find_rsdp_addr, validate_rsdp};
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -97,7 +99,20 @@ fn efi_main() -> Status {
     };
 
     // Locate RSDP before exiting boot services; if not found, set 0.
-    let rsdp_addr: u64 = /* find via config tables, else 0 */ 0;
+    let mut rsdp_addr: u64 = find_rsdp_addr();
+
+    #[cfg(feature = "qemu")]
+    {
+        if rsdp_addr != 0 {
+            let ok = unsafe { validate_rsdp(rsdp_addr) };
+            if !ok {
+                trace("RSDP checksum fail; ignoring\n");
+                rsdp_addr = 0;
+            }
+        } else {
+            trace("No ACPI RSDP found in UEFI configuration table\n");
+        }
+    }
 
     let boot_info = KernelBootInfo {
         // Memory map fields are filled right after exit_boot_services returns the owned map:
@@ -220,7 +235,7 @@ fn trace_boot_info(boot_info: &KernelBootInfo) {
     trace(", MMAP desc version = ");
     trace_usize(usize::try_from(boot_info.mmap.mmap_desc_version).unwrap_or_default());
     trace(", rsdp addr = ");
-    trace_usize(usize::try_from(boot_info.mmap.mmap_desc_version).unwrap_or_default());
+    trace_usize(usize::try_from(boot_info.rsdp_addr).unwrap_or_default());
     trace("\n");
     trace("   FB ptr = ");
     trace_u64(boot_info.fb.framebuffer_ptr);

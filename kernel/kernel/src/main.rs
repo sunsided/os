@@ -162,7 +162,7 @@ fn trace_boot_info(boot_info: &KernelBootInfo) {
     trace(", MMAP desc version = ");
     trace_num(boot_info.mmap.mmap_desc_version);
     trace(", rsdp addr = ");
-    trace_num(boot_info.mmap.mmap_desc_version);
+    trace_num(boot_info.rsdp_addr);
     trace("\n");
     trace("   FB ptr = ");
     trace_num(boot_info.fb.framebuffer_ptr);

@@ -2,7 +2,7 @@
 
 use kernel_info::FramebufferInfo;
 use uefi::boot::ScopedProtocol;
-use uefi::proto::console::gop::{GraphicsOutput, Mode, PixelFormat};
+use uefi::proto::console::gop::{GraphicsOutput, PixelFormat};
 use uefi::{Status, boot};
 
 /// Fetch an optimal framebuffer for the Kernel.
