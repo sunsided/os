@@ -218,28 +218,30 @@ pub trait PhysMapper {
     unsafe fn phys_to_mut<'a, T>(&self, pa: PhysAddr) -> &'a mut T;
 }
 
-/// Extract the PML4 index (bits 47-39 of the virtual address).
-#[inline]
-const fn pml4_index(va: VirtAddr) -> usize {
-    ((va.0 >> 39) & 0x1ff) as usize
-}
+impl VirtAddr {
+    /// Extract the PML4 index (bits 47-39 of the virtual address).
+    #[inline]
+    const fn pml4_index(self) -> usize {
+        ((self.0 >> 39) & 0x1ff) as usize
+    }
 
-/// Extract the PDPT index (bits 38-30 of the virtual address).
-#[inline]
-const fn pdpt_index(va: VirtAddr) -> usize {
-    ((va.0 >> 30) & 0x1ff) as usize
-}
+    /// Extract the PDPT index (bits 38-30 of the virtual address).
+    #[inline]
+    const fn pdpt_index(self) -> usize {
+        ((self.0 >> 30) & 0x1ff) as usize
+    }
 
-/// Extract the PD index (bits 29-21 of the virtual address).
-#[inline]
-const fn pd_index(va: VirtAddr) -> usize {
-    ((va.0 >> 21) & 0x1ff) as usize
-}
+    /// Extract the PD index (bits 29-21 of the virtual address).
+    #[inline]
+    const fn pd_index(self) -> usize {
+        ((self.0 >> 21) & 0x1ff) as usize
+    }
 
-/// Extract the PT index (bits 20-12 of the virtual address).
-#[inline]
-const fn pt_index(va: VirtAddr) -> usize {
-    ((va.0 >> 12) & 0x1ff) as usize
+    /// Extract the PT index (bits 20-12 of the virtual address).
+    #[inline]
+    const fn pt_index(self) -> usize {
+        ((self.0 >> 12) & 0x1ff) as usize
+    }
 }
 
 /// A PML4 page table.
@@ -325,7 +327,7 @@ pub fn as_pt<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut Pt {
 impl Pml4 {
     #[inline]
     pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
-        unsafe { self.entry_mut(pml4_index(va)) }
+        unsafe { self.entry_mut(va.pml4_index()) }
     }
 
     /// Initialize a non-leaf entry to point to a PDPT table.
@@ -341,7 +343,7 @@ impl Pml4 {
 impl Pdpt {
     #[inline]
     pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
-        unsafe { self.entry_mut(pdpt_index(va)) }
+        unsafe { self.entry_mut(va.pdpt_index()) }
     }
 
     /// Non-leaf: link to a PD table.
@@ -371,7 +373,7 @@ impl Pdpt {
 impl Pd {
     #[inline]
     pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
-        unsafe { self.entry_mut(pd_index(va)) }
+        unsafe { self.entry_mut(va.pd_index()) }
     }
 
     /// Non-leaf: link to a PT table.
@@ -401,7 +403,7 @@ impl Pd {
 impl Pt {
     #[inline]
     pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
-        unsafe { self.entry_mut(pt_index(va)) }
+        unsafe { self.entry_mut(va.pt_index()) }
     }
 
     /// **Leaf (4 KiB):** set PTE as 4 KiB mapping (no PS).
@@ -607,24 +609,21 @@ pub fn map_one<A: FrameAlloc, M: PhysMapper>(
             PageSize::Size1G => {
                 // PDPTE leaf: phys bits 51:30, low 30 bits zero.
                 let pdpt = get_table::<M>(map, leaf_phys);
-                let i = pdpt_index(va);
-                let e = entry_mut(pdpt, i);
+                let e = entry_mut(pdpt, va.pdpt_index());
                 e.set_addr(pa.0);
                 apply_flags(e, flags | Flags::PS, true);
             }
             PageSize::Size2M => {
                 // PDE leaf: phys bits 51:21, low 21 bits zero.
                 let pd = get_table::<M>(map, leaf_phys);
-                let i = pd_index(va);
-                let e = entry_mut(pd, i);
+                let e = entry_mut(pd, va.pd_index());
                 e.set_addr(pa.0);
                 apply_flags(e, flags | Flags::PS, true);
             }
             PageSize::Size4K => {
                 // PTE leaf: phys bits 51:12, low 12 bits zero.
                 let pt = get_table::<M>(map, leaf_phys);
-                let i = pt_index(va);
-                let e = entry_mut(pt, i);
+                let e = entry_mut(pt, va.pt_index());
                 e.set_addr(pa.0);
                 apply_flags(e, flags, is_huge_leaf);
             }
@@ -755,27 +754,27 @@ mod tests {
 
             // PML4
             let pml4 = get_table(&phys, root_pa);
-            let e4 = entry(pml4, pml4_index(va));
+            let e4 = entry(pml4, va.pml4_index());
             assert!(e4.present());
             let pdpt_pa = PhysAddr(e4.addr());
 
             // PDPT
             let pdpt = get_table(&phys, pdpt_pa);
-            let e3 = entry(pdpt, pdpt_index(va));
+            let e3 = entry(pdpt, va.pdpt_index());
             assert!(e3.present());
             assert!(!e3.ps());
             let pd_pa = PhysAddr(e3.addr());
 
             // PD
             let pd = get_table(&phys, pd_pa);
-            let e2 = entry(pd, pd_index(va));
+            let e2 = entry(pd, va.pd_index());
             assert!(e2.present());
             assert!(!e2.ps());
             let pt_pa = PhysAddr(e2.addr());
 
             // PT (leaf)
             let pt = get_table(&phys, pt_pa);
-            let e1 = entry(pt, pt_index(va));
+            let e1 = entry(pt, va.pt_index());
             // Expected leaf encoding: phys|flags (no PS for 4K).
             assert!(e1.present());
             assert_eq!(e1.addr(), pa.0);
@@ -811,11 +810,11 @@ mod tests {
 
         unsafe {
             let pml4 = get_table(&phys, root_pa);
-            let pdpt_pa = PhysAddr(entry(pml4, pml4_index(va)).addr());
+            let pdpt_pa = PhysAddr(entry(pml4, va.pml4_index()).addr());
             let pdpt = get_table(&phys, pdpt_pa);
-            let pd_pa = PhysAddr(entry(pdpt, pdpt_index(va)).addr());
+            let pd_pa = PhysAddr(entry(pdpt, va.pdpt_index()).addr());
             let pd = get_table(&phys, pd_pa);
-            let pde = entry(pd, pd_index(va));
+            let pde = entry(pd, va.pd_index());
             assert!(pde.present());
             assert!(pde.ps());
             assert!(pde.writable());
@@ -849,9 +848,9 @@ mod tests {
         unsafe {
             // Walk to PDPT and verify leaf with PS=1.
             let pml4 = get_table(&phys, root_pa);
-            let pdpt_pa = PhysAddr(entry(pml4, pml4_index(va)).addr());
+            let pdpt_pa = PhysAddr(entry(pml4, va.pml4_index()).addr());
             let pdpt = get_table(&phys, pdpt_pa);
-            let pdpte = entry(pdpt, pdpt_index(va));
+            let pdpte = entry(pdpt, va.pdpt_index());
             assert!(pdpte.present());
             assert!(pdpte.ps());
             assert!(pdpte.writable());
