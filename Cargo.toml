@@ -12,3 +12,7 @@ publish = false
 
 [workspace.dependencies]
 uefi = { version = "0.35", default-features = false }
+
+[workspace.lints.clippy]
+pedantic = "deny"
+nursery = "warn"

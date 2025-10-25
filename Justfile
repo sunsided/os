@@ -4,7 +4,22 @@ help:
 
 # Format all code in the workspace
 fmt:
-    cargo fmt --all
+    @cargo sort --workspace
+    @cargo fmt --all
+    @just todo
+
+# Lint the code
+lint *ARGS:
+    @scripts/clippy-lint.sh {{ ARGS }}
+
+# Lint the code and apply fixes.
+fix *ARGS:
+    @scripts/clippy-fix.sh {{ ARGS }}
+    @just fmt
+
+# Updates the TODO.md file
+todo:
+    @scripts/update-todos.sh
 
 # Build all packages with default settings
 build: uefi

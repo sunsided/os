@@ -9,3 +9,6 @@ publish.workspace = true
 
 [dependencies]
 uefi = { workspace = true, features = ["panic_handler"] }
+
+[lints]
+workspace = true
