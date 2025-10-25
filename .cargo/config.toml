@@ -7,6 +7,7 @@ uefi-debug   = "build -p uefi-loader --target x86_64-unknown-uefi"
 uefi-release = "build -p uefi-loader --release --target x86_64-unknown-uefi"
 
 [target.x86_64-unknown-uefi]
-rustflags = [
-  "-C", "panic=abort"
-]
+rustflags = ["-C", "panic=abort"]
+
+[target.x86_64-unknown-none]
+rustflags = ["-C", "link-arg=-nostartfiles"]
