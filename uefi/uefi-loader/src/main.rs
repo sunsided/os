@@ -11,6 +11,7 @@ mod memory;
 
 use crate::elf::ElfHeader;
 use crate::file_system::load_file;
+use alloc::boxed::Box;
 use alloc::vec;
 use kernel_info::{KernelBootInfo, KernelEntry};
 use uefi::boot::{MemoryType, ScopedProtocol};
@@ -81,7 +82,7 @@ fn efi_main() -> Status {
                 alpha_mask: 0,
             },
         ),
-        PixelFormat::Bitmask if mode.pixel_bitmask().is_none() => {
+        PixelFormat::Bitmask if mode.pixel_bitmask().is_some() => {
             let mask = mode.pixel_bitmask().unwrap();
             (
                 kernel_info::BootPixelFormat::Bitmask,
@@ -107,7 +108,7 @@ fn efi_main() -> Status {
     // (Optional) locate RSDP before exiting boot services; if not found, set 0.
     let rsdp_addr: u64 = /* find via config tables, else 0 */ 0;
 
-    let mut boot_info = KernelBootInfo {
+    let boot_info = KernelBootInfo {
         framebuffer_ptr: framebuffer_ptr as usize,
         framebuffer_size,
         framebuffer_width,
@@ -122,6 +123,11 @@ fn efi_main() -> Status {
         mmap_desc_version: 0,
         rsdp_addr,
     };
+
+    let boot_info = Box::new(boot_info);
+
+    // leak it so it stays alive after exit; allocator not usable post-exit anyway
+    let boot_info = Box::leak(boot_info);
 
     // Note: We have not yet loaded PT_LOAD segments; jumping may crash until we implement it.
     // Current step exits boot services and jumps to the kernel entry with GOP BootInfo.
@@ -175,7 +181,7 @@ fn efi_main() -> Status {
     core::mem::forget(mmap_copy);
 
     // Off we pop.
-    run_kernel(&parsed, &boot_info);
+    run_kernel(&parsed, boot_info);
 }
 
 fn run_kernel(parsed: &ElfHeader, boot_info: &KernelBootInfo) -> ! {

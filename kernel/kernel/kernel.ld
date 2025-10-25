@@ -35,7 +35,7 @@ SECTIONS
   .bss (NOLOAD) : {
     __bss_start = .;
     *(.bss .bss.* COMMON)
-    /* If you use a boot stack section: *(.bss.boot) */
+    *(.bss.boot)
     __bss_end = .;
   } :data
 
