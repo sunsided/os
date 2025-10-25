@@ -5,13 +5,16 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-  - [Pitfalls for Compiling](#pitfalls-for-compiling)
-  - [Example Build Command](#example-build-command)
+  - [Building the Project](#building-the-project)
+    - [Pitfalls for Compiling](#pitfalls-for-compiling)
+    - [Example Build Commands](#example-build-commands)
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-## Pitfalls for Compiling
+## Building the Project
+
+### Pitfalls for Compiling
 
 The workspace targets require different target architectures, for example `x86_64-unknown-uefi` for
 the UEFI loader package. At this moment, `cargo build`
@@ -27,7 +30,7 @@ as `cargo uefi-dev`).
 The individual packages use compile-time guards to
 ensure that the correct target triple is selected.
 
-## Example Build Command
+### Example Build Commands
 
 ```sh
 just uefi
