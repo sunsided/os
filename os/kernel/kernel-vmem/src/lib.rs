@@ -247,7 +247,7 @@ impl MemoryPageFlags {
 /// bitmap, etc.). Returned frames **must** be 4 KiB aligned.
 ///
 /// # Example
-/// ```rust
+/// ```no_compile
 /// use kernel_vmem::{FrameAlloc, PhysAddr};
 /// let mut alloc = ...; // your allocator
 /// let pa = alloc.alloc_4k();

@@ -18,7 +18,7 @@
 //!   returns a pointer.
 //!
 //! ## Example
-//! ```rust
+//! ```rust,no_run
 //! use kernel_vmem::{PhysAddr, PageTable, PhysMapper};
 //! use kernel_alloc::phys_mapper::HhdmPhysMapper;
 //! let phys = PhysAddr::from_u64(0x1234_0000);
@@ -46,7 +46,7 @@ use kernel_vmem::{PhysAddr, PhysMapper};
 /// - The returned pointer must only be used for valid, mapped, and writable memory.
 ///
 /// # Example
-/// ```rust
+/// ```rust,no_run
 /// use kernel_vmem::{PhysAddr, PageTable, PhysMapper};
 /// use kernel_alloc::phys_mapper::HhdmPhysMapper;
 /// let phys = PhysAddr::from_u64(0x1234_0000);
