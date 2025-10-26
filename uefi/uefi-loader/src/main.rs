@@ -11,7 +11,7 @@ mod framebuffer;
 mod memory;
 mod rsdp;
 
-use crate::elf::ElfHeader;
+use crate::elf::loader::ElfHeader;
 use crate::file_system::load_file;
 use crate::framebuffer::get_framebuffer;
 use crate::rsdp::find_rsdp_addr;
@@ -80,7 +80,7 @@ fn efi_main() -> Status {
     };
 
     uefi::println!("Loading kernel segments into memory ...");
-    if let Err(e) = elf::load_pt_load_segments(&elf_bytes, &parsed) {
+    if let Err(e) = elf::loader::load_pt_load_segments(&elf_bytes, &parsed) {
         uefi::println!("Failed to load PT_LOAD segments: {e:?}");
         return Status::UNSUPPORTED;
     }
