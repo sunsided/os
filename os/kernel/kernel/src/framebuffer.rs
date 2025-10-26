@@ -18,9 +18,7 @@ pub unsafe fn fill_solid(fb: &FramebufferInfo, r: u8, g: u8, b: u8) {
         }
 
         let bpp = 4usize; // bytes per pixel
-        let row_bytes =
-            usize::try_from(usize::try_from(fb.framebuffer_stride).unwrap_or_default() * bpp)
-                .unwrap_or_default();
+        let row_bytes = usize::try_from(fb.framebuffer_stride).unwrap_or_default() * bpp;
 
         let start_x = fb.framebuffer_width / 4;
         let end_x = fb.framebuffer_width * 3 / 4;

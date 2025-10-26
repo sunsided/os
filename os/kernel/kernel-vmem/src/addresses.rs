@@ -1,7 +1,7 @@
 //! # Virtual and Physical Memory Addresses
 
 use crate::page_table::{PdIndex, PdptIndex, Pml4Index, PtIndex};
-use core::ops::{AddAssign, Deref, Sub};
+use core::ops::{Add, AddAssign, Deref, Sub};
 
 /// A memory address as it is used in pointers.
 ///
@@ -241,6 +241,30 @@ impl Deref for PhysAddr {
     type Target = MemoryAddress;
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl Add<u64> for VirtAddr {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Self::Output {
+        Self::from_u64(self.0.checked_add(rhs).expect("VirtAddr add"))
+    }
+}
+
+impl Add<u64> for PhysAddr {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Self::Output {
+        Self::from_u64(self.0.checked_add(rhs).expect("PhysAddr add"))
+    }
+}
+
+impl Add<u64> for MemoryAddress {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Self::Output {
+        Self::new(self.0.checked_add(rhs).expect("PhysAddr add"))
     }
 }
 

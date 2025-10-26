@@ -247,6 +247,89 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
         Ok(())
     }
 
+    /// Unmap a single 4 KiB page at the given virtual address.
+    ///
+    /// Returns Ok if unmapped, or Err if not mapped.
+    ///
+    /// # Errors
+    /// Returns an error of the address is not present.
+    pub fn unmap_one(&self, va: VirtAddr) -> Result<(), &'static str> {
+        // Walk: PML4 → PDPT → PD → PT
+        let pml4 = self.pml4();
+        let e4 = pml4.entry_mut_by_va(va);
+        if !e4.present() {
+            return Err("PML4 entry not present");
+        }
+
+        let pdpt = as_pdpt(self.mapper, PhysAddr::new(e4.addr().as_addr()));
+        let e3 = pdpt.entry_mut_by_va(va);
+        if !e3.present() || e3.ps() {
+            return Err("PDPT entry not present or huge");
+        }
+
+        let pd = as_pd(self.mapper, PhysAddr::new(e3.addr().as_addr()));
+        let e2 = pd.entry_mut_by_va(va);
+        if !e2.present() || e2.ps() {
+            return Err("PD entry not present or huge");
+        }
+
+        let pt = as_pt(self.mapper, PhysAddr::new(e2.addr().as_addr()));
+        let e1 = pt.entry_mut_by_va(va);
+        if !e1.present() {
+            return Err("PT entry not present");
+        }
+
+        // Clear the entry
+        *e1 = PageTableEntry::default();
+        Ok(())
+    }
+
+    /// Query the physical address mapped to a virtual address (4 KiB page).
+    /// Returns Some(PhysAddr) if mapped, None otherwise.
+    #[must_use]
+    pub fn query(&self, va: VirtAddr) -> Option<PhysAddr> {
+        let pml4 = self.pml4();
+        let e4 = pml4.entry_mut_by_va(va);
+        if !e4.present() {
+            return None;
+        }
+
+        let pdpt = as_pdpt(self.mapper, PhysAddr::new(e4.addr().as_addr()));
+        let e3 = pdpt.entry_mut_by_va(va);
+        if !e3.present() {
+            return None;
+        }
+
+        if e3.ps() {
+            // 1 GiB huge page
+            let base = e3.addr().as_addr();
+            let offset = va.as_u64() & ((1 << 30) - 1);
+            return Some(PhysAddr::from_u64(base.as_u64() + offset));
+        }
+        let pd = as_pd(self.mapper, PhysAddr::new(e3.addr().as_addr()));
+        let e2 = pd.entry_mut_by_va(va);
+        if !e2.present() {
+            return None;
+        }
+
+        if e2.ps() {
+            // 2 MiB huge page
+            let base = e2.addr().as_addr();
+            let offset = va.as_u64() & ((1 << 21) - 1);
+            return Some(PhysAddr::from_u64(base.as_u64() + offset));
+        }
+        let pt = as_pt(self.mapper, PhysAddr::new(e2.addr().as_addr()));
+        let e1 = pt.entry_mut_by_va(va);
+        if !e1.present() {
+            return None;
+        }
+
+        // 4 KiB page
+        let base = e1.addr().as_addr();
+        let offset = va.as_u64() & ((1 << 12) - 1);
+        Some(PhysAddr::from_u64(base.as_u64() + offset))
+    }
+
     /// Load **CR3** with this address space’s `root_phys`.
     ///
     /// This is a low-level operation and assumes you have configured paging-related

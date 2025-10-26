@@ -49,7 +49,9 @@ version = "0.0.0"
 name = "kernel-alloc"
 version = "0.0.0"
 dependencies = [
+ "kernel-info",
  "kernel-sync",
+ "kernel-vmem",
 ]
 
 [[package]]

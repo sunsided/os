@@ -74,8 +74,6 @@ pub mod address_space;
 mod addresses;
 pub mod page_table;
 
-extern crate alloc;
-
 pub use crate::address_space::AddressSpace;
 pub use crate::page_table::{PageTable, PageTableEntry};
 pub use addresses::{MemoryAddress, PhysAddr, VirtAddr};
@@ -242,9 +240,28 @@ impl MemoryPageFlags {
 /// bitmap, etc.). Returned frames **must** be 4 KiB aligned.
 ///
 /// Returns `None` on out-of-memory.
+/// Minimal frame allocator used to obtain **physical** 4 KiB frames
+/// for page tables. Also supports freeing frames.
+///
+/// The implementation decides where frames come from (bootloader pool,
+/// bitmap, etc.). Returned frames **must** be 4 KiB aligned.
+///
+/// # Example
+/// ```no_compile
+/// use kernel_vmem::{FrameAlloc, PhysAddr};
+/// let mut alloc = ...; // your allocator
+/// let pa = alloc.alloc_4k();
+/// if let Some(frame) = pa {
+///     // use frame
+///     alloc.free_4k(frame);
+/// }
+/// ```
 pub trait FrameAlloc {
     /// Allocate one 4 KiB *physical* frame for page tables. Must return page-aligned frames.
     fn alloc_4k(&mut self) -> Option<PhysAddr>;
+
+    /// Free a 4 KiB *physical* frame, returning it to the allocator.
+    fn free_4k(&mut self, pa: PhysAddr);
 }
 
 /// Converts physical addresses to *temporarily* usable pointers in the current
@@ -266,6 +283,7 @@ pub trait PhysMapper {
     ///
     /// # Safety
     /// Needs evaluation
+    // TODO: Have the mapper return a Result if the address cannot be mapped.
     unsafe fn phys_to_mut<'a, T>(&self, pa: PhysAddr) -> &'a mut T;
 }
 
@@ -376,6 +394,8 @@ pub const fn is_aligned(x: MemoryAddress, align: u64) -> bool {
 
 #[cfg(test)]
 mod tests {
+    extern crate alloc;
+
     use super::*;
     use crate::address_space::AddressSpace;
     use alloc::vec::Vec;
@@ -405,6 +425,10 @@ mod tests {
             let p = self.next;
             self.next += 4096;
             Some(PhysAddr::from_u64(p))
+        }
+
+        fn free_4k(&mut self, _pa: PhysAddr) {
+            // BumpAlloc does not support freeing frames (no-op)
         }
     }
 
