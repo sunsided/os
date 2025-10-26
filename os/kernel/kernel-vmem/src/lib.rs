@@ -264,6 +264,7 @@ pub trait PhysMapper {
     ///
     /// # Safety
     /// Needs evaluation
+    // TODO: Have the mapper return a Result if the address cannot be mapped.
     unsafe fn phys_to_mut<'a, T>(&self, pa: PhysAddr) -> &'a mut T;
 }
 
@@ -374,10 +375,10 @@ pub const fn is_aligned(x: MemoryAddress, align: u64) -> bool {
 
 #[cfg(test)]
 mod tests {
+    extern crate alloc;
+    
     use super::*;
     use crate::address_space::AddressSpace;
-
-    extern crate alloc;
     use alloc::vec::Vec;
 
     /// A trivial **bump** allocator: always hands out the next 4 KiB frame.

@@ -11,7 +11,9 @@ categories.workspace = true
 license.workspace = true
 
 [dependencies]
+kernel-info = { path = "../kernel-info" }
 kernel-sync = { path = "../kernel-sync" }
+kernel-vmem = { path = "../kernel-vmem" }
 
 [lints]
 workspace = true
