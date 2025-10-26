@@ -4,6 +4,9 @@
 
 I have started wrapping my head around the Virtual Memory Manager.
 
+I also learned about the `-monitor stdio` QEMU option as well as the `-debugcon file:debug.log`
+variant.
+
 ## 2025-10-25
 
 Adding a serial output to the QEMU emulator turned out to be extremely helpful in finding out
