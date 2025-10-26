@@ -76,9 +76,15 @@ clean:
     @cargo clean
 
 # Run test in all projects
-test *ARGS:
-    @cargo test --all-features --lib {{ ARGS }}
+test: test-docs test-libs
+
+# Run documentation test in all projects
+test-docs:
     @cargo test --doc
+
+# Run library test in all projects
+test-libs *ARGS:
+    @cargo test --all-features --lib {{ ARGS }}
 
 # Build and open the docs
 docs:

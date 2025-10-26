@@ -1,6 +1,6 @@
 //! Page Table Entries
 
-use crate::Flags;
+use crate::MemoryPageFlags;
 use crate::addresses::{PhysAddr, VirtAddr};
 use bitfield_struct::bitfield;
 
@@ -240,17 +240,17 @@ impl PdptPageTable {
     }
 
     /// **Leaf (1 GiB):** set PDPTE as 1 GiB mapping.
-    pub fn map_1g_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: Flags) {
+    pub fn map_1g_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: MemoryPageFlags) {
         let e = self.entry_mut_by_va(va);
         e.set_addr(pa.0);
         e.set_present(true);
         e.set_ps(true);
-        e.set_writable(flags.contains(Flags::WRITABLE));
-        e.set_user(flags.contains(Flags::USER));
-        e.set_write_through(flags.contains(Flags::WT));
-        e.set_cache_disable(flags.contains(Flags::CD));
-        e.set_global(flags.contains(Flags::GLOBAL));
-        e.set_nx(flags.contains(Flags::NX));
+        e.set_writable(flags.contains(MemoryPageFlags::WRITABLE));
+        e.set_user(flags.contains(MemoryPageFlags::USER));
+        e.set_write_through(flags.contains(MemoryPageFlags::WT));
+        e.set_cache_disable(flags.contains(MemoryPageFlags::CD));
+        e.set_global(flags.contains(MemoryPageFlags::GLOBAL));
+        e.set_nx(flags.contains(MemoryPageFlags::NX));
     }
 }
 
@@ -270,17 +270,17 @@ impl PdPageTable {
     }
 
     /// **Leaf (2 MiB):** set PDE as 2 MiB mapping.
-    pub fn map_2m_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: Flags) {
+    pub fn map_2m_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: MemoryPageFlags) {
         let e = self.entry_mut_by_va(va);
         e.set_addr(pa.0);
         e.set_present(true);
         e.set_ps(true);
-        e.set_writable(flags.contains(Flags::WRITABLE));
-        e.set_user(flags.contains(Flags::USER));
-        e.set_write_through(flags.contains(Flags::WT));
-        e.set_cache_disable(flags.contains(Flags::CD));
-        e.set_global(flags.contains(Flags::GLOBAL));
-        e.set_nx(flags.contains(Flags::NX));
+        e.set_writable(flags.contains(MemoryPageFlags::WRITABLE));
+        e.set_user(flags.contains(MemoryPageFlags::USER));
+        e.set_write_through(flags.contains(MemoryPageFlags::WT));
+        e.set_cache_disable(flags.contains(MemoryPageFlags::CD));
+        e.set_global(flags.contains(MemoryPageFlags::GLOBAL));
+        e.set_nx(flags.contains(MemoryPageFlags::NX));
     }
 }
 
@@ -291,16 +291,16 @@ impl PtPageTable {
     }
 
     /// **Leaf (4 KiB):** set PTE as 4 KiB mapping (no PS).
-    pub fn map_4k_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: Flags) {
+    pub fn map_4k_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: MemoryPageFlags) {
         let e = self.entry_mut_by_va(va);
         e.set_addr(pa.0);
         e.set_present(true);
         e.set_ps(false);
-        e.set_writable(flags.contains(Flags::WRITABLE));
-        e.set_user(flags.contains(Flags::USER));
-        e.set_write_through(flags.contains(Flags::WT));
-        e.set_cache_disable(flags.contains(Flags::CD));
-        e.set_global(flags.contains(Flags::GLOBAL));
-        e.set_nx(flags.contains(Flags::NX));
+        e.set_writable(flags.contains(MemoryPageFlags::WRITABLE));
+        e.set_user(flags.contains(MemoryPageFlags::USER));
+        e.set_write_through(flags.contains(MemoryPageFlags::WT));
+        e.set_cache_disable(flags.contains(MemoryPageFlags::CD));
+        e.set_global(flags.contains(MemoryPageFlags::GLOBAL));
+        e.set_nx(flags.contains(MemoryPageFlags::NX));
     }
 }

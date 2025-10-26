@@ -2,6 +2,7 @@
 
 pub mod loader;
 pub mod parser;
+pub mod vmem;
 
 const PAGE_SIZE: u64 = 4096;
 

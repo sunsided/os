@@ -6,7 +6,7 @@
 //! - An [`address space`](address_space) describing a `PML4` root page table.
 //! - Tiny [`PhysAddr`]/[`VirtAddr`] newtypes (u64) to avoid mixing address kinds.
 //! - A [`PageSize`] enum for 4 KiB / 2 MiB / 1 GiB mappings.
-//! - x86-64 page-table [`Flags`] with practical explanations.
+//! - x86-64 page-table [`MemoryPageFlags`] with practical explanations.
 //! - A 4 KiB-aligned [`PageTable`] wrapper and index helpers.
 //! - A tiny allocator/mapper interface ([`FrameAlloc`], [`PhysMapper`]).
 //!
@@ -77,8 +77,8 @@ mod page_table;
 extern crate alloc;
 
 pub use crate::address_space::AddressSpace;
-use crate::addresses::{PhysAddr, VirtAddr};
 pub use crate::page_table::{PageTable, PageTableEntry};
+pub use addresses::{MemoryAddress, PhysAddr, VirtAddr};
 
 /// Re-export constants as info module.
 pub use kernel_info::memory as info;
@@ -98,6 +98,7 @@ pub enum PageSize {
     Size1G,
 }
 
+// TODO: Rework using bitfield_struct
 bitflags::bitflags! {
     /// Page table entry flags used in x86_64 virtual memory.
     ///
@@ -106,7 +107,7 @@ bitflags::bitflags! {
     /// They apply to all paging levels (PTE, PDE, PDPTE, PML4E),
     /// except where noted (e.g., `PS` only valid for PDE/PDPTE).
     #[derive(Copy, Clone)]
-    pub struct Flags: u64 {
+    pub struct MemoryPageFlags: u64 {
         /// Page is present in physical memory.
         ///
         /// Must be set for valid mappings; cleared indicates a page fault
@@ -165,6 +166,32 @@ bitflags::bitflags! {
         /// Marks the page as non-executable when EFER.NXE is set.
         /// Execution from such a page triggers a page fault.
         const NX       = 1 << 63;
+    }
+}
+
+impl MemoryPageFlags {
+    #[inline(always)]
+    #[must_use]
+    pub fn with_writable_if(self, cond: bool) -> Self {
+        if cond {
+            // Set writable bit
+            self | Self::WRITABLE
+        } else {
+            // Remove writable bit
+            self & !Self::WRITABLE
+        }
+    }
+
+    #[inline(always)]
+    #[must_use]
+    pub fn with_executable_if(self, cond: bool) -> Self {
+        if cond {
+            // Remove no-execute bit
+            self & !Self::NX
+        } else {
+            // Set no-execute bit
+            self | Self::NX
+        }
     }
 }
 
@@ -271,6 +298,40 @@ pub const fn align_down(x: u64, a: u64) -> u64 {
 #[must_use]
 pub const fn align_up(x: u64, a: u64) -> u64 {
     (x + a - 1) & !(a - 1)
+}
+
+/// Check whether `x` is aligned to a given power-of-two boundary `align`.
+///
+/// Returns `true` if and only if `x % align == 0`.
+///
+/// ### Preconditions
+/// - `align` must be **non-zero** and a **power of two** (1, 2, 4, 8, …).
+///   Like [`align_down`] and [`align_up`], this function uses bitwise
+///   arithmetic that only works correctly for power-of-two alignments.
+/// - No additional constraints on `x`.
+///
+/// ### Notes
+/// - This is often used to check whether an address or offset can be used
+///   for a specific page size or memory mapping granularity.
+/// - If you need to check arbitrary (non power-of-two) alignments,
+///   use `x % align == 0` instead.
+///
+/// ### Examples
+/// ```rust
+/// # use kernel_vmem::is_aligned;
+/// assert!(is_aligned(0, 4096));
+/// assert!(is_aligned(4096, 4096));
+/// assert!(is_aligned(8192, 4096));
+///
+/// assert!(!is_aligned(1, 4096));
+/// assert!(!is_aligned(4095, 4096));
+/// assert!(!is_aligned(0x12345, 16));
+/// assert!(is_aligned(0x12340, 16));
+/// ```
+#[inline(always)]
+#[must_use]
+pub const fn is_aligned(x: u64, align: u64) -> bool {
+    (x & (align - 1)) == 0
 }
 
 #[cfg(test)]
@@ -383,7 +444,7 @@ mod tests {
                 va,
                 pa,
                 PageSize::Size4K,
-                Flags::WRITABLE | Flags::GLOBAL | Flags::NX,
+                MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL | MemoryPageFlags::NX,
             )
             .expect("map_one");
 
@@ -437,7 +498,13 @@ mod tests {
         let va = VirtAddr(0xffff_8000_2000_0000); // arbitrary VA aligned to 2 MiB
         let pa = PhysAddr(0x0000_0000_0400_0000); // 64 MiB (aligned to 2 MiB)
         aspace
-            .map_one(&mut alloc, va, pa, PageSize::Size2M, Flags::WRITABLE)
+            .map_one(
+                &mut alloc,
+                va,
+                pa,
+                PageSize::Size2M,
+                MemoryPageFlags::WRITABLE,
+            )
             .expect("map_one");
 
         unsafe {
@@ -468,7 +535,13 @@ mod tests {
         let va = VirtAddr(0x0000_4000_0000_0000); // arbitrary VA aligned to 1 GiB
         let pa = PhysAddr(0x0000_0000_4000_0000); // 1 GiB (aligned to 1 GiB)
         aspace
-            .map_one(&mut alloc, va, pa, PageSize::Size1G, Flags::WRITABLE)
+            .map_one(
+                &mut alloc,
+                va,
+                pa,
+                PageSize::Size1G,
+                MemoryPageFlags::WRITABLE,
+            )
             .expect("map_one");
 
         unsafe {
@@ -482,5 +555,30 @@ mod tests {
             assert!(pdpte.writable());
             assert_eq!(pdpte.addr(), pa.0);
         }
+    }
+
+    #[test]
+    fn test_is_aligned_basic() {
+        assert!(is_aligned(0, 1));
+        assert!(is_aligned(0, 4096));
+        assert!(is_aligned(4096, 4096));
+        assert!(is_aligned(8192, 4096));
+        assert!(!is_aligned(1, 4096));
+        assert!(!is_aligned(4095, 4096));
+    }
+
+    #[test]
+    fn test_is_aligned_various_powers() {
+        assert!(is_aligned(0x1000, 0x10));
+        assert!(is_aligned(0x12340, 0x10));
+        assert!(!is_aligned(0x12345, 0x10));
+        assert!(is_aligned(0x200000, 0x200000)); // 2 MiB
+        assert!(!is_aligned(0x200001, 0x200000));
+    }
+
+    #[test]
+    fn test_is_aligned_edge_cases() {
+        assert!(is_aligned(u64::MAX & !15, 16)); // max aligned down
+        assert!(!is_aligned(u64::MAX, 16));
     }
 }

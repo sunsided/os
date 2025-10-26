@@ -52,6 +52,7 @@ pub struct LoadSegment {
     pub offset: u64,
     pub filesz: u64,
     pub memsz: u64,
+    // TODO: Rework flags using bitflags or bitfield_struct
     pub flags: u32,
     pub align: u64,
 }

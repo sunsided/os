@@ -63,8 +63,8 @@
 #![allow(dead_code)]
 
 use crate::{
-    Flags, FrameAlloc, PageSize, PageTable, PageTableEntry, PhysAddr, PhysMapper, VirtAddr,
-    get_table,
+    FrameAlloc, MemoryPageFlags, PageSize, PageTable, PageTableEntry, PhysAddr, PhysMapper,
+    VirtAddr, get_table,
     page_table::{PdPageTable, PdptPageTable, Pml4PageTable, PtPageTable},
 };
 
@@ -205,9 +205,9 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
         va: VirtAddr,
         pa: PhysAddr,
         size: PageSize,
-        mut flags: Flags,
+        mut flags: MemoryPageFlags,
     ) -> Result<(), &'static str> {
-        flags |= Flags::PRESENT;
+        flags |= MemoryPageFlags::PRESENT;
 
         // Physical alignment sanity checks (debug builds).
         debug_assert_eq!(pa.0 & ((1u64 << 12) - 1), 0, "phys not 4K aligned");
@@ -226,14 +226,14 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
                     let pdpt = get_table::<M>(self.mapper, leaf_phys);
                     let e = pdpt.entry_mut(va.pdpt_index());
                     e.set_addr(pa.0);
-                    apply_flags(e, flags | Flags::PS, true);
+                    apply_flags(e, flags | MemoryPageFlags::PS, true);
                 }
                 PageSize::Size2M => {
                     // PDE leaf
                     let pd = get_table::<M>(self.mapper, leaf_phys);
                     let e = pd.entry_mut(va.pd_index());
                     e.set_addr(pa.0);
-                    apply_flags(e, flags | Flags::PS, true);
+                    apply_flags(e, flags | MemoryPageFlags::PS, true);
                 }
                 PageSize::Size4K => {
                     // PTE leaf
@@ -316,36 +316,36 @@ pub fn as_pt<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut PtPageTable {
 /// Apply `Flags` to a (leaf or non-leaf) entry. For non-leaf tables you typically
 /// keep USER/WT/CD/GLOBAL/NX = false, but we only set bits explicitly present in `flags`.
 #[inline]
-const fn apply_flags(e: &mut PageTableEntry, flags: Flags, is_leaf_huge: bool) {
-    if flags.contains(Flags::PRESENT) {
+const fn apply_flags(e: &mut PageTableEntry, flags: MemoryPageFlags, is_leaf_huge: bool) {
+    if flags.contains(MemoryPageFlags::PRESENT) {
         e.set_present(true);
     }
-    if flags.contains(Flags::WRITABLE) {
+    if flags.contains(MemoryPageFlags::WRITABLE) {
         e.set_writable(true);
     }
-    if flags.contains(Flags::USER) {
+    if flags.contains(MemoryPageFlags::USER) {
         e.set_user(true);
     }
-    if flags.contains(Flags::WT) {
+    if flags.contains(MemoryPageFlags::WT) {
         e.set_write_through(true);
     }
-    if flags.contains(Flags::CD) {
+    if flags.contains(MemoryPageFlags::CD) {
         e.set_cache_disable(true);
     }
-    if flags.contains(Flags::ACCESSED) {
+    if flags.contains(MemoryPageFlags::ACCESSED) {
         e.set_accessed(true);
     }
-    if flags.contains(Flags::DIRTY) {
+    if flags.contains(MemoryPageFlags::DIRTY) {
         e.set_dirty(true);
     }
-    if flags.contains(Flags::GLOBAL) {
+    if flags.contains(MemoryPageFlags::GLOBAL) {
         e.set_global(true);
     }
-    if flags.contains(Flags::NX) {
+    if flags.contains(MemoryPageFlags::NX) {
         e.set_nx(true);
     }
     // PS only makes sense for leaves at PDPT/PD:
-    if flags.contains(Flags::PS) || is_leaf_huge {
+    if flags.contains(MemoryPageFlags::PS) || is_leaf_huge {
         e.set_ps(true);
     }
 }
