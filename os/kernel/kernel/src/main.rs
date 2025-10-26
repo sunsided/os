@@ -6,17 +6,17 @@
 
 mod framebuffer;
 mod tracing;
-mod vmem;
 
-// Bring in the global allocator.
-// extern crate kernel_alloc; // disabled temporarily
-
-use crate::framebuffer::fill_solid;
+use crate::framebuffer::{VGA_LIKE_OFFSET, fill_solid};
 use crate::tracing::trace_boot_info;
-use crate::vmem::map_framebuffer_into_hhdm;
 use core::hint::spin_loop;
+use kernel_alloc::frame_alloc::BitmapFrameAlloc;
+use kernel_alloc::phys_mapper::HhdmPhysMapper;
+use kernel_alloc::vmm::Vmm;
 use kernel_info::boot::{FramebufferInfo, KernelBootInfo};
+use kernel_info::memory::HHDM_BASE;
 use kernel_qemu::qemu_trace;
+use kernel_vmem::{MemoryPageFlags, PhysAddr, VirtAddr};
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -114,12 +114,30 @@ fn kernel_main(bi: &KernelBootInfo) -> ! {
     }
 }
 
-/// Map the framebuffer into HHDM at a VGA-like offset and use it virtually
 fn remap_boot_memory(bi: &KernelBootInfo) -> FramebufferInfo {
-    let (fb_va_base, _mapped_len) = unsafe { map_framebuffer_into_hhdm(&bi.fb) };
-    let mut fb_virt = bi.fb.clone();
-    fb_virt.framebuffer_ptr = fb_va_base.as_u64();
+    // Set up PMM (bootstrap) and PhysMapper
+    static MAPPER: HhdmPhysMapper = HhdmPhysMapper;
+    let mut pmm = BitmapFrameAlloc::new();
 
-    qemu_trace!("Remapped frame buffer to {fb_va_base:?}\n");
+    // Create VMM
+    let mut vmm = Vmm::new(&MAPPER, &mut pmm);
+
+    // Map framebuffer
+    let fb_pa = bi.fb.framebuffer_ptr;
+    let fb_len = bi.fb.framebuffer_size;
+    let va_base = HHDM_BASE + VGA_LIKE_OFFSET;
+    let fb_flags = MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL | MemoryPageFlags::NX;
+    vmm.map_region(
+        VirtAddr::from_u64(va_base),
+        PhysAddr::from_u64(fb_pa),
+        fb_len,
+        fb_flags,
+    )
+    .expect("Framebuffer mapping failed");
+
+    // Return updated FramebufferInfo with new virtual address
+    let mut fb_virt = bi.fb.clone();
+    fb_virt.framebuffer_ptr = va_base + (fb_pa & 0xFFF); // preserve offset within page
+    qemu_trace!("Remapped frame buffer to {va_base:#x}\n");
     fb_virt
 }
