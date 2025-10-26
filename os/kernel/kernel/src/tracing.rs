@@ -3,7 +3,6 @@
 use kernel_info::boot::{BootPixelFormat, KernelBootInfo};
 use kernel_qemu::qemu_trace;
 
-#[cfg(feature = "qemu")]
 pub fn trace_boot_info(boot_info: &KernelBootInfo) {
     qemu_trace!("Boot Info in UEFI Loader:\n");
     qemu_trace!(

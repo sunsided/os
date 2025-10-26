@@ -23,7 +23,7 @@
 //!
 //! ---
 
-use crate::bootstrap_alloc::{BootstrapFrameAlloc, KernelPhysMapper};
+// Bootstrap allocator removed for redesign.
 use crate::framebuffer::VGA_LIKE_OFFSET;
 use kernel_info::boot::{BootPixelFormat, FramebufferInfo};
 use kernel_info::memory::HHDM_BASE;
@@ -86,25 +86,11 @@ pub unsafe fn map_framebuffer_into_hhdm(fb: &FramebufferInfo) -> (VirtAddr, u64)
     let va_start = va_base + (fb_pa - pa_start);
 
     // Map pages
-    let mapper = KernelPhysMapper;
-    let mut alloc = BootstrapFrameAlloc::new();
-    let aspace = AddressSpace::new(&mapper, unsafe { read_cr3_phys() });
+    // TODO: Implement mapping logic with new allocator/page management design.
+    // let aspace = AddressSpace::new(...);
 
     let mut pa = pa_start;
     let mut va = va_start & !(page - 1);
-    while pa < pa_end {
-        aspace
-            .map_one(
-                &mut alloc,
-                VirtAddr::from_u64(va),
-                PhysAddr::from_u64(pa),
-                PageSize::Size4K,
-                MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL | MemoryPageFlags::NX,
-            )
-            .expect("map framebuffer page");
-        pa += page;
-        va += page;
-    }
-
+    // TODO: Map framebuffer pages here using new allocation/mapping logic.
     (VirtAddr::from_u64(va_start), pa_end - pa_start)
 }

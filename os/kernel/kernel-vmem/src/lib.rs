@@ -74,8 +74,6 @@ pub mod address_space;
 mod addresses;
 pub mod page_table;
 
-extern crate alloc;
-
 pub use crate::address_space::AddressSpace;
 pub use crate::page_table::{PageTable, PageTableEntry};
 pub use addresses::{MemoryAddress, PhysAddr, VirtAddr};

@@ -4,7 +4,17 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel-vmem/src/lib.rs](./os/kernel/kernel-vmem/src/lib.rs)
 
-- Line [141](./os/kernel/kernel-vmem/src/lib.rs#L141): Rework using bitfield_struct
+- Line [139](./os/kernel/kernel-vmem/src/lib.rs#L139): Rework using bitfield_struct
+
+## [os/kernel/kernel/src/bootstrap_alloc.rs](./os/kernel/kernel/src/bootstrap_alloc.rs)
+
+- Line [50](./os/kernel/kernel/src/bootstrap_alloc.rs#L50): !()
+- Line [72](./os/kernel/kernel/src/bootstrap_alloc.rs#L72): !()
+
+## [os/kernel/kernel/src/vmem.rs](./os/kernel/kernel/src/vmem.rs)
+
+- Line [89](./os/kernel/kernel/src/vmem.rs#L89): Implement mapping logic with new allocator/page management design.
+- Line [94](./os/kernel/kernel/src/vmem.rs#L94): Map framebuffer pages here using new allocation/mapping logic.
 
 ## [os/uefi/uefi-loader/src/elf/parser.rs](./os/uefi/uefi-loader/src/elf/parser.rs)
 
