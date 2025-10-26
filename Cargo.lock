@@ -144,7 +144,6 @@ dependencies = [
 name = "uefi-loader"
 version = "0.0.0"
 dependencies = [
- "kernel-acpi",
  "kernel-info",
  "kernel-qemu",
  "kernel-vmem",

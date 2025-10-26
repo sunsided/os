@@ -15,7 +15,6 @@ default = ["qemu"]
 qemu = ["dep:kernel-qemu"]
 
 [dependencies]
-kernel-acpi = { path = "../../kernel/kernel-acpi" }
 kernel-info = { path = "../../kernel/kernel-info" }
 kernel-qemu = { path = "../../kernel/kernel-qemu", optional = true }
 kernel-vmem = { path = "../../kernel/kernel-vmem" }
