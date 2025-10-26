@@ -1,2 +1,1 @@
-// kernel-alloc removed for redesign. See workspace history for previous implementation.
-//!
+#![cfg_attr(not(test), no_std)]

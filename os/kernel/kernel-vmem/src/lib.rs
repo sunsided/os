@@ -376,6 +376,8 @@ pub const fn is_aligned(x: MemoryAddress, align: u64) -> bool {
 mod tests {
     use super::*;
     use crate::address_space::AddressSpace;
+
+    extern crate alloc;
     use alloc::vec::Vec;
 
     /// A trivial **bump** allocator: always hands out the next 4 KiB frame.
