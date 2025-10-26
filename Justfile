@@ -98,29 +98,29 @@ build-release: uefi-release kernel-release
 
 # Build the UEFI loader (default build)
 uefi *ARGS:
-    @cd uefi/uefi-loader && cargo build
+    @cd os/uefi/uefi-loader && cargo build
 
 # Build the UEFI loader (debug build)
 uefi-debug *ARGS:
-    @cd uefi/uefi-loader && cargo build
+    @cd os/uefi/uefi-loader && cargo build
 
 # Build the UEFI loader (release build)
 uefi-release *ARGS:
-    @cd uefi/uefi-loader && cargo build --release
+    @cd os/uefi/uefi-loader && cargo build --release
 
 # Build the Kernel (default build)
 kernel *ARGS:
-    @cd kernel/kernel && cargo build
+    @cd os/kernel/kernel && cargo build
     @readelf -l target/x86_64-unknown-none/debug/kernel
 
 # Build the Kernel (debug build)
 kernel-debug *ARGS:
-    @cd kernel/kernel && cargo build
+    @cd os/kernel/kernel && cargo build
     @readelf -l target/x86_64-unknown-none/debug/kernel
 
 # Build the Kernel (release build)
 kernel-release *ARGS:
-    @cd kernel/kernel && cargo build --release
+    @cd os/kernel/kernel && cargo build --release
     @readelf -l target/x86_64-unknown-none/release/kernel
 
 # Ensures the target directory exists.

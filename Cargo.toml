@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["kernel/*", "uefi/*"]
+members = ["os/kernel/*", "os/uefi/*"]
 
 [workspace.package]
 version = "0.0.0"
