@@ -160,6 +160,7 @@ run-qemu *ARGS: package
       -drive "if=pflash,format=raw,file={{ _ofmv-local-vars-path }}" \
       -drive "format=raw,file=fat:rw:{{ _esp-local-dir }}" \
       -net none \
+      -s \
       -debugcon file:debug.log -global isa-debugcon.iobase=0x402 \
       -monitor stdio \
       {{ ARGS }}
@@ -173,6 +174,7 @@ run-qemu-nographic *ARGS: package
       -drive "if=pflash,format=raw,file={{ _ofmv-local-vars-path }}" \
       -drive "format=raw,file=fat:rw:{{ _esp-local-dir }}" \
       -net none \
+      -s \
       -debugcon file:debug.log -global isa-debugcon.iobase=0x402 \
       -nographic \
       {{ ARGS }}

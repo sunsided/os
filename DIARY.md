@@ -7,6 +7,11 @@ I have started wrapping my head around the Virtual Memory Manager.
 I also learned about the `-monitor stdio` QEMU option as well as the `-debugcon file:debug.log`
 variant.
 
+I now added `-s` option (i.e., `-gdb tcp::1234`) to the QEMU command line, allowing for remote debugging
+in RustRover. The `add-symbol-file qemu/esp/EFI/Boot/kernel.elf` command needs to be executed when
+in Kernel mode (i.e., left UEFI); this can be done in the remote debug run configuration. I'm curious
+to see how this works when running this in a higher-half kernel.
+
 ## 2025-10-25
 
 Adding a serial output to the QEMU emulator turned out to be extremely helpful in finding out
