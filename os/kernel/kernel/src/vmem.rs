@@ -1,162 +1,33 @@
-//! # Kernel HHDM Framebuffer Mapping and Tiny Page-Table Allocator
+//! # Bootstrap-Only: HHDM Framebuffer Mapping and Page-Table Allocator
 //!
-//! This module provides two small building blocks used right after
-//! `ExitBootServices`:
+//! **This module is strictly for early kernel bootstrapping.**
 //!
-//! 1. A **bump allocator for 4 KiB page-table frames** sourced from a
-//!    statically reserved `.bss` pool inside the kernel image.
-//! 2. A helper to **map the framebuffer into the HHDM** (Higher-Half
-//!    Direct Map) so early kernel code can draw pixels without going
-//!    through UEFI protocols.
+//! - Provides a bump allocator for 4 KiB page-table frames from a static pool.
+//! - Provides a helper to map the framebuffer into the HHDM for early drawing.
+//!
+//! ## WARNING
+//!
+//! - **Do not use any code in this file after the main kernel heap allocator is online.**
+//! - No heap allocations are performed or allowed here; all memory comes from static pools.
+//! - This code is only valid immediately after paging is enabled and before the global allocator is initialized.
 //!
 //! ## Design notes
 //!
-//! - **HHDM**: We assume a higher-half direct map where virtual address
-//!   `HHDM_BASE + PA` corresponds to physical address `PA`. This module
-//!   uses that identity to zero newly allocated page-table frames and to
-//!   derive a convenient VA for the framebuffer mapping.
-//! - **Avoid splitting huge pages**: The framebuffer VA is chosen inside
-//!   the HHDM but **offset by `VGA_LIKE_OFFSET`** to avoid colliding with
-//!   the first 1 GiB region that is commonly mapped with a 1 GiB page.
-//! - **Bootstrap-only allocator**: The page-table allocator here is a tiny
-//!   bump allocator intended for early boot. It does **not** free and has
-//!   a fixed pool size (`PT_POOL_BYTES`).
-//!
-//! ## Safety model
-//!
-////! - The static pool lives in `.bss.boot` and is addressed via the known
-//!   kernel VA → PA relationship: `PA = PHYS_LOAD + (VA - KERNEL_BASE)`.
-//! - Functions that dereference physical addresses do so through the HHDM
-//!   via [`KernelPhysMapper`]. This assumes the HHDM mapping is present and
-//!   covers the referenced range.
+//! - HHDM: Assumes a higher-half direct map where `HHDM_BASE + PA` == `PA`.
+//! - Avoids splitting huge pages by offsetting the framebuffer mapping.
+//! - The bump allocator here is for page-table frames only and never frees.
 //!
 //! ## When to use
 //!
-//! Use this module immediately after turning on paging / switching to your
-//! kernel’s page tables, but before a full memory manager is online. Once a
-//! real PMM/VMM exists, replace the bump allocator and (optionally) remap
-//! the framebuffer wherever you prefer.
+//! Use only during kernel bootstrap, before the real memory manager is online.
+//!
+//! ---
 
+use crate::bootstrap_alloc::{BootstrapFrameAlloc, KernelPhysMapper};
 use crate::framebuffer::VGA_LIKE_OFFSET;
 use kernel_info::boot::{BootPixelFormat, FramebufferInfo};
-use kernel_info::memory::{HHDM_BASE, KERNEL_BASE, PHYS_LOAD};
-use kernel_vmem::{
-    AddressSpace, MemoryPageFlags, PageSize, PhysAddr, PhysMapper, VirtAddr, read_cr3_phys,
-};
-
-/// Total bytes reserved in `.bss.boot` for early page-table frames.
-///
-/// The bump allocator hands out **4 KiB** frames from this pool.
-/// Increase this if you run out while mapping early regions.
-const PT_POOL_BYTES: usize = 64 * 4096;
-
-/// Small pool for allocating page-table frames in the kernel (after `ExitBootServices`).
-///
-/// Placed in a dedicated section so the address→offset calculation against
-/// `KERNEL_BASE`/`PHYS_LOAD` works the same way during bootstrap.
-#[unsafe(link_section = ".bss.boot")]
-static mut PT_POOL: Align4K<{ PT_POOL_BYTES }> = Align4K([0; PT_POOL_BYTES]);
-
-/// Compute the **physical** address range covered by the static page-table pool.
-///
-/// Relies on the kernel’s link-time relation:
-/// `PA = PHYS_LOAD + (VA - KERNEL_BASE)`.
-///
-/// ### Returns
-/// `(pa_start, pa_end)` as inclusive-exclusive physical bounds (in bytes).
-///
-/// ### Safety
-/// Reads the address of a static symbol. No dereferences are performed.
-///
-/// ### Panics
-/// Never panics.
-fn pt_pool_phys_range() -> (u64, u64) {
-    // Convert the VA of PT_POOL to a physical address using linker relationship: PHYS_LOAD + (va - KERNEL_BASE)
-    #[allow(unused_unsafe)]
-    let va = unsafe { core::ptr::addr_of!(PT_POOL) as u64 };
-    let pa_start = PHYS_LOAD + (va - KERNEL_BASE);
-    let pa_end = pa_start + (PT_POOL_BYTES as u64);
-    (pa_start, pa_end)
-}
-
-/// Minimal bump allocator for 4 KiB **page-table frames**.
-///
-/// This is intended for early boot and never frees. It zero-fills each frame via
-/// the HHDM before handing it out.
-///
-/// ### Invariants
-/// - `next` and `end` are physical addresses aligned to 4 KiB (`next` is rounded up).
-/// - Allocation fails cleanly by returning `None` when the pool is exhausted.
-struct KernelBumpAlloc {
-    next: u64,
-    end: u64,
-}
-
-impl KernelBumpAlloc {
-    /// Construct the allocator from the statically reserved `.bss` pool.
-    ///
-    /// The starting address is rounded **up** to 4 KiB.
-    ///
-    /// ### Panics
-    /// Never panics.
-    fn new() -> Self {
-        let (start, end) = pt_pool_phys_range();
-        let next = (start + 0xfff) & !0xfff; // align up
-        Self { next, end }
-    }
-}
-
-impl kernel_vmem::FrameAlloc for KernelBumpAlloc {
-    /// Allocate one **4 KiB** physical frame for page tables.
-    ///
-    /// The returned frame is **zero-initialized** via the HHDM.
-    ///
-    /// ### Returns
-    /// - `Some(PhysAddr)` on success
-    /// - `None` if the pool is exhausted
-    ///
-    /// ### Safety
-    /// - Assumes HHDM is present and `HHDM_BASE + pa` is writable for 4096 bytes.
-    /// - Writes exactly one page of zeros into the mapped region.
-    fn alloc_4k(&mut self) -> Option<PhysAddr> {
-        if self.next + 4096 > self.end {
-            return None;
-        }
-        let pa = self.next;
-        self.next += 4096;
-        // Zero the frame via HHDM
-        let mapper = KernelPhysMapper;
-        unsafe {
-            core::ptr::write_bytes(mapper.phys_to_mut::<u8>(PhysAddr::from_u64(pa)), 0, 4096);
-        }
-        Some(PhysAddr::from_u64(pa))
-    }
-}
-
-/// A physical→virtual translator that views **physical memory through the HHDM**.
-///
-/// Given a physical address `pa`, returns `&mut T` at virtual address
-/// `HHDM_BASE + pa`. All dereferences are **unsafe** by nature.
-struct KernelPhysMapper;
-
-impl PhysMapper for KernelPhysMapper {
-    /// Convert a physical address to a **mutable reference** via the HHDM.
-    ///
-    /// ### Safety
-    /// - The HHDM must be mapped and writable for the entire `T` region.
-    /// - `pa` must point to valid, uniquely-borrowed memory for `T`.
-    /// - Aliasing mutable references or mapping device MMIO as `&mut T` is undefined behavior.
-    unsafe fn phys_to_mut<'a, T>(&self, pa: PhysAddr) -> &'a mut T {
-        let va = (HHDM_BASE + pa.as_u64()) as *mut T;
-        unsafe { &mut *va }
-    }
-}
-
-/// A wrapper type to force **4 KiB alignment** of a byte array.
-///
-/// Useful for static pools that should start on a page boundary.
-#[repr(align(4096))]
-struct Align4K<const N: usize>([u8; N]);
+use kernel_info::memory::HHDM_BASE;
+use kernel_vmem::{AddressSpace, MemoryPageFlags, PageSize, PhysAddr, VirtAddr, read_cr3_phys};
 
 /// Map the framebuffer’s **physical memory** into the HHDM and return its VA slice.
 ///
@@ -194,6 +65,10 @@ struct Align4K<const N: usize>([u8; N]);
 /// ### Notes
 /// - This function tries to **avoid splitting** a 1 GiB huge mapping in the
 ///   early HHDM by placing the framebuffer at `VGA_LIKE_OFFSET`.
+/// Map the framebuffer’s **physical memory** into the HHDM and return its VA slice.
+///
+/// # WARNING
+/// Uses only the bootstrap frame allocator. Do not call after heap is online.
 pub unsafe fn map_framebuffer_into_hhdm(fb: &FramebufferInfo) -> (VirtAddr, u64) {
     if matches!(fb.framebuffer_format, BootPixelFormat::BltOnly) {
         return (VirtAddr::from_u64(0), 0);
@@ -212,7 +87,7 @@ pub unsafe fn map_framebuffer_into_hhdm(fb: &FramebufferInfo) -> (VirtAddr, u64)
 
     // Map pages
     let mapper = KernelPhysMapper;
-    let mut alloc = KernelBumpAlloc::new();
+    let mut alloc = BootstrapFrameAlloc::new();
     let aspace = AddressSpace::new(&mapper, unsafe { read_cr3_phys() });
 
     let mut pa = pa_start;

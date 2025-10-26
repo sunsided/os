@@ -4,18 +4,19 @@
 #![no_main]
 #![allow(unsafe_code)]
 
+mod bootstrap_alloc;
 mod framebuffer;
 mod tracing;
 mod vmem;
 
 // Bring in the global allocator.
-extern crate kernel_alloc;
+// extern crate kernel_alloc; // disabled temporarily
 
 use crate::framebuffer::fill_solid;
 use crate::tracing::trace_boot_info;
 use crate::vmem::map_framebuffer_into_hhdm;
 use core::hint::spin_loop;
-use kernel_info::boot::{BootPixelFormat, FramebufferInfo, KernelBootInfo};
+use kernel_info::boot::{FramebufferInfo, KernelBootInfo};
 use kernel_qemu::qemu_trace;
 
 #[panic_handler]
