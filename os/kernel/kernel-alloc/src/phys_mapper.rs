@@ -1,4 +1,4 @@
-//! # HHDM-based PhysMapper for Kernel Virtual Memory
+//! # HHDM-based [`PhysMapper`] for Kernel Virtual Memory
 //!
 //! This module provides a [`PhysMapper`] implementation for kernels that use a
 //! higher-half direct map (HHDM). It allows safe and portable access to physical

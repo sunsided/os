@@ -27,7 +27,7 @@
 use crate::framebuffer::VGA_LIKE_OFFSET;
 use kernel_info::boot::{BootPixelFormat, FramebufferInfo};
 use kernel_info::memory::HHDM_BASE;
-use kernel_vmem::{AddressSpace, MemoryPageFlags, PageSize, PhysAddr, VirtAddr, read_cr3_phys};
+use kernel_vmem::VirtAddr;
 
 /// Map the framebuffer’s **physical memory** into the HHDM and return its VA slice.
 ///
@@ -46,9 +46,11 @@ use kernel_vmem::{AddressSpace, MemoryPageFlags, PageSize, PhysAddr, VirtAddr, r
 ///
 /// ### Returns
 /// `(va_start, len)` where:
+///
 /// - `va_start` is the **virtual address** of the first framebuffer byte
 ///   (respecting the original physical offset within the first page),
 /// - `len` is the **byte length** of the framebuffer region mapped.
+///
 /// If `BltOnly`, returns `(0, 0)`.
 ///
 /// ### Safety
@@ -65,11 +67,12 @@ use kernel_vmem::{AddressSpace, MemoryPageFlags, PageSize, PhysAddr, VirtAddr, r
 /// ### Notes
 /// - This function tries to **avoid splitting** a 1 GiB huge mapping in the
 ///   early HHDM by placing the framebuffer at `VGA_LIKE_OFFSET`.
+///
 /// Map the framebuffer’s **physical memory** into the HHDM and return its VA slice.
 ///
 /// # WARNING
 /// Uses only the bootstrap frame allocator. Do not call after heap is online.
-pub unsafe fn map_framebuffer_into_hhdm(fb: &FramebufferInfo) -> (VirtAddr, u64) {
+pub const unsafe fn map_framebuffer_into_hhdm(fb: &FramebufferInfo) -> (VirtAddr, u64) {
     if matches!(fb.framebuffer_format, BootPixelFormat::BltOnly) {
         return (VirtAddr::from_u64(0), 0);
     }
@@ -89,8 +92,8 @@ pub unsafe fn map_framebuffer_into_hhdm(fb: &FramebufferInfo) -> (VirtAddr, u64)
     // TODO: Implement mapping logic with new allocator/page management design.
     // let aspace = AddressSpace::new(...);
 
-    let mut pa = pa_start;
-    let mut va = va_start & !(page - 1);
+    let _pa = pa_start;
+    let _va = va_start & !(page - 1);
     // TODO: Map framebuffer pages here using new allocation/mapping logic.
     (VirtAddr::from_u64(va_start), pa_end - pa_start)
 }

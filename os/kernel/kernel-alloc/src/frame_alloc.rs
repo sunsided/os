@@ -28,7 +28,7 @@
 
 use kernel_vmem::{FrameAlloc, PhysAddr};
 
-const PHYS_MEM_START: u64 = 0x100000; // 1 MiB, example
+const PHYS_MEM_START: u64 = 0x0010_0000; // 1 MiB, example
 const PHYS_MEM_SIZE: u64 = 64 * 1024 * 1024; // 64 MiB, example
 const FRAME_SIZE: u64 = 4096;
 const NUM_FRAMES: usize = (PHYS_MEM_SIZE / FRAME_SIZE) as usize;
@@ -55,32 +55,40 @@ const NUM_FRAMES: usize = (PHYS_MEM_SIZE / FRAME_SIZE) as usize;
 /// - The user must ensure that reserved/used frames (e.g., kernel, bootloader) are marked as used before allocation.
 /// - No synchronization is provided; not thread-safe.
 pub struct BitmapFrameAlloc {
-    bitmap: [u64; (NUM_FRAMES + 63) / 64],
+    bitmap: [u64; NUM_FRAMES.div_ceil(64)],
     base: u64,
 }
 
+impl Default for BitmapFrameAlloc {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BitmapFrameAlloc {
+    #[must_use]
     pub const fn new() -> Self {
         Self {
-            bitmap: [0; (NUM_FRAMES + 63) / 64],
+            bitmap: [0; NUM_FRAMES.div_ceil(64)],
             base: PHYS_MEM_START,
         }
     }
 
     /// Mark a frame as used (allocated).
-    pub fn mark_used(&mut self, frame_idx: usize) {
+    pub const fn mark_used(&mut self, frame_idx: usize) {
         let (word, bit) = (frame_idx / 64, frame_idx % 64);
         self.bitmap[word] |= 1 << bit;
     }
 
     /// Mark a frame as free.
-    pub fn mark_free(&mut self, frame_idx: usize) {
+    pub const fn mark_free(&mut self, frame_idx: usize) {
         let (word, bit) = (frame_idx / 64, frame_idx % 64);
         self.bitmap[word] &= !(1 << bit);
     }
 
     /// Returns true if the frame is allocated.
-    pub fn is_used(&self, frame_idx: usize) -> bool {
+    #[must_use]
+    pub const fn is_used(&self, frame_idx: usize) -> bool {
         let (word, bit) = (frame_idx / 64, frame_idx % 64);
         (self.bitmap[word] & (1 << bit)) != 0
     }
