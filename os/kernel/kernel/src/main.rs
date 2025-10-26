@@ -91,25 +91,33 @@ pub extern "C" fn _start_kernel(_boot_info: *const KernelBootInfo) {
 extern "C" fn kernel_entry(boot_info: *const KernelBootInfo) -> ! {
     qemu_trace!("Kernel reporting to QEMU!\n");
 
-    // (You can enable interrupts here when ready.)
-    let bi = unsafe { &*boot_info };
-    kernel_main(bi)
-}
+    // Enable interrupts (undo the earlier 'cli')
+    unsafe { core::arch::asm!("sti") };
 
-fn kernel_main(bi: &KernelBootInfo) -> ! {
-    qemu_trace!("Entering Kernel main loop ...\n");
+    let bi = unsafe { &*boot_info };
     trace_boot_info(bi);
 
     let fb_virt = remap_boot_memory(bi);
+    kernel_main(&fb_virt)
+}
+
+fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
+    qemu_trace!("Entering Kernel main loop ...\n");
 
     let mut cycle = 127u8;
     loop {
-        cycle = cycle.wrapping_add(1);
-        unsafe { fill_solid(&fb_virt, 72, 0, cycle) };
+        cycle = cycle.wrapping_add(10);
+        unsafe { fill_solid(fb_virt, 72, 0, cycle) };
         spin_loop();
     }
 }
 
+/// Remaps the boot framebuffer memory into the kernel's virtual address space.
+///
+/// UEFI provides the physical address of the framebuffer in the boot info, but does not
+/// include it in the memory mapping table. This means the kernel must manually map the
+/// framebuffer into its own virtual address space to access it. This function sets up the
+/// necessary mapping so the framebuffer can be used by the kernel.
 fn remap_boot_memory(bi: &KernelBootInfo) -> FramebufferInfo {
     // Set up PMM (bootstrap) and VMM (kernel)
     let mut pmm = BitmapFrameAlloc::new();
