@@ -8,8 +8,8 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/main.rs](./os/kernel/kernel/src/main.rs)
 
-- Line [132](./os/kernel/kernel/src/main.rs#L132): framebuffer mapped into HHDM at VGA-like offset
-- Line [245](./os/kernel/kernel/src/main.rs#L245): Use a panic here
+- Line [133](./os/kernel/kernel/src/main.rs#L133): framebuffer mapped into HHDM at VGA-like offset
+- Line [246](./os/kernel/kernel/src/main.rs#L246): Use a panic here
 
 ## [os/uefi/uefi-loader/src/elf/parser.rs](./os/uefi/uefi-loader/src/elf/parser.rs)
 

@@ -35,15 +35,22 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 name = "kernel"
 version = "0.0.0"
 dependencies = [
+ "kernel-alloc",
  "kernel-info",
  "kernel-qemu",
- "kernel-sync",
  "kernel-vmem",
 ]
 
 [[package]]
 name = "kernel-acpi"
 version = "0.0.0"
+
+[[package]]
+name = "kernel-alloc"
+version = "0.0.0"
+dependencies = [
+ "kernel-sync",
+]
 
 [[package]]
 name = "kernel-info"

@@ -43,6 +43,7 @@
 //! This file deliberately uses a small amount of `unsafe` to manage raw memory
 //! and uphold `GlobalAlloc`’s contract in a `no_std` environment.
 
+#![cfg_attr(not(test), no_std)]
 #![allow(unsafe_code)]
 
 mod free_list;

@@ -4,7 +4,8 @@
 #![no_main]
 #![allow(unsafe_code)]
 
-mod allocator;
+// Bring in the global allocator.
+extern crate kernel_alloc;
 
 use core::hint::spin_loop;
 use kernel_info::boot::{BootPixelFormat, FramebufferInfo, KernelBootInfo};

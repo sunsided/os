@@ -9,7 +9,7 @@
 //! - **Free-list nodes**: each free block starts with a [`ListNode`](crate::allocator::free_list::ListNode) header
 //!   followed by `size` bytes of payload. The header is *part of the free block*.
 
-use crate::allocator::static_heap::{ALLOC, ensure_init};
+use crate::static_heap::{ALLOC, ensure_init};
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr;
 

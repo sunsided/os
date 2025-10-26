@@ -1,6 +1,6 @@
 //! # Static Heap
 
-use crate::allocator::free_list::FreeListAllocator;
+use crate::free_list::FreeListAllocator;
 use core::sync::atomic::{AtomicBool, Ordering};
 use kernel_sync::spin_lock::SpinLock;
 
