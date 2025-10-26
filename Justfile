@@ -73,10 +73,18 @@ todo:
 # Clean the targets
 clean:
     @rm -r {{ build-local-dir }} || true
+    @rm debug.log || true
     @cargo clean
 
 # Run test in all projects
-test *ARGS:
+test: test-docs test-libs
+
+# Run documentation test in all projects
+test-docs:
+    @cargo test --doc
+
+# Run library test in all projects
+test-libs *ARGS:
     @cargo test --all-features --lib {{ ARGS }}
 
 # Build and open the docs
@@ -85,7 +93,7 @@ docs:
 
 # Build the docs
 build-docs *ARGS:
-    @cargo doc --no-deps --all-features {{ ARGS }}
+    @cargo doc --no-deps --all-features --document-private-items {{ ARGS }}
 
 # Build all packages with default settings
 build: uefi kernel
@@ -98,29 +106,29 @@ build-release: uefi-release kernel-release
 
 # Build the UEFI loader (default build)
 uefi *ARGS:
-    @cd uefi/uefi-loader && cargo build
+    @cd os/uefi/uefi-loader && cargo build
 
 # Build the UEFI loader (debug build)
 uefi-debug *ARGS:
-    @cd uefi/uefi-loader && cargo build
+    @cd os/uefi/uefi-loader && cargo build
 
 # Build the UEFI loader (release build)
 uefi-release *ARGS:
-    @cd uefi/uefi-loader && cargo build --release
+    @cd os/uefi/uefi-loader && cargo build --release
 
 # Build the Kernel (default build)
 kernel *ARGS:
-    @cd kernel/kernel && cargo build
+    @cd os/kernel/kernel && cargo build
     @readelf -l target/x86_64-unknown-none/debug/kernel
 
 # Build the Kernel (debug build)
 kernel-debug *ARGS:
-    @cd kernel/kernel && cargo build
+    @cd os/kernel/kernel && cargo build
     @readelf -l target/x86_64-unknown-none/debug/kernel
 
 # Build the Kernel (release build)
 kernel-release *ARGS:
-    @cd kernel/kernel && cargo build --release
+    @cd os/kernel/kernel && cargo build --release
     @readelf -l target/x86_64-unknown-none/release/kernel
 
 # Ensures the target directory exists.
@@ -159,8 +167,11 @@ run-qemu *ARGS: package
       -drive "if=pflash,format=raw,readonly=on,file={{ _ofmv-code-path }}" \
       -drive "if=pflash,format=raw,file={{ _ofmv-local-vars-path }}" \
       -drive "format=raw,file=fat:rw:{{ _esp-local-dir }}" \
-     -debugcon stdio -global isa-debugcon.iobase=0x402 \
       -net none \
+      -s \
+      -debugcon file:debug.log -global isa-debugcon.iobase=0x402 \
+      -monitor stdio \
+      -no-reboot -no-shutdown -d cpu_reset \
       {{ ARGS }}
 
 # Run the firmware in QEMU using OVMF (no graphic, no debug serial)
@@ -172,5 +183,8 @@ run-qemu-nographic *ARGS: package
       -drive "if=pflash,format=raw,file={{ _ofmv-local-vars-path }}" \
       -drive "format=raw,file=fat:rw:{{ _esp-local-dir }}" \
       -net none \
+      -s \
+      -debugcon file:debug.log -global isa-debugcon.iobase=0x402 \
+      -no-reboot -no-shutdown -d cpu_reset \
       -nographic \
       {{ ARGS }}
