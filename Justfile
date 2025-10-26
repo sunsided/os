@@ -171,6 +171,7 @@ run-qemu *ARGS: package
       -s \
       -debugcon file:debug.log -global isa-debugcon.iobase=0x402 \
       -monitor stdio \
+      -no-reboot -no-shutdown -d cpu_reset \
       {{ ARGS }}
 
 # Run the firmware in QEMU using OVMF (no graphic, no debug serial)
