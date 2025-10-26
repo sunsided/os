@@ -37,19 +37,12 @@
 //! real PMM/VMM exists, replace the bump allocator and (optionally) remap
 //! the framebuffer wherever you prefer.
 
+use crate::framebuffer::VGA_LIKE_OFFSET;
 use kernel_info::boot::{BootPixelFormat, FramebufferInfo};
 use kernel_info::memory::{HHDM_BASE, KERNEL_BASE, PHYS_LOAD};
 use kernel_vmem::{
     AddressSpace, MemoryPageFlags, PageSize, PhysAddr, PhysMapper, VirtAddr, read_cr3_phys,
 };
-
-/// Virtual offset inside the HHDM where we map the framebuffer.
-///
-/// We pick **`HHDM_BASE + 1 GiB + 0xB8000`** (“VGA-like”) to stay well clear
-/// of a potential 1 GiB huge page mapping at the very start of the HHDM.
-///
-/// This reduces the risk of having to split a 1 GiB page into 4 KiB pages.
-const VGA_LIKE_OFFSET: u64 = (1u64 << 30) + 0x000B_8000; // 1 GiB + 0xB8000 inside HHDM range
 
 /// Total bytes reserved in `.bss.boot` for early page-table frames.
 ///
@@ -201,9 +194,9 @@ struct Align4K<const N: usize>([u8; N]);
 /// ### Notes
 /// - This function tries to **avoid splitting** a 1 GiB huge mapping in the
 ///   early HHDM by placing the framebuffer at `VGA_LIKE_OFFSET`.
-pub unsafe fn map_framebuffer_into_hhdm(fb: &FramebufferInfo) -> (u64, u64) {
+pub unsafe fn map_framebuffer_into_hhdm(fb: &FramebufferInfo) -> (VirtAddr, u64) {
     if matches!(fb.framebuffer_format, BootPixelFormat::BltOnly) {
-        return (0, 0);
+        return (VirtAddr::from_u64(0), 0);
     }
 
     let fb_pa = fb.framebuffer_ptr;
@@ -238,5 +231,5 @@ pub unsafe fn map_framebuffer_into_hhdm(fb: &FramebufferInfo) -> (u64, u64) {
         va += page;
     }
 
-    (va_start, pa_end - pa_start)
+    (VirtAddr::from_u64(va_start), pa_end - pa_start)
 }

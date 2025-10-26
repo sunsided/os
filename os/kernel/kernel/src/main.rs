@@ -15,7 +15,7 @@ use crate::framebuffer::fill_solid;
 use crate::tracing::trace_boot_info;
 use crate::vmem::map_framebuffer_into_hhdm;
 use core::hint::spin_loop;
-use kernel_info::boot::{BootPixelFormat, KernelBootInfo};
+use kernel_info::boot::{BootPixelFormat, FramebufferInfo, KernelBootInfo};
 use kernel_qemu::qemu_trace;
 
 #[panic_handler]
@@ -105,7 +105,6 @@ pub extern "win64" fn _start_kernel(_boot_info: *const KernelBootInfo) {
 /// * The [`_start_kernel`] function keeps `boot_info` in `RDI`, matching C ABI expectations.
 #[unsafe(no_mangle)]
 extern "C" fn kernel_entry(boot_info: *const KernelBootInfo) -> ! {
-    #[cfg(feature = "qemu")]
     qemu_trace!("Kernel reporting to QEMU!\n");
 
     // (You can enable interrupts here when ready.)
@@ -114,23 +113,10 @@ extern "C" fn kernel_entry(boot_info: *const KernelBootInfo) -> ! {
 }
 
 fn kernel_main(bi: &KernelBootInfo) -> ! {
-    // Map the framebuffer into HHDM at a VGA-like offset and use it virtually
-    let (fb_va_base, _mapped_len) = unsafe { map_framebuffer_into_hhdm(&bi.fb) };
-    let mut fb_virt = bi.fb.clone();
-    fb_virt.framebuffer_ptr = fb_va_base;
-    #[cfg(feature = "qemu")]
-    {
-        qemu_trace!("Entering Kernel main loop ...\n");
-        trace_boot_info(bi);
-    }
+    qemu_trace!("Entering Kernel main loop ...\n");
+    trace_boot_info(bi);
 
-    #[cfg(feature = "qemu")]
-    match bi.fb.framebuffer_format {
-        BootPixelFormat::Rgb => qemu_trace!("RGB framebuffer\n"),
-        BootPixelFormat::Bgr => qemu_trace!("BGR framebuffer\n"),
-        BootPixelFormat::Bitmask => qemu_trace!("Bitmask framebuffer\n"),
-        BootPixelFormat::BltOnly => qemu_trace!("BltOnly framebuffer\n"),
-    }
+    let fb_virt = remap_boot_memory(bi);
 
     let mut cycle = 127u8;
     loop {
@@ -138,4 +124,14 @@ fn kernel_main(bi: &KernelBootInfo) -> ! {
         unsafe { fill_solid(&fb_virt, 72, 0, cycle) };
         spin_loop();
     }
+}
+
+/// Map the framebuffer into HHDM at a VGA-like offset and use it virtually
+fn remap_boot_memory(bi: &KernelBootInfo) -> FramebufferInfo {
+    let (fb_va_base, _mapped_len) = unsafe { map_framebuffer_into_hhdm(&bi.fb) };
+    let mut fb_virt = bi.fb.clone();
+    fb_virt.framebuffer_ptr = fb_va_base.as_u64();
+
+    qemu_trace!("Remapped frame buffer to {fb_va_base:?}\n");
+    fb_virt
 }
