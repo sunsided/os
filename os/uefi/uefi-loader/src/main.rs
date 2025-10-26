@@ -82,7 +82,7 @@ fn efi_main() -> Status {
     uefi::println!("Loading kernel segments into memory ...");
     if let Err(e) = elf::loader::load_pt_load_segments_hi(&elf_bytes, &parsed) {
         uefi::println!("Failed to load PT_LOAD segments: {e:?}");
-        return Status::UNSUPPORTED;
+        return e.into();
     }
 
     uefi::println!(
