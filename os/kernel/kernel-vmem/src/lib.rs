@@ -72,7 +72,7 @@
 
 pub mod address_space;
 mod addresses;
-mod page_table;
+pub mod page_table;
 
 extern crate alloc;
 

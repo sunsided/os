@@ -93,7 +93,7 @@ docs:
 
 # Build the docs
 build-docs *ARGS:
-    @cargo doc --no-deps --all-features {{ ARGS }}
+    @cargo doc --no-deps --all-features --document-private-items {{ ARGS }}
 
 # Build all packages with default settings
 build: uefi kernel
