@@ -14,10 +14,9 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
 - Line [32](./os/uefi/uefi-loader/src/main.rs#L32): Add proper documentation.
-- Line [109](./os/uefi/uefi-loader/src/main.rs#L109): Assert tramp_stack_base_phys == tramp_stack_top_va
-- Line [165](./os/uefi/uefi-loader/src/main.rs#L165): Document this properly
-- Line [172](./os/uefi/uefi-loader/src/main.rs#L172): Handle properly
+- Line [164](./os/uefi/uefi-loader/src/main.rs#L164): Document this properly
+- Line [171](./os/uefi/uefi-loader/src/main.rs#L171): Handle properly
 
 ## [os/uefi/uefi-loader/src/memory.rs](./os/uefi/uefi-loader/src/memory.rs)
 
-- Line [93](./os/uefi/uefi-loader/src/memory.rs#L93): Convert to actual pointer arithmetic ops.
+- Line [92](./os/uefi/uefi-loader/src/memory.rs#L92): Convert to actual pointer arithmetic ops.

@@ -105,8 +105,7 @@ fn efi_main() -> Status {
 
     // Allocate a trampoline stack (with guard page)
     let (tramp_stack_base_phys, tramp_stack_top_va) =
-        alloc_trampoline_stack(TRAMPOLINE_STACK_SIZE_BYTES, true, false);
-    // TODO: Assert tramp_stack_base_phys == tramp_stack_top_va
+        alloc_trampoline_stack(TRAMPOLINE_STACK_SIZE_BYTES, true);
 
     // Choose which BootInfo pointer to pass:
     //    (a) identity-mapped low pointer (we identity-map exactly that page)
@@ -208,19 +207,18 @@ unsafe fn switch_to_kernel(
     unsafe {
         core::arch::asm!(
             "cli",
+            // Set up stack pointer
             "mov    rsp, rdx",
-            "mov    rcx, r8",
-            "mov    rax, rsi",          // rax = kernel_entry
-            "mov    cr3, rdi",          // install page tables
-
-            // Ensure a valid Win64 call frame: 16-byte alignment and 32-byte shadow space
+            // Set up page tables
+            "mov    cr3, rdi",
+            // Set up arguments for sysv64: rdi = boot_info, rsi = (unused), rdx = (unused)
+            "mov    rdi, r8",
+            // Set up kernel entry address in rax
+            "mov    rax, rsi",
             // Align RSP down to 16-byte boundary
             "and    rsp, -16",
-            // Reserve 32-byte shadow space required by Windows x64 ABI
-            "sub    rsp, 32",
             // Emulate a CALL by pushing a dummy return address (kernel entry never returns)
             "push   0",
-
             "jmp    rax",
             in("rdi") pml4_phys.as_u64(),
             in("rsi") kernel_entry_va.as_u64(),
