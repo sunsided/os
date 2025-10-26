@@ -16,5 +16,5 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
-- Line [138](./os/uefi/uefi-loader/src/main.rs#L138): Document this properly
-- Line [145](./os/uefi/uefi-loader/src/main.rs#L145): Handle properly
+- Line [136](./os/uefi/uefi-loader/src/main.rs#L136): Document this properly
+- Line [143](./os/uefi/uefi-loader/src/main.rs#L143): Handle properly

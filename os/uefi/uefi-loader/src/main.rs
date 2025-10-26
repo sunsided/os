@@ -106,9 +106,7 @@ fn efi_main() -> Status {
 
     // Off we pop.
     unsafe {
-        trace_boot_info(boot_info);
-
-        qemu_trace!("UEFI is now jumping into Kernel land. Ciao Kakao ...\n");
+        trace_boot_info(boot_info, bi_ptr_va, parsed.entry);
         enable_wp_nxe_pge();
 
         // Activate our CR3 and jump to kernel entry (higher-half VA)

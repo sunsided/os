@@ -20,6 +20,30 @@ and `DEFINED(PHYS_LOAD)` to allow external configuration.
 Tracing with QEMU got massively easier now with the `qemu_trace!` macro. I didn't think implementing
 that would be so easy.
 
+I'm not dealing with a handover into the higher-half, as the CPU hangs on the `CR3` instruction. Right now
+I am only identity mapping the first 2 MiB (and then physmapping some more gigs on the high half).
+The problem appears to be that my UEFI loader is not running in the first 2 MiB however, as is shown
+by the trace output:
+
+```plain
+UEFI Loader reporting to QEMU
+Exiting boot services ...
+Boot services exited, we're now flying by instruments.
+Boot Info in UEFI Loader:
+   Kernel = 00ffffffff80100b5c (@17592186042369 MiB)
+   BI ptr = 00000000000e76dba0 (@231 MiB)
+       VA = 00000000000e76dba0 (@231 MiB)
+ MMAP ptr = 00000000000e785020 (@231 MiB), len = 7248, desc size = 48, desc version = 1, rsdp addr = 259514388
+   FB ptr = 000000000080000000 (@2048 MiB), size = 4096000, width = 1280, height = 800, stride = 1280, format = BGR
+Enabling supervisor write protection ...
+Setting EFER.NXE ...
+Enabling global pages ...
+Loading CR3 with the Page Table Root ...
+```
+
+It's clear that the currently executing code is at 231 MiB and therefore not mapped, which then leads
+to a page fault.
+
 ## 2025-10-25
 
 Adding a serial output to the QEMU emulator turned out to be extremely helpful in finding out
