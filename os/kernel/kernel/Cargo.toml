@@ -17,6 +17,7 @@ qemu = ["kernel-qemu/enabled"]
 [dependencies]
 kernel-info = { path = "../kernel-info" }
 kernel-qemu = { path = "../../kernel/kernel-qemu", default-features = false }
+kernel-sync = { path = "../kernel-sync" }
 kernel-vmem = { path = "../../kernel/kernel-vmem" }
 
 [build-dependencies]

@@ -622,13 +622,14 @@ mod tests {
         assert!(!is_aligned(MemoryAddress::new(u64::MAX), 16));
     }
 
+    #[test]
     fn test_nx_cleared() {
         assert_eq!(
-            MemoryPageFlags::GLOBAL.with_executable_if(true) & MemoryPageFlags::NX,
+            MemoryPageFlags::GLOBAL.with_executable_if(true),
             MemoryPageFlags::GLOBAL
         );
         assert_eq!(
-            MemoryPageFlags::GLOBAL.with_executable_if(false) & MemoryPageFlags::NX,
+            MemoryPageFlags::GLOBAL.with_executable_if(false),
             MemoryPageFlags::GLOBAL | MemoryPageFlags::NX
         );
     }

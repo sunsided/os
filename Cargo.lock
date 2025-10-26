@@ -37,6 +37,7 @@ version = "0.0.0"
 dependencies = [
  "kernel-info",
  "kernel-qemu",
+ "kernel-sync",
  "kernel-vmem",
 ]
 
@@ -50,6 +51,10 @@ version = "0.0.0"
 
 [[package]]
 name = "kernel-qemu"
+version = "0.0.0"
+
+[[package]]
+name = "kernel-sync"
 version = "0.0.0"
 
 [[package]]
