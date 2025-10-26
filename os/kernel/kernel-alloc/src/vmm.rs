@@ -20,6 +20,9 @@ use kernel_vmem::{
 /// Minimal kernel virtual memory manager.
 pub struct Vmm<'a, M: PhysMapper, F: FrameAlloc> {
     aspace: AddressSpace<'a, M>,
+    /// The physical memory allocator.
+    ///
+    /// Not to be confused with the [`PhysMapper`].
     pmm: &'a mut F,
 }
 

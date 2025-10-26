@@ -28,6 +28,9 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 /// Stack size.
 const BOOT_STACK_SIZE: usize = 64 * 1024;
 
+/// Physical Memory mapper for the Higher-Half Direct Map (HHDM).
+static MAPPER: HhdmPhysMapper = HhdmPhysMapper;
+
 /// 16-byte aligned stack
 #[repr(align(16))]
 struct Aligned<const N: usize>([u8; N]);
@@ -115,11 +118,8 @@ fn kernel_main(bi: &KernelBootInfo) -> ! {
 }
 
 fn remap_boot_memory(bi: &KernelBootInfo) -> FramebufferInfo {
-    // Set up PMM (bootstrap) and PhysMapper
-    static MAPPER: HhdmPhysMapper = HhdmPhysMapper;
+    // Set up PMM (bootstrap) and VMM (kernel)
     let mut pmm = BitmapFrameAlloc::new();
-
-    // Create VMM
     let mut vmm = Vmm::new(&MAPPER, &mut pmm);
 
     // Map framebuffer
