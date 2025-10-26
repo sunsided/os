@@ -77,6 +77,14 @@ XMM06=0000000000000000 0000000000000000 XMM07=0000000000000000 0000000000000000
 Triple fault
 ```
 
+A bunch of issues caused that. At the core, again, seems to have been the `win64` calling convention
+requiring extra stack space. After successfully setting that up, the kernel still segfaulted
+because it was now trying to access the framebuffer which, of course, was not mapped. While entirely
+on purpose, this sent me searching for bugs in the UEFI loaded when in reality the error came from elsewhere.
+Had I looked closer in the `debug.log`, I could have noticed ...
+Anyway, to set up the memory map in the kernel it needed to allocate, so now I needed to cook up a
+`global_allocator` as well.
+
 ## 2025-10-25
 
 Adding a serial output to the QEMU emulator turned out to be extremely helpful in finding out

@@ -3,10 +3,8 @@
 #![allow(clippy::inline_always)]
 
 use crate::elf::loader::LoadedSegMap;
-use crate::elf::parser::ElfHeader;
 use crate::elf::{PF_W, PF_X};
 use kernel_info::memory::{HHDM_BASE, KERNEL_BASE, PHYS_LOAD};
-use kernel_qemu::qemu_trace;
 use kernel_vmem::{
     AddressSpace, FrameAlloc, MemoryAddress, MemoryPageFlags, PageSize, PageTable, PhysAddr,
     PhysMapper, VirtAddr, align_down, align_up, is_aligned,
@@ -62,12 +60,12 @@ const fn can_use_2m(va: VirtAddr, pa: PhysAddr, remaining: u64) -> bool {
     is_aligned(va.as_addr(), PAGE_2M) && is_aligned(pa.as_addr(), PAGE_2M) && remaining >= PAGE_2M
 }
 
+#[allow(clippy::too_many_lines)]
 pub fn create_kernel_pagetables(
     kernel_maps: &[LoadedSegMap],
     tramp_code_va: VirtAddr,
     tramp_code_len: usize,
     tramp_stack_base_phys: PhysAddr,
-    tramp_stack_top_va: VirtAddr,
     tramp_stack_size_bytes: usize,
     boot_info_ptr_va: VirtAddr,
 ) -> Result<Pml4Phys, &'static str> {

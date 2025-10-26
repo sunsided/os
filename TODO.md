@@ -4,12 +4,12 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel-vmem/src/lib.rs](./os/kernel/kernel-vmem/src/lib.rs)
 
-- Line [101](./os/kernel/kernel-vmem/src/lib.rs#L101): Rework using bitfield_struct
+- Line [141](./os/kernel/kernel-vmem/src/lib.rs#L141): Rework using bitfield_struct
 
 ## [os/kernel/kernel/src/main.rs](./os/kernel/kernel/src/main.rs)
 
-- Line [49](./os/kernel/kernel/src/main.rs#L49): Remove this when we have a proper bootloader
-- Line [138](./os/kernel/kernel/src/main.rs#L138): Use a panic here
+- Line [132](./os/kernel/kernel/src/main.rs#L132): framebuffer mapped into HHDM at VGA-like offset
+- Line [245](./os/kernel/kernel/src/main.rs#L245): Use a panic here
 
 ## [os/uefi/uefi-loader/src/elf/parser.rs](./os/uefi/uefi-loader/src/elf/parser.rs)
 
@@ -17,9 +17,10 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
-- Line [166](./os/uefi/uefi-loader/src/main.rs#L166): Document this properly
-- Line [173](./os/uefi/uefi-loader/src/main.rs#L173): Handle properly
-- Line [224](./os/uefi/uefi-loader/src/main.rs#L224): Triple faults now
+- Line [32](./os/uefi/uefi-loader/src/main.rs#L32): Add proper documentation.
+- Line [109](./os/uefi/uefi-loader/src/main.rs#L109): Assert tramp_stack_base_phys == tramp_stack_top_va
+- Line [165](./os/uefi/uefi-loader/src/main.rs#L165): Document this properly
+- Line [172](./os/uefi/uefi-loader/src/main.rs#L172): Handle properly
 
 ## [os/uefi/uefi-loader/src/memory.rs](./os/uefi/uefi-loader/src/memory.rs)
 

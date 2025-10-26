@@ -13,7 +13,6 @@ mod rsdp;
 mod tracing;
 mod uefi_mmap;
 
-use crate::elf::loader::{ElfLoaderError, LoadedSegMap};
 use crate::elf::parser::ElfHeader;
 use crate::elf::vmem::create_kernel_pagetables;
 use crate::file_system::load_file;
@@ -23,14 +22,15 @@ use crate::rsdp::find_rsdp_addr;
 use crate::tracing::trace_boot_info;
 use crate::uefi_mmap::exit_boot_services;
 use alloc::boxed::Box;
-use alloc::vec::Vec;
 use kernel_info::boot::{KernelBootInfo, MemoryMapInfo};
 use kernel_qemu::qemu_trace;
 use kernel_vmem::{MemoryAddress, PhysAddr, VirtAddr};
 use uefi::boot::PAGE_SIZE;
-use uefi::boot::{AllocateType, MemoryType};
 use uefi::cstr16;
 use uefi::prelude::*;
+
+// TODO: Add proper documentation.
+const TRAMPOLINE_STACK_SIZE_BYTES: usize = 64 * 1024;
 
 #[entry]
 #[allow(clippy::too_many_lines)]
@@ -104,14 +104,14 @@ fn efi_main() -> Status {
     let tramp_code_len: usize = PAGE_SIZE; // should be enough
 
     // Allocate a trampoline stack (with guard page)
-    const TRAMPOLINE_STACK_SIZE_BYTES: usize = 64 * 1024;
     let (tramp_stack_base_phys, tramp_stack_top_va) =
         alloc_trampoline_stack(TRAMPOLINE_STACK_SIZE_BYTES, true, false);
+    // TODO: Assert tramp_stack_base_phys == tramp_stack_top_va
 
     // Choose which BootInfo pointer to pass:
     //    (a) identity-mapped low pointer (we identity-map exactly that page)
     let bi_ptr_va = VirtAddr::new(MemoryAddress::from_ptr(
-        core::ptr::from_ref::<KernelBootInfo>(boot_info) as _,
+        core::ptr::from_ref::<KernelBootInfo>(boot_info).cast(),
     ));
 
     // Build page tables
@@ -120,7 +120,6 @@ fn efi_main() -> Status {
         tramp_code_va,
         tramp_code_len,
         tramp_stack_base_phys,
-        tramp_stack_top_va,
         TRAMPOLINE_STACK_SIZE_BYTES,
         bi_ptr_va,
     ) else {
@@ -160,7 +159,7 @@ unsafe fn enable_wp_nxe_pge() {
     unsafe {
         core::arch::asm!("mov cr0, {}", in(reg) cr0, options(nomem, preserves_flags));
     }
-    
+
     // EFER.NXE = 1
     qemu_trace!("Setting EFER.NXE ...\n");
     const MSR_EFER: u32 = 0xC000_0080; // TODO: Document this properly
@@ -194,10 +193,10 @@ type BootInfoVirtualAddress = VirtAddr;
 type TrampolineStackVirtualAddress = VirtAddr;
 
 /// Enter the kernel via a tiny trampoline.
-/// - new_cr3: phys addr of PML4 (4KiB aligned)
-/// - kernel_entry: higher-half VA (your `extern "win64" fn(*const BootInfo) -> !`)
-/// - boot_info: higher-half VA (or low VA if you pass identity-mapped pointer)
-/// - tramp_stack_top: VA of the top of the trampoline stack (identity-mapped in both maps)
+/// - `new_cr3`: phys addr of PML4 (4KiB aligned)
+/// - `kernel_entry`: higher-half VA (your `extern "win64" fn(*const BootInfo) -> !`)
+/// - `boot_info`: higher-half VA (or low VA if you pass identity-mapped pointer)
+/// - `tramp_stack_top`: VA of the top of the trampoline stack (identity-mapped in both maps)
 #[inline(never)]
 unsafe fn switch_to_kernel(
     pml4_phys: PageTablePhysicalAddress,

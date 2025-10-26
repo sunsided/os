@@ -83,6 +83,46 @@ pub use addresses::{MemoryAddress, PhysAddr, VirtAddr};
 /// Re-export constants as info module.
 pub use kernel_info::memory as info;
 
+/// Reads the current value of the **CR3 register** (the page table base register)
+/// and returns the physical address of the top-level page table (PML4).
+///
+/// # Safety
+/// This function is **unsafe** because it directly accesses a CPU control register.
+/// It must only be called in privileged (ring 0) code where paging is active and
+/// the CR3 contents are valid. Calling it from user mode or before enabling paging
+/// will cause undefined behavior.
+///
+/// # Details
+/// - On x86-64, CR3 holds the **physical base address** of the currently active
+///   PML4 (Page Map Level 4) table.
+/// - The low 12 bits of CR3 contain **flags** (e.g., PCID, reserved bits),
+///   so this function masks them out to obtain a 4 KiB-aligned physical address.
+/// - The returned address represents the root of the current virtual memory
+///   hierarchy used for address translation.
+///
+/// # Returns
+/// The 4 KiB-aligned [`PhysAddr`] of the current PML4 table.
+///
+/// # Example
+/// ```no_run
+/// use kernel_vmem::read_cr3_phys;
+///
+/// // SAFETY: Only call from kernel mode with paging enabled.
+/// let current_pml4 = unsafe { read_cr3_phys() };
+/// println!("Active PML4 base: {:#x}", current_pml4.as_u64());
+/// ```
+#[allow(clippy::inline_always)]
+#[inline(always)]
+#[must_use]
+pub unsafe fn read_cr3_phys() -> PhysAddr {
+    let mut cr3: u64;
+    unsafe {
+        core::arch::asm!("mov {}, cr3", out(reg) cr3, options(nomem, nostack, preserves_flags));
+    }
+    // CR3 holds PML4 physical base with low bits as flags
+    PhysAddr::from_u64(cr3 & 0x000f_ffff_ffff_f000)
+}
+
 /// Supported x86-64 page sizes.
 ///
 /// These correspond to the PS (Page Size) bit usage in PDE/PDPTE.

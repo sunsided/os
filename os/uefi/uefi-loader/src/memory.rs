@@ -69,16 +69,16 @@ unsafe impl GlobalAlloc for UefiBootAllocator {
 }
 
 /// Allocate a trampoline stack (optionally with a guard page) and return:
-/// - base_phys: physical base address (also used as VA, since we'll identity-map it)
-/// - top_va:    virtual top-of-stack address you'll load into RSP
+/// - `base_phys`: physical base address (also used as VA, since we'll identity-map it)
+/// - `top_va`:    virtual top-of-stack address you'll load into RSP
 pub fn alloc_trampoline_stack(
     stack_size_bytes: usize, // e.g. 64 * 1024
     with_guard: bool,
     win64_shadow_space: bool, // reserve 32 bytes if your kernel uses Win64 ABI
 ) -> (PhysAddr, VirtAddr) {
     let page_size = 4096usize;
-    let pages_for_stack = (stack_size_bytes + page_size - 1) / page_size;
-    let guard_pages = if with_guard { 1 } else { 0 };
+    let pages_for_stack = stack_size_bytes.div_ceil(page_size);
+    let guard_pages = usize::from(with_guard);
     let total_pages = pages_for_stack + guard_pages;
 
     // AllocateAnyPages returns a physical base in `base_phys`

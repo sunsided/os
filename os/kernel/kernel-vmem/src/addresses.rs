@@ -62,50 +62,61 @@ impl VirtAddr {
 }
 
 impl MemoryAddress {
+    #[must_use]
     pub const fn new(addr: u64) -> Self {
         Self(addr)
     }
 
+    #[must_use]
     pub fn from_ptr(ptr: *const u8) -> Self {
         Self(ptr as u64)
     }
 
+    #[must_use]
     pub const fn as_u64(self) -> u64 {
         self.0
     }
 }
 
 impl VirtAddr {
+    #[must_use]
     pub const fn new(addr: MemoryAddress) -> Self {
         Self(addr)
     }
 
+    #[must_use]
     pub const fn from_u64(addr: u64) -> Self {
         Self(MemoryAddress::new(addr))
     }
 
+    #[must_use]
     pub const fn as_u64(self) -> u64 {
         self.0.as_u64()
     }
 
+    #[must_use]
     pub const fn as_addr(self) -> MemoryAddress {
         self.0
     }
 }
 
 impl PhysAddr {
+    #[must_use]
     pub const fn new(addr: MemoryAddress) -> Self {
         Self(addr)
     }
 
+    #[must_use]
     pub const fn from_u64(addr: u64) -> Self {
         Self(MemoryAddress::new(addr))
     }
 
+    #[must_use]
     pub const fn as_u64(self) -> u64 {
         self.0.as_u64()
     }
 
+    #[must_use]
     pub const fn as_addr(self) -> MemoryAddress {
         self.0
     }
@@ -311,10 +322,10 @@ impl From<MemoryAddress> for PhysAddr {
     }
 }
 
-impl Sub<MemoryAddress> for MemoryAddress {
+impl Sub<Self> for MemoryAddress {
     type Output = u64;
 
-    fn sub(self, rhs: MemoryAddress) -> Self::Output {
+    fn sub(self, rhs: Self) -> Self::Output {
         self.0.checked_sub(rhs.as_u64()).expect("MemoryAddress sub")
     }
 }

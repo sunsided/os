@@ -126,7 +126,7 @@ pub struct LoadedSegMap {
     pub vaddr_page: MemoryAddress,
     /// page-aligned physical base actually allocated
     pub phys_page: MemoryAddress,
-    /// bytes to map from vaddr_page (page-rounded)
+    /// bytes to map from `vaddr_page` (page-rounded)
     pub map_len: u64,
     /// ELF `p_flags` (`PF_X`, `PF_W`)
     pub flags: u32,
