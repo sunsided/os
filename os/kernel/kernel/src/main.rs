@@ -101,6 +101,18 @@ extern "C" fn kernel_entry(boot_info: *const KernelBootInfo) -> ! {
     kernel_main(&fb_virt)
 }
 
+/// Main kernel loop, running with all memory (including framebuffer) properly mapped.
+///
+/// # Memory Safety
+/// At this point, the kernel operates with virtual addresses set up by the VMM, and
+/// the framebuffer is accessible at its mapped virtual address. All further kernel
+/// code should use these mapped addresses, not physical ones.
+///
+/// # Arguments
+/// * `fb_virt` - [`FramebufferInfo`] with a valid, mapped virtual address.
+///
+/// # Safety
+/// Assumes that [`remap_boot_memory`] has been called and all required mappings are in place.
 fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
     qemu_trace!("Entering Kernel main loop ...\n");
 
