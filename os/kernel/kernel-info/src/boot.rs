@@ -5,7 +5,7 @@
 /// # ABI
 /// The ABI is defined as `win64` since the kernel is called from a UEFI
 /// (PE/COFF) application.
-pub type KernelEntry = extern "win64" fn(*const KernelBootInfo) -> !;
+pub type KernelEntryFn = extern "win64" fn(*const KernelBootInfo) -> !;
 
 /// Information the kernel needs right after `ExitBootServices`.
 /// Keep this `#[repr(C)]` and prefer fixed-size integers over `u64` at the ABI boundary.
