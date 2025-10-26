@@ -78,6 +78,7 @@ clean:
 # Run test in all projects
 test *ARGS:
     @cargo test --all-features --lib {{ ARGS }}
+    @cargo test --doc
 
 # Build and open the docs
 docs:

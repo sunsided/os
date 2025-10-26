@@ -68,7 +68,7 @@
 //! on which level the translation stops.
 
 #![cfg_attr(not(test), no_std)]
-#![allow(unsafe_code)]
+#![allow(unsafe_code, clippy::inline_always)]
 
 pub mod address_space;
 mod addresses;
@@ -211,6 +211,66 @@ pub trait PhysMapper {
 #[inline]
 unsafe fn get_table<'a, M: PhysMapper>(m: &M, phys: PhysAddr) -> &'a mut PageTable {
     unsafe { m.phys_to_mut::<PageTable>(phys) }
+}
+
+/// Align `x` down to the nearest multiple of `a`.
+///
+/// This returns the greatest value `y <= x` such that `y % a == 0`.
+///
+/// ### Preconditions
+/// - `a` must be **non-zero** and a **power of two** (e.g., 1, 2, 4, 8, …).
+///   These bit-trick formulas rely on that property.
+/// - No additional constraints on `x`.
+///
+/// ### Notes
+/// - If `x` is already aligned to `a`, it is returned unchanged.
+/// - For non power-of-two `a`, the result is meaningless.
+/// - This function does not perform runtime checks for performance reasons.
+///
+/// ### Examples
+/// ```rust
+/// # use kernel_vmem::align_down;
+/// assert_eq!(align_down(0,      4096), 0);
+/// assert_eq!(align_down(1,      4096), 0);
+/// assert_eq!(align_down(4095,   4096), 0);
+/// assert_eq!(align_down(4096,   4096), 4096);
+/// assert_eq!(align_down(8191,   4096), 4096);
+/// assert_eq!(align_down(0x12345,   16), 0x12340);
+/// ```
+#[inline(always)]
+#[must_use]
+pub const fn align_down(x: u64, a: u64) -> u64 {
+    x & !(a - 1)
+}
+
+/// Align `x` up to the nearest multiple of `a`.
+///
+/// This returns the smallest value `y >= x` such that `y % a == 0`.
+///
+/// ### Preconditions
+/// - `a` must be **non-zero** and a **power of two**.
+/// - `x + (a - 1)` must **not overflow** `u64`.
+///   In debug builds, overflow panics; in release, it wraps (yielding a wrong result).
+///   If you need saturating behavior, handle that before calling.
+///
+/// ### Notes
+/// - If `x` is already aligned to `a`, it is returned unchanged.
+/// - This function does not perform runtime checks for performance reasons.
+///
+/// ### Examples
+/// ```rust
+/// # use kernel_vmem::align_up;
+/// assert_eq!(align_up(0,       4096), 0);
+/// assert_eq!(align_up(1,       4096), 4096);
+/// assert_eq!(align_up(4095,    4096), 4096);
+/// assert_eq!(align_up(4096,    4096), 4096);
+/// assert_eq!(align_up(4097,    4096), 8192);
+/// assert_eq!(align_up(0x12345,   16), 0x12350);
+/// ```
+#[inline(always)]
+#[must_use]
+pub const fn align_up(x: u64, a: u64) -> u64 {
+    (x + a - 1) & !(a - 1)
 }
 
 #[cfg(test)]
