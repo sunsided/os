@@ -2,12 +2,14 @@
 
 #![allow(clippy::inline_always)]
 
+use crate::elf::loader::LoadedSegMap;
 use crate::elf::parser::ElfHeader;
 use crate::elf::{PF_W, PF_X};
 use kernel_info::memory::{HHDM_BASE, KERNEL_BASE, PHYS_LOAD};
+use kernel_qemu::qemu_trace;
 use kernel_vmem::{
-    AddressSpace, FrameAlloc, MemoryPageFlags, PageSize, PageTable, PhysAddr, PhysMapper, VirtAddr,
-    align_down, is_aligned,
+    AddressSpace, FrameAlloc, MemoryAddress, MemoryPageFlags, PageSize, PageTable, PhysAddr,
+    PhysMapper, VirtAddr, align_down, align_up, is_aligned,
 };
 use uefi::boot;
 use uefi::boot::{AllocateType, MemoryType};
@@ -32,7 +34,7 @@ impl FrameAlloc for BsFrameAlloc {
         unsafe {
             core::ptr::write_bytes(ptr.as_ptr(), 0, 4096);
         }
-        Some(PhysAddr(pa))
+        Some(PhysAddr::new(MemoryAddress::new(pa)))
     }
 }
 
@@ -42,25 +44,32 @@ impl PhysMapper for LoaderPhysMapper {
     unsafe fn phys_to_mut<'a, T>(&self, pa: PhysAddr) -> &'a mut T {
         // In the loader we *temporarily* assume identity for page-table frames we allocate.
         // (They’re in low memory and UEFI page tables map them.)
-        unsafe { &mut *(pa.0 as *mut T) }
+        unsafe { &mut *(pa.as_u64() as *mut T) }
     }
 }
 
 /// Derive physical for a kernel VMA per your linker `AT()`
 #[inline(always)]
-const fn kernel_va_to_pa(va: u64) -> PhysAddr {
-    PhysAddr(PHYS_LOAD + (va - KERNEL_BASE))
+const fn kernel_va_to_pa(va: VirtAddr) -> PhysAddr {
+    PhysAddr::new(MemoryAddress::new(PHYS_LOAD + (va.as_u64() - KERNEL_BASE)))
 }
 
 /// The physical address of the Page-Map Level-4 Table (PML4).
 type Pml4Phys = PhysAddr;
 
 #[inline(always)]
-const fn can_use_2m(va: u64, pa: u64, remaining: u64) -> bool {
-    is_aligned(va, PAGE_2M) && is_aligned(pa, PAGE_2M) && remaining >= PAGE_2M
+const fn can_use_2m(va: VirtAddr, pa: PhysAddr, remaining: u64) -> bool {
+    is_aligned(va.as_addr(), PAGE_2M) && is_aligned(pa.as_addr(), PAGE_2M) && remaining >= PAGE_2M
 }
 
-pub fn create_kernel_pagetables(elf: &ElfHeader) -> Result<Pml4Phys, &'static str> {
+pub fn create_kernel_pagetables(
+    kernel_maps: &[LoadedSegMap],
+    tramp_code_va: VirtAddr,
+    tramp_code_len: usize,
+    tramp_stack_base_phys: PhysAddr,
+    tramp_stack_top_va: VirtAddr,
+    tramp_stack_size_bytes: usize,
+) -> Result<Pml4Phys, &'static str> {
     let mapper = LoaderPhysMapper;
     let mut alloc = BsFrameAlloc;
 
@@ -72,31 +81,32 @@ pub fn create_kernel_pagetables(elf: &ElfHeader) -> Result<Pml4Phys, &'static st
 
     let aspace = AddressSpace::new(&mapper, pml4_phys);
 
-    // Map the higher-half kernel segments
-    for seg in &elf.segments {
-        if seg.memsz == 0 {
-            continue;
+    // Map each loaded segment using (phys_page + (va - vaddr_page))
+    for m in kernel_maps {
+        let mut va = m.vaddr_page;
+        let end = m.vaddr_page.as_u64() + m.map_len;
+
+        let mut flags = MemoryPageFlags::GLOBAL;
+        if (m.flags & PF_W) != 0 {
+            flags |= MemoryPageFlags::WRITABLE;
         }
+        if (m.flags & PF_X) == 0 {
+            flags |= MemoryPageFlags::NX;
+        } // leave NX *clear* iff PF_X set
 
-        let va_start = seg.vaddr;
-        let va_end = seg.vaddr.checked_add(seg.memsz).ok_or("overflow")?;
+        while va.as_u64() < end {
+            let off = va - m.vaddr_page;
+            let pa = m.phys_page.as_u64() + off;
 
-        // Choose flags from ELF p_flags
-        let flags = MemoryPageFlags::GLOBAL
-            .with_writable_if((seg.flags & PF_W) != 0)
-            .with_executable_if((seg.flags & PF_X) != 0);
+            let can2m = (va.as_u64() & (PAGE_2M - 1) == 0)
+                && (pa & (PAGE_2M - 1) == 0)
+                && (end - va.as_u64()) >= PAGE_2M;
 
-        // Try 2 MiB chunks when aligned, otherwise 4 KiB
-        let mut va = align_down(va_start, PAGE_2M);
-        while va < va_end {
-            let remaining = va_end - va;
-            let pa = kernel_va_to_pa(va).0;
-
-            if can_use_2m(va, pa, remaining) {
+            if can2m {
                 aspace.map_one(
                     &mut alloc,
-                    VirtAddr(va),
-                    PhysAddr(pa),
+                    VirtAddr::new(va),
+                    PhysAddr::from_u64(pa),
                     PageSize::Size2M,
                     flags,
                 )?;
@@ -104,8 +114,8 @@ pub fn create_kernel_pagetables(elf: &ElfHeader) -> Result<Pml4Phys, &'static st
             } else {
                 aspace.map_one(
                     &mut alloc,
-                    VirtAddr(va),
-                    PhysAddr(pa),
+                    VirtAddr::new(va),
+                    PhysAddr::from_u64(pa),
                     PageSize::Size4K,
                     flags,
                 )?;
@@ -118,8 +128,8 @@ pub fn create_kernel_pagetables(elf: &ElfHeader) -> Result<Pml4Phys, &'static st
     // VA = HHDM_BASE, PA = 0
     aspace.map_one(
         &mut alloc,
-        VirtAddr(HHDM_BASE),
-        PhysAddr(0),
+        VirtAddr::from_u64(HHDM_BASE),
+        PhysAddr::from_u64(0),
         PageSize::Size1G,
         MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL | MemoryPageFlags::NX,
     )?;
@@ -127,11 +137,62 @@ pub fn create_kernel_pagetables(elf: &ElfHeader) -> Result<Pml4Phys, &'static st
     // Identity map first 2 MiB for the trampoline/loader code after CR3 switch.
     aspace.map_one(
         &mut alloc,
-        VirtAddr(0),
-        PhysAddr(0),
+        VirtAddr::from_u64(0),
+        PhysAddr::from_u64(0),
         PageSize::Size2M,
         MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL | MemoryPageFlags::NX,
     )?;
+
+    // Identity map the trampoline stack (4 KiB leaves)
+    {
+        let start = align_down(tramp_stack_base_phys.as_addr(), PAGE_4K);
+        let end = align_up(
+            tramp_stack_base_phys
+                .as_u64()
+                .checked_add(tramp_stack_size_bytes as u64)
+                .ok_or("stack range overflow")?
+                .into(),
+            PAGE_4K,
+        );
+
+        let mut pa = start;
+        while pa < end {
+            // Identity: VA == PA
+            aspace.map_one(
+                &mut alloc,
+                VirtAddr::new(pa),
+                PhysAddr::new(pa),
+                PageSize::Size4K,
+                MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL | MemoryPageFlags::NX,
+            )?;
+            pa += PAGE_4K;
+        }
+    }
+
+    // Identity map the trampoline code
+    {
+        let start = align_down(tramp_code_va.as_addr(), PAGE_4K);
+        let end = align_up(
+            tramp_code_va
+                .as_u64()
+                .checked_add(tramp_code_len as u64)
+                .ok_or("tramp code overflow")?
+                .into(),
+            PAGE_4K,
+        );
+        let mut pa = start;
+        while pa < end {
+            aspace.map_one(
+                &mut alloc,
+                VirtAddr(pa), // identity
+                PhysAddr(pa),
+                PageSize::Size4K,
+                // Executable! keep NX clear; writable not needed:
+                MemoryPageFlags::GLOBAL,
+            )?;
+            pa += PAGE_4K;
+        }
+    }
 
     Ok(pml4_phys)
 }

@@ -129,7 +129,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
         let pml4 = self.pml4();
         let e4 = pml4.entry_mut_by_va(va);
         let pdpt_phys = if e4.present() {
-            PhysAddr(e4.addr())
+            PhysAddr::new(e4.addr().as_addr())
         } else {
             let f = alloc.alloc_4k().ok_or("OOM for PDPT")?;
             as_pdpt(self.mapper, f).zero();
@@ -151,7 +151,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
             pdpt.link_pd(va, f);
             f
         } else {
-            PhysAddr(e3.addr())
+            PhysAddr::new(e3.addr().as_addr())
         };
 
         // PD
@@ -168,7 +168,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
             pd.link_pt(va, f);
             f
         } else {
-            PhysAddr(e2.addr())
+            PhysAddr::new(e2.addr().as_addr())
         };
 
         // PT leaf for 4 KiB mappings
@@ -210,12 +210,12 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
         flags |= MemoryPageFlags::PRESENT;
 
         // Physical alignment sanity checks (debug builds).
-        debug_assert_eq!(pa.0 & ((1u64 << 12) - 1), 0, "phys not 4K aligned");
+        debug_assert_eq!(pa.as_u64() & ((1u64 << 12) - 1), 0, "phys not 4K aligned");
         if matches!(size, PageSize::Size2M) {
-            debug_assert_eq!(pa.0 & ((1u64 << 21) - 1), 0, "phys not 2M aligned");
+            debug_assert_eq!(pa.as_u64() & ((1u64 << 21) - 1), 0, "phys not 2M aligned");
         }
         if matches!(size, PageSize::Size1G) {
-            debug_assert_eq!(pa.0 & ((1u64 << 30) - 1), 0, "phys not 1G aligned");
+            debug_assert_eq!(pa.as_u64() & ((1u64 << 30) - 1), 0, "phys not 1G aligned");
         }
 
         unsafe {
@@ -225,21 +225,21 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
                     // PDPTE leaf
                     let pdpt = get_table::<M>(self.mapper, leaf_phys);
                     let e = pdpt.entry_mut(va.pdpt_index());
-                    e.set_addr(pa.0);
+                    e.set_addr(pa);
                     apply_flags(e, flags | MemoryPageFlags::PS, true);
                 }
                 PageSize::Size2M => {
                     // PDE leaf
                     let pd = get_table::<M>(self.mapper, leaf_phys);
                     let e = pd.entry_mut(va.pd_index());
-                    e.set_addr(pa.0);
+                    e.set_addr(pa);
                     apply_flags(e, flags | MemoryPageFlags::PS, true);
                 }
                 PageSize::Size4K => {
                     // PTE leaf
                     let pt = get_table::<M>(self.mapper, leaf_phys);
                     let e = pt.entry_mut(va.pt_index());
-                    e.set_addr(pa.0);
+                    e.set_addr(pa);
                     apply_flags(e, flags, is_huge_leaf);
                 }
             }
@@ -262,7 +262,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
     pub unsafe fn activate(&self) {
         // Enable/disable PGE/NXE elsewhere as needed
         unsafe {
-            core::arch::asm!("mov cr3, {}", in(reg) self.root_phys.0, options(nostack, preserves_flags));
+            core::arch::asm!("mov cr3, {}", in(reg) self.root_phys.as_u64(), options(nostack, preserves_flags));
         }
     }
 }

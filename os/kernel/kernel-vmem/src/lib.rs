@@ -106,7 +106,7 @@ bitflags::bitflags! {
     /// and indicate page status (e.g., accessed or dirty).
     /// They apply to all paging levels (PTE, PDE, PDPTE, PML4E),
     /// except where noted (e.g., `PS` only valid for PDE/PDPTE).
-    #[derive(Copy, Clone)]
+    #[derive(Debug, Copy, Clone, Eq, PartialEq)]
     pub struct MemoryPageFlags: u64 {
         /// Page is present in physical memory.
         ///
@@ -256,18 +256,18 @@ unsafe fn get_table<'a, M: PhysMapper>(m: &M, phys: PhysAddr) -> &'a mut PageTab
 ///
 /// ### Examples
 /// ```rust
-/// # use kernel_vmem::align_down;
-/// assert_eq!(align_down(0,      4096), 0);
-/// assert_eq!(align_down(1,      4096), 0);
-/// assert_eq!(align_down(4095,   4096), 0);
-/// assert_eq!(align_down(4096,   4096), 4096);
-/// assert_eq!(align_down(8191,   4096), 4096);
-/// assert_eq!(align_down(0x12345,   16), 0x12340);
+/// # use kernel_vmem::{align_down, MemoryAddress};
+/// assert_eq!(align_down(MemoryAddress::new(0),       4096), MemoryAddress::new(0));
+/// assert_eq!(align_down(MemoryAddress::new(1),       4096), MemoryAddress::new(0));
+/// assert_eq!(align_down(MemoryAddress::new(4095),    4096), MemoryAddress::new(0));
+/// assert_eq!(align_down(MemoryAddress::new(4096),    4096), MemoryAddress::new(4096));
+/// assert_eq!(align_down(MemoryAddress::new(8191),    4096), MemoryAddress::new(4096));
+/// assert_eq!(align_down(MemoryAddress::new(0x12345),   16), MemoryAddress::new(0x12340));
 /// ```
 #[inline(always)]
 #[must_use]
-pub const fn align_down(x: u64, a: u64) -> u64 {
-    x & !(a - 1)
+pub const fn align_down(x: MemoryAddress, a: u64) -> MemoryAddress {
+    MemoryAddress::new(x.as_u64() & !(a - 1))
 }
 
 /// Align `x` up to the nearest multiple of `a`.
@@ -286,18 +286,18 @@ pub const fn align_down(x: u64, a: u64) -> u64 {
 ///
 /// ### Examples
 /// ```rust
-/// # use kernel_vmem::align_up;
-/// assert_eq!(align_up(0,       4096), 0);
-/// assert_eq!(align_up(1,       4096), 4096);
-/// assert_eq!(align_up(4095,    4096), 4096);
-/// assert_eq!(align_up(4096,    4096), 4096);
-/// assert_eq!(align_up(4097,    4096), 8192);
-/// assert_eq!(align_up(0x12345,   16), 0x12350);
+/// # use kernel_vmem::{align_up, MemoryAddress};
+/// assert_eq!(align_up(MemoryAddress::new(0),       4096), MemoryAddress::new(0));
+/// assert_eq!(align_up(MemoryAddress::new(1),       4096), MemoryAddress::new(4096));
+/// assert_eq!(align_up(MemoryAddress::new(4095),    4096), MemoryAddress::new(4096));
+/// assert_eq!(align_up(MemoryAddress::new(4096),    4096), MemoryAddress::new(4096));
+/// assert_eq!(align_up(MemoryAddress::new(4097),    4096), MemoryAddress::new(8192));
+/// assert_eq!(align_up(MemoryAddress::new(0x12345),   16), MemoryAddress::new(0x12350));
 /// ```
 #[inline(always)]
 #[must_use]
-pub const fn align_up(x: u64, a: u64) -> u64 {
-    (x + a - 1) & !(a - 1)
+pub const fn align_up(x: MemoryAddress, a: u64) -> MemoryAddress {
+    MemoryAddress::new((x.as_u64() + a - 1) & !(a - 1))
 }
 
 /// Check whether `x` is aligned to a given power-of-two boundary `align`.
@@ -318,20 +318,20 @@ pub const fn align_up(x: u64, a: u64) -> u64 {
 ///
 /// ### Examples
 /// ```rust
-/// # use kernel_vmem::is_aligned;
-/// assert!(is_aligned(0, 4096));
-/// assert!(is_aligned(4096, 4096));
-/// assert!(is_aligned(8192, 4096));
+/// # use kernel_vmem::{is_aligned, MemoryAddress};
+/// assert!(is_aligned(MemoryAddress::new(0), 4096));
+/// assert!(is_aligned(MemoryAddress::new(4096), 4096));
+/// assert!(is_aligned(MemoryAddress::new(8192), 4096));
 ///
-/// assert!(!is_aligned(1, 4096));
-/// assert!(!is_aligned(4095, 4096));
-/// assert!(!is_aligned(0x12345, 16));
-/// assert!(is_aligned(0x12340, 16));
+/// assert!(!is_aligned(MemoryAddress::new(1), 4096));
+/// assert!(!is_aligned(MemoryAddress::new(4095), 4096));
+/// assert!(!is_aligned(MemoryAddress::new(0x12345), 16));
+/// assert!(is_aligned(MemoryAddress::new(0x12340), 16));
 /// ```
 #[inline(always)]
 #[must_use]
-pub const fn is_aligned(x: u64, align: u64) -> bool {
-    (x & (align - 1)) == 0
+pub const fn is_aligned(x: MemoryAddress, align: u64) -> bool {
+    (x.as_u64() & (align - 1)) == 0
 }
 
 #[cfg(test)]
@@ -364,7 +364,7 @@ mod tests {
             }
             let p = self.next;
             self.next += 4096;
-            Some(PhysAddr(p))
+            Some(PhysAddr::from_u64(p))
         }
     }
 
@@ -407,8 +407,8 @@ mod tests {
 
     impl PhysMapper for TestPhys {
         unsafe fn phys_to_mut<'a, T>(&self, pa: PhysAddr) -> &'a mut T {
-            let idx = (pa.0 >> 12) as usize;
-            let off = (pa.0 & 0xfff) as usize;
+            let idx = (pa.as_u64() >> 12) as usize;
+            let off = (pa.as_u64() & 0xfff) as usize;
             // For page tables we expect offset==0; assert to catch misuse in the test.
             debug_assert_eq!(off, 0);
 
@@ -435,8 +435,8 @@ mod tests {
         let aspace = AddressSpace::new(&phys, root_pa);
 
         // Pick a virtual+physical pair for mapping (must be 4 KiB aligned).
-        let va = VirtAddr(0xffff_8000_0000_0000); // arbitrary higher-half VA
-        let pa = PhysAddr(0x0000_0000_0030_0000); // 3 * 2^20 = 3 MiB, aligned to 4 KiB
+        let va = VirtAddr::from_u64(0xffff_8000_0000_0000); // arbitrary higher-half VA
+        let pa = PhysAddr::from_u64(0x0000_0000_0030_0000); // 3 * 2^20 = 3 MiB, aligned to 4 KiB
 
         aspace
             .map_one(
@@ -455,28 +455,28 @@ mod tests {
             let pml4 = get_table(&phys, root_pa);
             let e4 = pml4.entry(va.pml4_index());
             assert!(e4.present());
-            let pdpt_pa = PhysAddr(e4.addr());
+            let pdpt_pa = PhysAddr(e4.addr().as_addr());
 
             // PDPT
             let pdpt = get_table(&phys, pdpt_pa);
             let e3 = pdpt.entry(va.pdpt_index());
             assert!(e3.present());
             assert!(!e3.ps());
-            let pd_pa = PhysAddr(e3.addr());
+            let pd_pa = PhysAddr(e3.addr().as_addr());
 
             // PD
             let pd = get_table(&phys, pd_pa);
             let e2 = pd.entry(va.pd_index());
             assert!(e2.present());
             assert!(!e2.ps());
-            let pt_pa = PhysAddr(e2.addr());
+            let pt_pa = PhysAddr(e2.addr().as_addr());
 
             // PT (leaf)
             let pt = get_table(&phys, pt_pa);
             let e1 = pt.entry(va.pt_index());
             // Expected leaf encoding: phys|flags (no PS for 4K).
             assert!(e1.present());
-            assert_eq!(e1.addr(), pa.0);
+            assert_eq!(e1.addr().as_addr(), pa.as_addr());
             assert!(e1.writable());
             assert!(e1.global());
             assert!(e1.nx());
@@ -495,8 +495,8 @@ mod tests {
         }
         let aspace = AddressSpace::new(&phys, root_pa);
 
-        let va = VirtAddr(0xffff_8000_2000_0000); // arbitrary VA aligned to 2 MiB
-        let pa = PhysAddr(0x0000_0000_0400_0000); // 64 MiB (aligned to 2 MiB)
+        let va = VirtAddr::from_u64(0xffff_8000_2000_0000); // arbitrary VA aligned to 2 MiB
+        let pa = PhysAddr::from_u64(0x0000_0000_0400_0000); // 64 MiB (aligned to 2 MiB)
         aspace
             .map_one(
                 &mut alloc,
@@ -509,15 +509,15 @@ mod tests {
 
         unsafe {
             let pml4 = get_table(&phys, root_pa);
-            let pdpt_pa = PhysAddr(pml4.entry(va.pml4_index()).addr());
+            let pdpt_pa = PhysAddr::new(pml4.entry(va.pml4_index()).addr().as_addr());
             let pdpt = get_table(&phys, pdpt_pa);
-            let pd_pa = PhysAddr(pdpt.entry(va.pdpt_index()).addr());
+            let pd_pa = PhysAddr::new(pdpt.entry(va.pdpt_index()).addr().as_addr());
             let pd = get_table(&phys, pd_pa);
             let pde = pd.entry(va.pd_index());
             assert!(pde.present());
             assert!(pde.ps());
             assert!(pde.writable());
-            assert_eq!(pde.addr(), pa.0);
+            assert_eq!(pde.addr().as_addr(), pa.as_addr());
         }
     }
 
@@ -532,8 +532,8 @@ mod tests {
         }
         let aspace = AddressSpace::new(&phys, root_pa);
 
-        let va = VirtAddr(0x0000_4000_0000_0000); // arbitrary VA aligned to 1 GiB
-        let pa = PhysAddr(0x0000_0000_4000_0000); // 1 GiB (aligned to 1 GiB)
+        let va = VirtAddr::from_u64(0x0000_4000_0000_0000); // arbitrary VA aligned to 1 GiB
+        let pa = PhysAddr::from_u64(0x0000_0000_4000_0000); // 1 GiB (aligned to 1 GiB)
         aspace
             .map_one(
                 &mut alloc,
@@ -547,38 +547,49 @@ mod tests {
         unsafe {
             // Walk to PDPT and verify leaf with PS=1.
             let pml4 = get_table(&phys, root_pa);
-            let pdpt_pa = PhysAddr(pml4.entry(va.pml4_index()).addr());
+            let pdpt_pa = PhysAddr::new(pml4.entry(va.pml4_index()).addr().as_addr());
             let pdpt = get_table(&phys, pdpt_pa);
             let pdpte = pdpt.entry(va.pdpt_index());
             assert!(pdpte.present());
             assert!(pdpte.ps());
             assert!(pdpte.writable());
-            assert_eq!(pdpte.addr(), pa.0);
+            assert_eq!(pdpte.addr().as_addr(), pa.0);
         }
     }
 
     #[test]
     fn test_is_aligned_basic() {
-        assert!(is_aligned(0, 1));
-        assert!(is_aligned(0, 4096));
-        assert!(is_aligned(4096, 4096));
-        assert!(is_aligned(8192, 4096));
-        assert!(!is_aligned(1, 4096));
-        assert!(!is_aligned(4095, 4096));
+        assert!(is_aligned(MemoryAddress::new(0), 1));
+        assert!(is_aligned(MemoryAddress::new(0), 4096));
+        assert!(is_aligned(MemoryAddress::new(4096), 4096));
+        assert!(is_aligned(MemoryAddress::new(8192), 4096));
+        assert!(!is_aligned(MemoryAddress::new(1), 4096));
+        assert!(!is_aligned(MemoryAddress::new(4095), 4096));
     }
 
     #[test]
     fn test_is_aligned_various_powers() {
-        assert!(is_aligned(0x1000, 0x10));
-        assert!(is_aligned(0x12340, 0x10));
-        assert!(!is_aligned(0x12345, 0x10));
-        assert!(is_aligned(0x200000, 0x200000)); // 2 MiB
-        assert!(!is_aligned(0x200001, 0x200000));
+        assert!(is_aligned(MemoryAddress::new(0x1000), 0x10));
+        assert!(is_aligned(MemoryAddress::new(0x12340), 0x10));
+        assert!(!is_aligned(MemoryAddress::new(0x12345), 0x10));
+        assert!(is_aligned(MemoryAddress::new(0x200000), 0x200000)); // 2 MiB
+        assert!(!is_aligned(MemoryAddress::new(0x200001), 0x200000));
     }
 
     #[test]
     fn test_is_aligned_edge_cases() {
-        assert!(is_aligned(u64::MAX & !15, 16)); // max aligned down
-        assert!(!is_aligned(u64::MAX, 16));
+        assert!(is_aligned(MemoryAddress::new(u64::MAX & !15), 16)); // max aligned down
+        assert!(!is_aligned(MemoryAddress::new(u64::MAX), 16));
+    }
+
+    fn test_nx_cleared() {
+        assert_eq!(
+            MemoryPageFlags::GLOBAL.with_executable_if(true) & MemoryPageFlags::NX,
+            MemoryPageFlags::GLOBAL
+        );
+        assert_eq!(
+            MemoryPageFlags::GLOBAL.with_executable_if(false) & MemoryPageFlags::NX,
+            MemoryPageFlags::GLOBAL | MemoryPageFlags::NX
+        );
     }
 }

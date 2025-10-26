@@ -8,13 +8,17 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/main.rs](./os/kernel/kernel/src/main.rs)
 
-- Line [118](./os/kernel/kernel/src/main.rs#L118): Use a panic here
+- Line [130](./os/kernel/kernel/src/main.rs#L130): Use a panic here
 
 ## [os/uefi/uefi-loader/src/elf/parser.rs](./os/uefi/uefi-loader/src/elf/parser.rs)
 
-- Line [55](./os/uefi/uefi-loader/src/elf/parser.rs#L55): Rework flags using bitflags or bitfield_struct
+- Line [56](./os/uefi/uefi-loader/src/elf/parser.rs#L56): Rework flags using bitflags or bitfield_struct
 
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
-- Line [136](./os/uefi/uefi-loader/src/main.rs#L136): Document this properly
-- Line [143](./os/uefi/uefi-loader/src/main.rs#L143): Handle properly
+- Line [164](./os/uefi/uefi-loader/src/main.rs#L164): Document this properly
+- Line [171](./os/uefi/uefi-loader/src/main.rs#L171): Handle properly
+
+## [os/uefi/uefi-loader/src/memory.rs](./os/uefi/uefi-loader/src/memory.rs)
+
+- Line [93](./os/uefi/uefi-loader/src/memory.rs#L93): Convert to actual pointer arithmetic ops.

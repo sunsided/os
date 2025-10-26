@@ -1,14 +1,20 @@
 //! # Trace output
 
+use crate::TrampolineStackVirtualAddress;
 use kernel_info::boot::KernelBootInfo;
 use kernel_qemu::qemu_trace;
+use kernel_vmem::VirtAddr;
 
-pub fn trace_boot_info(boot_info: &KernelBootInfo, bi_ptr_va: u64, kernel_va: u64) {
+pub fn trace_boot_info(
+    boot_info: &KernelBootInfo,
+    bi_ptr_va: VirtAddr,
+    kernel_va: VirtAddr,
+    trampoline_stack_va: TrampolineStackVirtualAddress,
+) {
     qemu_trace!("Boot Info in UEFI Loader:\n");
-    qemu_trace!(
-        "   Kernel = {kernel_va:018x} (@{} MiB)",
-        kernel_va / 1024 / 1024
-    );
+    qemu_trace!("   Kernel = {kernel_va:?}");
+    qemu_trace!("\n");
+    qemu_trace!(" Trampol. = {trampoline_stack_va:?}");
     qemu_trace!("\n");
     qemu_trace!(
         "   BI ptr = {:018x} (@{} MiB)",
@@ -16,10 +22,7 @@ pub fn trace_boot_info(boot_info: &KernelBootInfo, bi_ptr_va: u64, kernel_va: u6
         core::ptr::from_ref(boot_info) as usize / 1024 / 1024
     );
     qemu_trace!("\n");
-    qemu_trace!(
-        "       VA = {bi_ptr_va:018x} (@{} MiB)",
-        bi_ptr_va / 1024 / 1024
-    );
+    qemu_trace!("       VA = {bi_ptr_va:?}");
     qemu_trace!("\n");
     qemu_trace!(
         " MMAP ptr = {:018x} (@{} MiB)",

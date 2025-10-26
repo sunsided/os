@@ -1,7 +1,7 @@
 //! Page Table Entries
 
-use crate::MemoryPageFlags;
-use crate::addresses::{PhysAddr, VirtAddr};
+use crate::addresses::{PhysAddr, PhysAddrHi, VirtAddr};
+use crate::{MemoryAddress, MemoryPageFlags};
 use bitfield_struct::bitfield;
 
 /// A 4-level x86-64 **page table page** (512 `u64` entries), 4 KiB aligned.
@@ -126,14 +126,14 @@ pub struct PageTableEntry {
 impl PageTableEntry {
     /// Returns the 52-bit physical address (shifted left by 12 bits).
     #[must_use]
-    pub const fn addr(&self) -> u64 {
-        self.phys_addr_hi() << 12
+    pub const fn addr(&self) -> PhysAddrHi {
+        PhysAddrHi(MemoryAddress::new(self.phys_addr_hi() << 12))
     }
 
     /// Sets the physical address (must be 4 KiB aligned).
-    pub fn set_addr(&mut self, addr: u64) {
-        debug_assert_eq!(addr & 0xfff, 0, "address must be 4 KiB aligned");
-        self.set_phys_addr_hi(addr >> 12);
+    pub fn set_addr(&mut self, addr: PhysAddr) {
+        debug_assert_eq!(addr.as_u64() & 0xfff, 0, "address must be 4 KiB aligned");
+        self.set_phys_addr_hi(addr.as_u64() >> 12);
     }
 
     /// Returns `true` if this entry is present and not a huge page pointer.
@@ -220,7 +220,7 @@ impl Pml4PageTable {
         e.set_present(true);
         e.set_writable(true);
         e.set_ps(false);
-        e.set_addr(pdpt_phys.0);
+        e.set_addr(pdpt_phys);
     }
 }
 
@@ -236,13 +236,13 @@ impl PdptPageTable {
         e.set_present(true);
         e.set_writable(true);
         e.set_ps(false);
-        e.set_addr(pd_phys.0);
+        e.set_addr(pd_phys);
     }
 
     /// **Leaf (1 GiB):** set PDPTE as 1 GiB mapping.
     pub fn map_1g_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: MemoryPageFlags) {
         let e = self.entry_mut_by_va(va);
-        e.set_addr(pa.0);
+        e.set_addr(pa);
         e.set_present(true);
         e.set_ps(true);
         e.set_writable(flags.contains(MemoryPageFlags::WRITABLE));
@@ -266,13 +266,13 @@ impl PdPageTable {
         e.set_present(true);
         e.set_writable(true);
         e.set_ps(false);
-        e.set_addr(pt_phys.0);
+        e.set_addr(pt_phys);
     }
 
     /// **Leaf (2 MiB):** set PDE as 2 MiB mapping.
     pub fn map_2m_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: MemoryPageFlags) {
         let e = self.entry_mut_by_va(va);
-        e.set_addr(pa.0);
+        e.set_addr(pa);
         e.set_present(true);
         e.set_ps(true);
         e.set_writable(flags.contains(MemoryPageFlags::WRITABLE));
@@ -293,7 +293,7 @@ impl PtPageTable {
     /// **Leaf (4 KiB):** set PTE as 4 KiB mapping (no PS).
     pub fn map_4k_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: MemoryPageFlags) {
         let e = self.entry_mut_by_va(va);
-        e.set_addr(pa.0);
+        e.set_addr(pa);
         e.set_present(true);
         e.set_ps(false);
         e.set_writable(flags.contains(MemoryPageFlags::WRITABLE));

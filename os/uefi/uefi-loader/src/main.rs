@@ -13,16 +13,21 @@ mod rsdp;
 mod tracing;
 mod uefi_mmap;
 
+use crate::elf::loader::{ElfLoaderError, LoadedSegMap};
 use crate::elf::parser::ElfHeader;
 use crate::elf::vmem::create_kernel_pagetables;
 use crate::file_system::load_file;
 use crate::framebuffer::get_framebuffer;
+use crate::memory::alloc_trampoline_stack;
 use crate::rsdp::find_rsdp_addr;
 use crate::tracing::trace_boot_info;
 use crate::uefi_mmap::exit_boot_services;
 use alloc::boxed::Box;
-use kernel_info::boot::{KernelBootInfo, KernelEntryFn, MemoryMapInfo};
+use alloc::vec::Vec;
+use kernel_info::boot::{KernelBootInfo, MemoryMapInfo};
 use kernel_qemu::qemu_trace;
+use kernel_vmem::{MemoryAddress, PhysAddr, VirtAddr};
+use uefi::boot::PAGE_SIZE;
 use uefi::cstr16;
 use uefi::prelude::*;
 
@@ -52,13 +57,16 @@ fn efi_main() -> Status {
     };
 
     uefi::println!("Loading kernel segments into memory ...");
-    if let Err(e) = elf::loader::load_pt_load_segments_hi(&elf_bytes, &parsed) {
-        uefi::println!("Failed to load PT_LOAD segments: {e:?}");
-        return e.into();
-    }
+    let kernel_segments = match elf::loader::load_pt_load_segments_hi(&elf_bytes, &parsed) {
+        Ok(segments) => segments,
+        Err(e) => {
+            uefi::println!("Failed to load PT_LOAD segments: {e:?}");
+            return e.into();
+        }
+    };
 
     uefi::println!(
-        "kernel.elf loaded successfully: entry=0x{:x}, segments={}",
+        "kernel.elf loaded successfully: entry={}, segments={}",
         parsed.entry,
         parsed.segments.len()
     );
@@ -89,15 +97,34 @@ fn efi_main() -> Status {
     let boot_info = Box::leak(Box::new(boot_info));
     uefi::println!("Kernel boot info: {:#?}", core::ptr::from_ref(boot_info));
 
+    // The trampoline code must also be mapped, otherwise we won't be able to execute it
+    // when switching the CR3 page tables.
+    let tramp_code_va = VirtAddr::from_u64(switch_to_kernel as usize as u64);
+    let tramp_code_len: usize = PAGE_SIZE; // should be enough
+
+    // Allocate a trampoline stack (with guard page)
+    const TRAMPOLINE_STACK_SIZE_BYTES: usize = 64 * 1024;
+    let (tramp_stack_base_phys, tramp_stack_top_va) =
+        alloc_trampoline_stack(TRAMPOLINE_STACK_SIZE_BYTES, true, true);
+
     // Build page tables
-    let Ok(pml4_phys) = create_kernel_pagetables(&parsed) else {
+    let Ok(pml4_phys) = create_kernel_pagetables(
+        &kernel_segments,
+        tramp_code_va,
+        tramp_code_len,
+        tramp_stack_base_phys,
+        tramp_stack_top_va,
+        TRAMPOLINE_STACK_SIZE_BYTES,
+    ) else {
         uefi::println!("Failed to create kernel page tables");
         return Status::OUT_OF_RESOURCES;
     };
 
     // Choose which BootInfo pointer to pass:
     //    (a) identity-mapped low pointer (we kept a 2 MiB identity mapping)
-    let bi_ptr_va = core::ptr::from_ref::<KernelBootInfo>(boot_info) as u64;
+    let bi_ptr_va = VirtAddr::new(MemoryAddress::from_ptr(
+        core::ptr::from_ref::<KernelBootInfo>(boot_info) as _,
+    ));
 
     boot_info.mmap = match exit_boot_services() {
         Ok(value) => value,
@@ -106,14 +133,15 @@ fn efi_main() -> Status {
 
     // Off we pop.
     unsafe {
-        trace_boot_info(boot_info, bi_ptr_va, parsed.entry);
+        trace_boot_info(boot_info, bi_ptr_va, parsed.entry, tramp_stack_top_va);
         enable_wp_nxe_pge();
 
         // Activate our CR3 and jump to kernel entry (higher-half VA)
         switch_to_kernel(
-            pml4_phys.0,
+            pml4_phys,
             parsed.entry, // this is the higher-half VMA from ELF header
             bi_ptr_va,
+            tramp_stack_top_va,
         )
     }
 }
@@ -158,25 +186,63 @@ unsafe fn enable_wp_nxe_pge() {
     }
 }
 
-type PageTablePhysicalAddress = u64;
-type KernelVirtualAddress = u64;
-type BootInfoVirtualAddress = u64;
+type PageTablePhysicalAddress = PhysAddr;
+type KernelVirtualAddress = VirtAddr;
+type BootInfoVirtualAddress = VirtAddr;
+type TrampolineStackVirtualAddress = VirtAddr;
 
-/// Switch to new CR3 and immediately jump to the kernel entry at its higher-half VA.
+/// Enter the kernel via a tiny trampoline.
+/// - new_cr3: phys addr of PML4 (4KiB aligned)
+/// - kernel_entry: higher-half VA (your `extern "win64" fn(*const BootInfo) -> !`)
+/// - boot_info: higher-half VA (or low VA if you pass identity-mapped pointer)
+/// - tramp_stack_top: VA of the top of the trampoline stack (identity-mapped in both maps)
+#[inline(never)]
 unsafe fn switch_to_kernel(
-    new_cr3: PageTablePhysicalAddress,
+    pml4_phys: PageTablePhysicalAddress,
     kernel_entry_va: KernelVirtualAddress,
     boot_info_ptr_va: BootInfoVirtualAddress,
+    tramp_stack_top_va: TrampolineStackVirtualAddress,
 ) -> ! {
-    // Load CR3
-    qemu_trace!("Loading CR3 with the Page Table Root ...\n");
+    qemu_trace!("UEFI is about to jump into Kernel land. Ciao Kakao ...\n");
     unsafe {
-        core::arch::asm!("mov cr3, {}", in(reg) new_cr3, options(nostack, preserves_flags));
-    }
+        core::arch::asm!(
+                    "cli",
+                    "mov    rsp, rdx",
+                    "mov    rcx, r8",
+                    "mov    rax, rsi",          // rax = kernel_entry
 
-    // Tail-call into kernel entry (win64 abi)
-    qemu_trace!("UEFI is now jumping into Kernel land. Ciao Kakao ...\n");
-    let entry: KernelEntryFn = unsafe { core::mem::transmute(kernel_entry_va) };
-    let bi_ptr = boot_info_ptr_va as *const KernelBootInfo;
-    entry(bi_ptr)
+        /*
+                    // pre-CR3 marker
+                    "mov    dx, 0x402",
+                    "mov    al, 'P'",
+                    "out    dx, al",
+        */
+
+                    "mov    cr3, rdi",
+
+        /*
+                    // post-CR3 data-read probe: read first byte at kernel_entry VA
+                    "mov    rbx, rax",
+                    "movzx  eax, byte ptr [rbx]",   // <-- DATA read from text page
+                    "mov    dx, 0x402",
+                    "mov    al, 'R'",               // 'R' = Read succeeded
+                    "out    dx, al",
+                    // optional: also print the byte value:
+                    //"out    dx, al",
+
+                    // post-CR3 exec probe
+                    "mov    dx, 0x402",
+                    "mov    al, 'T'",
+                    "out    dx, al",
+        */
+
+                    "hlt",
+                    "jmp    rax",
+                    in("rdi") pml4_phys.as_u64(),
+                    in("rsi") kernel_entry_va.as_u64(),
+                    in("rdx") tramp_stack_top_va.as_u64(),
+                    in("r8")  boot_info_ptr_va.as_u64(),
+                    options(noreturn)
+                )
+    }
 }

@@ -5,6 +5,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core::mem::size_of;
 use core::ptr::read_unaligned;
+use kernel_vmem::{PhysAddr, VirtAddr};
 use uefi::Status;
 
 // Minimal ELF64 definitions
@@ -16,7 +17,7 @@ struct Elf64Ehdr {
     e_type: u16,
     e_machine: u16,
     e_version: u32,
-    e_entry: u64,
+    e_entry: VirtAddr,
     e_phoff: u64,
     e_shoff: u64,
     e_flags: u32,
@@ -35,8 +36,8 @@ struct Elf64Phdr {
     p_type: u32,
     p_flags: u32,
     p_offset: u64,
-    p_vaddr: u64,
-    p_paddr: u64,
+    p_vaddr: VirtAddr,
+    p_paddr: PhysAddr,
     p_filesz: u64,
     p_memsz: u64,
     p_align: u64,
@@ -48,7 +49,7 @@ const EM_X86_64: u16 = 62;
 // Public structures describing what to load
 #[derive(Debug, Clone, Copy)]
 pub struct LoadSegment {
-    pub vaddr: u64,
+    pub vaddr: VirtAddr,
     pub offset: u64,
     pub filesz: u64,
     pub memsz: u64,
@@ -59,7 +60,7 @@ pub struct LoadSegment {
 
 #[derive(Debug)]
 pub struct ElfHeader {
-    pub entry: u64,
+    pub entry: VirtAddr,
     pub segments: Vec<LoadSegment>,
 }
 

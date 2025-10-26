@@ -48,6 +48,12 @@ pub extern "win64" fn _start_kernel(_boot_info: *const KernelBootInfo) {
     core::arch::naked_asm!(
         "cli",
 
+        // These OUTs need no memory; if you see them, trampoline code page is mapped in new CR3.
+        "mov    dx, 0x402",
+        "mov    al, 'C'",
+        "out    dx, al",
+        // continue as usual
+
         // save RCX (boot_info per Win64)
         "mov r12, rcx",
 
@@ -59,6 +65,12 @@ pub extern "win64" fn _start_kernel(_boot_info: *const KernelBootInfo) {
 
         // Restore boot_info into the expected arg register (SysV/C ABI)
         "mov rdi, r12",
+
+        // These OUTs need no memory; if you see them, trampoline code page is mapped in new CR3.
+        "mov    dx, 0x402",
+        "mov    al, 'D'",
+        "out    dx, al",
+        // continue as usual
 
         // Jump to Rust entry and never return
         "jmp {rust_entry}",

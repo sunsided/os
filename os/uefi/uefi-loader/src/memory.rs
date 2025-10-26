@@ -4,7 +4,9 @@ use core::alloc::{GlobalAlloc, Layout};
 use core::ptr;
 use core::ptr::NonNull;
 use core::ptr::null_mut;
+use kernel_vmem::{PhysAddr, VirtAddr};
 use uefi::boot;
+use uefi::boot::{AllocateType, MemoryType};
 
 /// A UEFI Boot Services pool allocation to back Rust's global allocator.
 ///
@@ -64,4 +66,47 @@ unsafe impl GlobalAlloc for UefiBootAllocator {
         }
         p
     }
+}
+
+/// Allocate a trampoline stack (optionally with a guard page) and return:
+/// - base_phys: physical base address (also used as VA, since we'll identity-map it)
+/// - top_va:    virtual top-of-stack address you'll load into RSP
+pub fn alloc_trampoline_stack(
+    stack_size_bytes: usize, // e.g. 64 * 1024
+    with_guard: bool,
+    win64_shadow_space: bool, // reserve 32 bytes if your kernel uses Win64 ABI
+) -> (PhysAddr, VirtAddr) {
+    let page_size = 4096usize;
+    let pages_for_stack = (stack_size_bytes + page_size - 1) / page_size;
+    let guard_pages = if with_guard { 1 } else { 0 };
+    let total_pages = pages_for_stack + guard_pages;
+
+    // AllocateAnyPages returns a physical base in `base_phys`
+    let base_phys =
+        boot::allocate_pages(AllocateType::AnyPages, MemoryType::LOADER_DATA, total_pages)
+            .expect("failed to allocate trampoline stack pages");
+
+    // If a guard page was requested, make the **first** page the guard
+    // and use the rest as the actual stack.
+    let base_phys = base_phys.as_ptr() as u64;
+    let stack_base_phys = if with_guard {
+        base_phys + page_size as u64 // TODO: Convert to actual pointer arithmetic ops.
+    } else {
+        base_phys
+    };
+    let stack_size = pages_for_stack * page_size;
+    let mut top = stack_base_phys + stack_size as u64;
+
+    // ABI alignment:
+    // Both SysV and Win64 expect RSP % 16 == 8 at function entry (because of a pushed return address).
+    // Since we *jmp* (no return address), we emulate that by subtracting 8.
+    top -= 8;
+
+    // Win64 "shadow space" (32 bytes) is expected by callees; reserve it so they can write there.
+    if win64_shadow_space {
+        top -= 32;
+    }
+
+    // VA == PA because we'll identity-map this span
+    (PhysAddr::from_u64(stack_base_phys), VirtAddr::from_u64(top))
 }
