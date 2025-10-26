@@ -14,8 +14,8 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
 - Line [32](./os/uefi/uefi-loader/src/main.rs#L32): Add proper documentation.
-- Line [164](./os/uefi/uefi-loader/src/main.rs#L164): Document this properly
-- Line [171](./os/uefi/uefi-loader/src/main.rs#L171): Handle properly
+- Line [163](./os/uefi/uefi-loader/src/main.rs#L163): Document this properly
+- Line [170](./os/uefi/uefi-loader/src/main.rs#L170): Handle properly
 
 ## [os/uefi/uefi-loader/src/memory.rs](./os/uefi/uefi-loader/src/memory.rs)
 

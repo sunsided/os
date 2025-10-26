@@ -107,8 +107,7 @@ fn efi_main() -> Status {
     let (tramp_stack_base_phys, tramp_stack_top_va) =
         alloc_trampoline_stack(TRAMPOLINE_STACK_SIZE_BYTES, true);
 
-    // Choose which BootInfo pointer to pass:
-    //    (a) identity-mapped low pointer (we identity-map exactly that page)
+    // Pass identity-mapped low pointer
     let bi_ptr_va = VirtAddr::new(MemoryAddress::from_ptr(
         core::ptr::from_ref::<KernelBootInfo>(boot_info).cast(),
     ));
