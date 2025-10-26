@@ -5,12 +5,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 ## [os/kernel/kernel-vmem/src/lib.rs](./os/kernel/kernel-vmem/src/lib.rs)
 
 - Line [139](./os/kernel/kernel-vmem/src/lib.rs#L139): Rework using bitfield_struct
-- Line [267](./os/kernel/kernel-vmem/src/lib.rs#L267): Have the mapper return a Result if the address cannot be mapped.
-
-## [os/kernel/kernel/src/bootstrap_alloc.rs](./os/kernel/kernel/src/bootstrap_alloc.rs)
-
-- Line [50](./os/kernel/kernel/src/bootstrap_alloc.rs#L50): !()
-- Line [72](./os/kernel/kernel/src/bootstrap_alloc.rs#L72): !()
+- Line [286](./os/kernel/kernel-vmem/src/lib.rs#L286): Have the mapper return a Result if the address cannot be mapped.
 
 ## [os/kernel/kernel/src/vmem.rs](./os/kernel/kernel/src/vmem.rs)
 

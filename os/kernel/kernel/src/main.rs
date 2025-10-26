@@ -4,7 +4,6 @@
 #![no_main]
 #![allow(unsafe_code)]
 
-mod bootstrap_alloc;
 mod framebuffer;
 mod tracing;
 mod vmem;

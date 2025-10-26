@@ -34,6 +34,15 @@ impl FrameAlloc for BsFrameAlloc {
         }
         Some(PhysAddr::new(MemoryAddress::new(pa)))
     }
+
+    fn free_4k(&mut self, pa: PhysAddr) {
+        // SAFETY: The address must be a page allocated by UEFI allocate_pages.
+        // Convert the address to NonNull<u8> as required by free_pages
+        if let Some(ptr) = core::ptr::NonNull::new(pa.as_u64() as *mut u8) {
+            // Ignore errors: freeing a page that wasn't allocated is UB anyway.
+            let _ = unsafe { boot::free_pages(ptr, 1) };
+        }
+    }
 }
 
 struct LoaderPhysMapper;
