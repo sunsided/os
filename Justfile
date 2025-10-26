@@ -73,6 +73,7 @@ todo:
 # Clean the targets
 clean:
     @rm -r {{ build-local-dir }} || true
+    @rm debug.log || true
     @cargo clean
 
 # Run test in all projects

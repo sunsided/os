@@ -8,7 +8,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/main.rs](./os/kernel/kernel/src/main.rs)
 
-- Line [117](./os/kernel/kernel/src/main.rs#L117): Use a panic here
+- Line [118](./os/kernel/kernel/src/main.rs#L118): Use a panic here
 
 ## [os/uefi/uefi-loader/src/elf/parser.rs](./os/uefi/uefi-loader/src/elf/parser.rs)
 
@@ -16,5 +16,5 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
-- Line [126](./os/uefi/uefi-loader/src/main.rs#L126): Document this properly
-- Line [133](./os/uefi/uefi-loader/src/main.rs#L133): Handle properly
+- Line [138](./os/uefi/uefi-loader/src/main.rs#L138): Document this properly
+- Line [145](./os/uefi/uefi-loader/src/main.rs#L145): Handle properly

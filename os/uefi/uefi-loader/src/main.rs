@@ -14,13 +14,15 @@ mod tracing;
 mod uefi_mmap;
 
 use crate::elf::parser::ElfHeader;
+use crate::elf::vmem::create_kernel_pagetables;
 use crate::file_system::load_file;
 use crate::framebuffer::get_framebuffer;
 use crate::rsdp::find_rsdp_addr;
-use crate::tracing::{trace, trace_boot_info};
+use crate::tracing::trace_boot_info;
 use crate::uefi_mmap::exit_boot_services;
 use alloc::boxed::Box;
 use kernel_info::boot::{KernelBootInfo, KernelEntryFn, MemoryMapInfo};
+use kernel_qemu::qemu_trace;
 use uefi::cstr16;
 use uefi::prelude::*;
 
@@ -32,7 +34,7 @@ fn efi_main() -> Status {
         return Status::UNSUPPORTED;
     }
 
-    trace("UEFI Loader reporting to QEMU\n");
+    qemu_trace!("UEFI Loader reporting to QEMU\n");
     uefi::println!("Attempting to load kernel.elf ...");
 
     let elf_bytes = match load_file(cstr16!("\\EFI\\Boot\\kernel.elf")) {
@@ -83,36 +85,45 @@ fn efi_main() -> Status {
         fb,
     };
 
-    let boot_info = Box::new(boot_info);
+    // Heap-allocate and leak the boot info.
+    let boot_info = Box::leak(Box::new(boot_info));
+    uefi::println!("Kernel boot info: {:#?}", core::ptr::from_ref(boot_info));
 
-    // leak it so it stays alive after exit; allocator not usable post-exit anyway
-    let boot_info = Box::leak(boot_info);
+    // Build page tables
+    let Ok(pml4_phys) = create_kernel_pagetables(&parsed) else {
+        uefi::println!("Failed to create kernel page tables");
+        return Status::OUT_OF_RESOURCES;
+    };
 
-    // Note: We have not yet loaded PT_LOAD segments; jumping may crash until we implement it.
-    // Current step exits boot services and jumps to the kernel entry with GOP BootInfo.
-    uefi::println!("Booting kernel ...");
-    trace("Booting kernel ...\n");
+    // Choose which BootInfo pointer to pass:
+    //    (a) identity-mapped low pointer (we kept a 2 MiB identity mapping)
+    let bi_ptr_va = core::ptr::from_ref::<KernelBootInfo>(boot_info) as u64;
 
     boot_info.mmap = match exit_boot_services() {
         Ok(value) => value,
         Err(value) => return value,
     };
-    // Off we pop.
-    run_kernel(&parsed, boot_info);
-}
 
-/// Jump into the kernel code.
-fn run_kernel(parsed: &ElfHeader, boot_info: &KernelBootInfo) -> ! {
-    trace_boot_info(boot_info);
-    trace("UEFI is now jumping into Kernel land. Ciao Kakao ...\n");
-    let entry: KernelEntryFn = unsafe { core::mem::transmute(parsed.entry) };
-    let bi_ptr: *const KernelBootInfo = boot_info as *const KernelBootInfo;
-    entry(bi_ptr)
+    // Off we pop.
+    unsafe {
+        trace_boot_info(boot_info);
+
+        qemu_trace!("UEFI is now jumping into Kernel land. Ciao Kakao ...\n");
+        enable_wp_nxe_pge();
+
+        // Activate our CR3 and jump to kernel entry (higher-half VA)
+        switch_to_kernel(
+            pml4_phys.0,
+            parsed.entry, // this is the higher-half VMA from ELF header
+            bi_ptr_va,
+        )
+    }
 }
 
 #[allow(clippy::items_after_statements)]
 unsafe fn enable_wp_nxe_pge() {
     // CR0.WP = 1 (write-protect in supervisor)
+    qemu_trace!("Enabling supervisor write protection ...\n");
     let mut cr0: u64;
     unsafe {
         core::arch::asm!("mov {}, cr0", out(reg) cr0, options(nomem, preserves_flags));
@@ -123,6 +134,7 @@ unsafe fn enable_wp_nxe_pge() {
     }
 
     // EFER.NXE = 1
+    qemu_trace!("Setting EFER.NXE ...\n");
     const MSR_EFER: u32 = 0xC000_0080; // TODO: Document this properly
     let (mut lo, mut hi): (u32, u32);
     unsafe {
@@ -137,6 +149,7 @@ unsafe fn enable_wp_nxe_pge() {
     }
 
     // CR4.PGE = 1 (global pages)
+    qemu_trace!("Enabling global pages ...\n");
     let mut cr4: u64;
     unsafe {
         core::arch::asm!("mov {}, cr4", out(reg) cr4, options(nomem, preserves_flags));
@@ -158,11 +171,13 @@ unsafe fn switch_to_kernel(
     boot_info_ptr_va: BootInfoVirtualAddress,
 ) -> ! {
     // Load CR3
+    qemu_trace!("Loading CR3 with the Page Table Root ...\n");
     unsafe {
         core::arch::asm!("mov cr3, {}", in(reg) new_cr3, options(nostack, preserves_flags));
     }
 
     // Tail-call into kernel entry (win64 abi)
+    qemu_trace!("UEFI is now jumping into Kernel land. Ciao Kakao ...\n");
     let entry: KernelEntryFn = unsafe { core::mem::transmute(kernel_entry_va) };
     let bi_ptr = boot_info_ptr_va as *const KernelBootInfo;
     entry(bi_ptr)

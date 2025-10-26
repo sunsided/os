@@ -10,7 +10,9 @@ keywords.workspace = true
 categories.workspace = true
 license.workspace = true
 
-[dependencies]
+[features]
+default = ["enabled"]
+enabled = []
 
 [lints]
 workspace = true

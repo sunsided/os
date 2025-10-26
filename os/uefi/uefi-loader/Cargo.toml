@@ -12,11 +12,11 @@ license.workspace = true
 
 [features]
 default = ["qemu"]
-qemu = ["dep:kernel-qemu"]
+qemu = ["kernel-qemu/enabled"]
 
 [dependencies]
 kernel-info = { path = "../../kernel/kernel-info" }
-kernel-qemu = { path = "../../kernel/kernel-qemu", optional = true }
+kernel-qemu = { path = "../../kernel/kernel-qemu", default-features = false }
 kernel-vmem = { path = "../../kernel/kernel-vmem" }
 thiserror.workspace = true
 uefi = { workspace = true, features = ["alloc", "panic_handler"] }

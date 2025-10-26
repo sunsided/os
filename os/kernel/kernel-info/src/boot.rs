@@ -10,7 +10,7 @@ pub type KernelEntryFn = extern "win64" fn(*const KernelBootInfo) -> !;
 /// Information the kernel needs right after `ExitBootServices`.
 /// Keep this `#[repr(C)]` and prefer fixed-size integers over `u64` at the ABI boundary.
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct KernelBootInfo {
     /// Memory map information.
     pub mmap: MemoryMapInfo,
@@ -23,7 +23,7 @@ pub struct KernelBootInfo {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct MemoryMapInfo {
     /// Pointer to the raw UEFI memory map buffer (array of `EFI_MEMORY_DESCRIPTOR` bytes).
     /// Pass 0 if you’re not handing the map to the kernel yet.
@@ -40,7 +40,7 @@ pub struct MemoryMapInfo {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct FramebufferInfo {
     /// Linear framebuffer base address (CPU physical address). Valid to write after `ExitBootServices`.
     pub framebuffer_ptr: u64,

@@ -17,6 +17,9 @@ in both the UEFI (for the ELF loader) and in the linker script, I decided to pul
 crate which I now reuse in the kernel's `build.rs`. The linker script now uses `DEFINED(KERNEL_BASE)`
 and `DEFINED(PHYS_LOAD)` to allow external configuration.
 
+Tracing with QEMU got massively easier now with the `qemu_trace!` macro. I didn't think implementing
+that would be so easy.
+
 ## 2025-10-25
 
 Adding a serial output to the QEMU emulator turned out to be extremely helpful in finding out

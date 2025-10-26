@@ -6,6 +6,7 @@
 
 use core::hint::spin_loop;
 use kernel_info::boot::{BootPixelFormat, FramebufferInfo, KernelBootInfo};
+use kernel_qemu::qemu_trace;
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -76,7 +77,7 @@ pub extern "win64" fn _start_kernel(_boot_info: *const KernelBootInfo) {
 #[unsafe(no_mangle)]
 extern "C" fn kernel_entry(boot_info: *const KernelBootInfo) -> ! {
     #[cfg(feature = "qemu")]
-    kernel_qemu::dbg_print("Kernel reporting to QEMU!\n");
+    qemu_trace!("Kernel reporting to QEMU!\n");
 
     // (You can enable interrupts here when ready.)
     let bi = unsafe { &*boot_info };
@@ -86,16 +87,16 @@ extern "C" fn kernel_entry(boot_info: *const KernelBootInfo) -> ! {
 fn kernel_main(bi: &KernelBootInfo) -> ! {
     #[cfg(feature = "qemu")]
     {
-        kernel_qemu::dbg_print("Entering Kernel main loop ...\n");
+        qemu_trace!("Entering Kernel main loop ...\n");
         trace_boot_info(bi);
     }
 
     #[cfg(feature = "qemu")]
     match bi.fb.framebuffer_format {
-        BootPixelFormat::Rgb => kernel_qemu::dbg_print("RGB framebuffer\n"),
-        BootPixelFormat::Bgr => kernel_qemu::dbg_print("BGR framebuffer\n"),
-        BootPixelFormat::Bitmask => kernel_qemu::dbg_print("Bitmask framebuffer\n"),
-        BootPixelFormat::BltOnly => kernel_qemu::dbg_print("BltOnly framebuffer\n"),
+        BootPixelFormat::Rgb => qemu_trace!("RGB framebuffer\n"),
+        BootPixelFormat::Bgr => qemu_trace!("BGR framebuffer\n"),
+        BootPixelFormat::Bitmask => qemu_trace!("Bitmask framebuffer\n"),
+        BootPixelFormat::BltOnly => qemu_trace!("BltOnly framebuffer\n"),
     }
 
     loop {
@@ -145,41 +146,35 @@ pub unsafe fn fill_solid(fb: &FramebufferInfo, r: u8, g: u8, b: u8) {
 
 #[cfg(feature = "qemu")]
 fn trace_boot_info(boot_info: &KernelBootInfo) {
-    use kernel_qemu::dbg_print as trace;
-    use kernel_qemu::dbg_print_u64 as trace_num;
-    use kernel_qemu::dbg_print_usize as trace_usize;
-
-    trace("Boot Info in Kernel:\n");
-    trace("   BI ptr = ");
-    trace_usize(core::ptr::from_ref(boot_info) as usize);
-    trace("\n");
-    trace(" MMAP ptr = ");
-    trace_num(boot_info.mmap.mmap_ptr);
-    trace(", MMAP len = ");
-    trace_num(boot_info.mmap.mmap_len);
-    trace(", MMAP desc size = ");
-    trace_num(boot_info.mmap.mmap_desc_size);
-    trace(", MMAP desc version = ");
-    trace_num(boot_info.mmap.mmap_desc_version);
-    trace(", rsdp addr = ");
-    trace_num(boot_info.rsdp_addr);
-    trace("\n");
-    trace("   FB ptr = ");
-    trace_num(boot_info.fb.framebuffer_ptr);
-    trace(", FB size = ");
-    trace_num(boot_info.fb.framebuffer_size);
-    trace(", FB width = ");
-    trace_num(boot_info.fb.framebuffer_width);
-    trace(", FB height = ");
-    trace_num(boot_info.fb.framebuffer_height);
-    trace(", FB stride = ");
-    trace_num(boot_info.fb.framebuffer_stride);
-    trace(", FB format = ");
+    qemu_trace!("Boot Info in UEFI Loader:\n");
+    qemu_trace!(
+        "   BI ptr = {:018x}",
+        core::ptr::from_ref(boot_info) as usize
+    );
+    qemu_trace!("\n");
+    qemu_trace!(" MMAP ptr = {:018x}", boot_info.mmap.mmap_ptr);
+    qemu_trace!(", MMAP len = {}", boot_info.mmap.mmap_len);
+    qemu_trace!(", MMAP desc size = {}", boot_info.mmap.mmap_desc_size);
+    qemu_trace!(
+        ", MMAP desc version = {}",
+        usize::try_from(boot_info.mmap.mmap_desc_version).unwrap_or_default()
+    );
+    qemu_trace!(
+        ", rsdp addr = {}",
+        usize::try_from(boot_info.rsdp_addr).unwrap_or_default()
+    );
+    qemu_trace!("\n");
+    qemu_trace!("   FB ptr = {:018x}", boot_info.fb.framebuffer_ptr);
+    qemu_trace!(", FB size = {}", boot_info.fb.framebuffer_size);
+    qemu_trace!(", FB width = {}", boot_info.fb.framebuffer_width);
+    qemu_trace!(", FB height = {}", boot_info.fb.framebuffer_height);
+    qemu_trace!(", FB stride = {}", boot_info.fb.framebuffer_stride);
+    qemu_trace!(", FB format = ");
     match boot_info.fb.framebuffer_format {
-        BootPixelFormat::Rgb => trace("RGB"),
-        BootPixelFormat::Bgr => trace("BGR"),
-        BootPixelFormat::Bitmask => trace("Bitmask"),
-        BootPixelFormat::BltOnly => trace("BltOnly"),
+        BootPixelFormat::Rgb => qemu_trace!("RGB"),
+        BootPixelFormat::Bgr => qemu_trace!("BGR"),
+        BootPixelFormat::Bitmask => qemu_trace!("Bitmask"),
+        BootPixelFormat::BltOnly => qemu_trace!("BltOnly"),
     }
-    trace("\n");
+    qemu_trace!("\n");
 }

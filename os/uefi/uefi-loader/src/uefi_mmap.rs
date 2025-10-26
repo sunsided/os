@@ -2,16 +2,19 @@
 //!
 //! Helper functions for dealing with the UEFI memory map after exiting boot services.
 
-use crate::tracing::{trace, trace_usize};
 use alloc::vec;
 use alloc::vec::Vec;
 use kernel_info::boot::MemoryMapInfo;
+use kernel_qemu::qemu_trace;
 use uefi::boot::MemoryType;
 use uefi::mem::memory_map::MemoryMap;
 use uefi::{Status, boot};
 
 /// Exist the UEFI boot services and retain a copy of the UEFI memory map.
 pub fn exit_boot_services() -> Result<MemoryMapInfo, Status> {
+    uefi::println!("Exiting boot services ...");
+    qemu_trace!("Exiting boot services ...\n");
+
     // Pre-allocate a buffer while UEFI allocator is still alive.
     let mut mmap_copy = match allocate_mmap_buffer() {
         Ok(buf) => buf,
@@ -30,10 +33,11 @@ pub fn exit_boot_services() -> Result<MemoryMapInfo, Status> {
 
     // Safety: ensure the buffer is large enough (or bail/panic in dev builds).
     if mmap_length > mmap_copy.len() {
-        trace("Memory map size assertion failed: Expected ");
-        trace_usize(mmap_copy.len());
-        trace(", got ");
-        trace_usize(mmap_length);
+        qemu_trace!(
+            "Memory map size assertion failed: Expected {}, got {}",
+            mmap_copy.len(),
+            mmap_length
+        );
         return Err(Status::BUFFER_TOO_SMALL);
     }
     unsafe {
@@ -50,6 +54,7 @@ pub fn exit_boot_services() -> Result<MemoryMapInfo, Status> {
     // Ensure the memory map copy continues to exist.
     core::mem::forget(mmap_copy);
 
+    qemu_trace!("Boot services exited, we're now flying by instruments.\n");
     Ok(mmap)
 }
 
