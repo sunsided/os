@@ -46,6 +46,7 @@ static mut BOOT_STACK: Aligned<BOOT_STACK_SIZE> = Aligned([0; BOOT_STACK_SIZE]);
 #[unsafe(naked)]
 pub extern "win64" fn _start_kernel(_boot_info: *const KernelBootInfo) {
     core::arch::naked_asm!(
+        // "hlt", // TODO: Remove this when we have a proper bootloader
         "cli",
 
         // These OUTs need no memory; if you see them, trampoline code page is mapped in new CR3.
@@ -57,10 +58,17 @@ pub extern "win64" fn _start_kernel(_boot_info: *const KernelBootInfo) {
         // save RCX (boot_info per Win64)
         "mov r12, rcx",
 
-        // Build our stack
+        // Build our own kernel stack and establish a valid call frame for kernel_entry
         "lea rax, [rip + {stack_sym}]",
         "add rax, {stack_size}",
+        // Align down to 16
+        "and rax, -16",
+        // Reserve 32-byte shadow space
+        "sub rax, 32",
+        // Set RSP to the prepared value
         "mov rsp, rax",
+        // Emulate a CALL by pushing a dummy return address (so RSP % 16 == 8 at entry)
+        "push 0",
         "xor rbp, rbp",
 
         // Restore boot_info into the expected arg register (SysV/C ABI)
@@ -112,6 +120,8 @@ fn kernel_main(bi: &KernelBootInfo) -> ! {
     }
 
     loop {
+        // TODO: The Framebuffer access causes a triple fault
+        qemu_trace!("loop-de-loop\n");
         unsafe { fill_solid(&bi.fb, 255, 0, 0) };
         spin_loop();
     }

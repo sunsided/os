@@ -185,5 +185,6 @@ run-qemu-nographic *ARGS: package
       -net none \
       -s \
       -debugcon file:debug.log -global isa-debugcon.iobase=0x402 \
+      -no-reboot -no-shutdown -d cpu_reset \
       -nographic \
       {{ ARGS }}

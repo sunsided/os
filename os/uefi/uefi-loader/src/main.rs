@@ -28,6 +28,7 @@ use kernel_info::boot::{KernelBootInfo, MemoryMapInfo};
 use kernel_qemu::qemu_trace;
 use kernel_vmem::{MemoryAddress, PhysAddr, VirtAddr};
 use uefi::boot::PAGE_SIZE;
+use uefi::boot::{AllocateType, MemoryType};
 use uefi::cstr16;
 use uefi::prelude::*;
 
@@ -105,7 +106,13 @@ fn efi_main() -> Status {
     // Allocate a trampoline stack (with guard page)
     const TRAMPOLINE_STACK_SIZE_BYTES: usize = 64 * 1024;
     let (tramp_stack_base_phys, tramp_stack_top_va) =
-        alloc_trampoline_stack(TRAMPOLINE_STACK_SIZE_BYTES, true, true);
+        alloc_trampoline_stack(TRAMPOLINE_STACK_SIZE_BYTES, true, false);
+
+    // Choose which BootInfo pointer to pass:
+    //    (a) identity-mapped low pointer (we identity-map exactly that page)
+    let bi_ptr_va = VirtAddr::new(MemoryAddress::from_ptr(
+        core::ptr::from_ref::<KernelBootInfo>(boot_info) as _,
+    ));
 
     // Build page tables
     let Ok(pml4_phys) = create_kernel_pagetables(
@@ -115,16 +122,11 @@ fn efi_main() -> Status {
         tramp_stack_base_phys,
         tramp_stack_top_va,
         TRAMPOLINE_STACK_SIZE_BYTES,
+        bi_ptr_va,
     ) else {
         uefi::println!("Failed to create kernel page tables");
         return Status::OUT_OF_RESOURCES;
     };
-
-    // Choose which BootInfo pointer to pass:
-    //    (a) identity-mapped low pointer (we kept a 2 MiB identity mapping)
-    let bi_ptr_va = VirtAddr::new(MemoryAddress::from_ptr(
-        core::ptr::from_ref::<KernelBootInfo>(boot_info) as _,
-    ));
 
     boot_info.mmap = match exit_boot_services() {
         Ok(value) => value,
@@ -158,7 +160,7 @@ unsafe fn enable_wp_nxe_pge() {
     unsafe {
         core::arch::asm!("mov cr0, {}", in(reg) cr0, options(nomem, preserves_flags));
     }
-
+    
     // EFER.NXE = 1
     qemu_trace!("Setting EFER.NXE ...\n");
     const MSR_EFER: u32 = 0xC000_0080; // TODO: Document this properly
@@ -206,43 +208,26 @@ unsafe fn switch_to_kernel(
     qemu_trace!("UEFI is about to jump into Kernel land. Ciao Kakao ...\n");
     unsafe {
         core::arch::asm!(
-                    "cli",
-                    "mov    rsp, rdx",
-                    "mov    rcx, r8",
-                    "mov    rax, rsi",          // rax = kernel_entry
+            "cli",
+            "mov    rsp, rdx",
+            "mov    rcx, r8",
+            "mov    rax, rsi",          // rax = kernel_entry
+            "mov    cr3, rdi",          // install page tables
 
-        /*
-                    // pre-CR3 marker
-                    "mov    dx, 0x402",
-                    "mov    al, 'P'",
-                    "out    dx, al",
-        */
+            // Ensure a valid Win64 call frame: 16-byte alignment and 32-byte shadow space
+            // Align RSP down to 16-byte boundary
+            "and    rsp, -16",
+            // Reserve 32-byte shadow space required by Windows x64 ABI
+            "sub    rsp, 32",
+            // Emulate a CALL by pushing a dummy return address (kernel entry never returns)
+            "push   0",
 
-                    "mov    cr3, rdi",
-
-        /*
-                    // post-CR3 data-read probe: read first byte at kernel_entry VA
-                    "mov    rbx, rax",
-                    "movzx  eax, byte ptr [rbx]",   // <-- DATA read from text page
-                    "mov    dx, 0x402",
-                    "mov    al, 'R'",               // 'R' = Read succeeded
-                    "out    dx, al",
-                    // optional: also print the byte value:
-                    //"out    dx, al",
-
-                    // post-CR3 exec probe
-                    "mov    dx, 0x402",
-                    "mov    al, 'T'",
-                    "out    dx, al",
-        */
-
-                    "hlt",
-                    "jmp    rax",
-                    in("rdi") pml4_phys.as_u64(),
-                    in("rsi") kernel_entry_va.as_u64(),
-                    in("rdx") tramp_stack_top_va.as_u64(),
-                    in("r8")  boot_info_ptr_va.as_u64(),
-                    options(noreturn)
-                )
+            "jmp    rax",
+            in("rdi") pml4_phys.as_u64(),
+            in("rsi") kernel_entry_va.as_u64(),
+            in("rdx") tramp_stack_top_va.as_u64(),
+            in("r8")  boot_info_ptr_va.as_u64(),
+            options(noreturn)
+        )
     }
 }

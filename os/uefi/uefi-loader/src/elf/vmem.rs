@@ -69,6 +69,7 @@ pub fn create_kernel_pagetables(
     tramp_stack_base_phys: PhysAddr,
     tramp_stack_top_va: VirtAddr,
     tramp_stack_size_bytes: usize,
+    boot_info_ptr_va: VirtAddr,
 ) -> Result<Pml4Phys, &'static str> {
     let mapper = LoaderPhysMapper;
     let mut alloc = BsFrameAlloc;
@@ -134,13 +135,14 @@ pub fn create_kernel_pagetables(
         MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL | MemoryPageFlags::NX,
     )?;
 
-    // Identity map first 2 MiB for the trampoline/loader code after CR3 switch.
+    // Identity map first 2 MiB so that the trampoline continues executing after CR3.
+    // Mark executable (no NX) because control resumes at the current low VA after mov cr3.
     aspace.map_one(
         &mut alloc,
         VirtAddr::from_u64(0),
         PhysAddr::from_u64(0),
         PageSize::Size2M,
-        MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL | MemoryPageFlags::NX,
+        MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL,
     )?;
 
     // Identity map the trampoline stack (4 KiB leaves)
@@ -192,6 +194,18 @@ pub fn create_kernel_pagetables(
             )?;
             pa += PAGE_4K;
         }
+    }
+
+    // Identity map just the BootInfo pointer page (NX)
+    {
+        let bi_page = align_down(boot_info_ptr_va.as_addr(), PAGE_4K);
+        aspace.map_one(
+            &mut alloc,
+            VirtAddr::new(bi_page),
+            PhysAddr::new(bi_page),
+            PageSize::Size4K,
+            MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL | MemoryPageFlags::NX,
+        )?;
     }
 
     Ok(pml4_phys)

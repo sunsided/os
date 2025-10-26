@@ -8,7 +8,8 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/main.rs](./os/kernel/kernel/src/main.rs)
 
-- Line [130](./os/kernel/kernel/src/main.rs#L130): Use a panic here
+- Line [49](./os/kernel/kernel/src/main.rs#L49): Remove this when we have a proper bootloader
+- Line [138](./os/kernel/kernel/src/main.rs#L138): Use a panic here
 
 ## [os/uefi/uefi-loader/src/elf/parser.rs](./os/uefi/uefi-loader/src/elf/parser.rs)
 
@@ -16,8 +17,9 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
-- Line [164](./os/uefi/uefi-loader/src/main.rs#L164): Document this properly
-- Line [171](./os/uefi/uefi-loader/src/main.rs#L171): Handle properly
+- Line [166](./os/uefi/uefi-loader/src/main.rs#L166): Document this properly
+- Line [173](./os/uefi/uefi-loader/src/main.rs#L173): Handle properly
+- Line [224](./os/uefi/uefi-loader/src/main.rs#L224): Triple faults now
 
 ## [os/uefi/uefi-loader/src/memory.rs](./os/uefi/uefi-loader/src/memory.rs)
 
