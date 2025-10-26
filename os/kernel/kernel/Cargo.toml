@@ -19,5 +19,8 @@ kernel-info = { path = "../kernel-info" }
 kernel-qemu = { path = "../../kernel/kernel-qemu", optional = true }
 kernel-vmem = { path = "../../kernel/kernel-vmem" }
 
+[build-dependencies]
+kernel-info = { path = "../kernel-info" }
+
 [lints]
 workspace = true

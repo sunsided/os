@@ -12,6 +12,11 @@ in RustRover. The `add-symbol-file qemu/esp/EFI/Boot/kernel.elf` command needs t
 in Kernel mode (i.e., left UEFI); this can be done in the remote debug run configuration. I'm curious
 to see how this works when running this in a higher-half kernel.
 
+Since I need the information about the kernel's virtual memory address, as well as its physical location
+in both the UEFI (for the ELF loader) and in the linker script, I decided to pull it into the `kernel-info`
+crate which I now reuse in the kernel's `build.rs`. The linker script now uses `DEFINED(KERNEL_BASE)`
+and `DEFINED(PHYS_LOAD)` to allow external configuration.
+
 ## 2025-10-25
 
 Adding a serial output to the QEMU emulator turned out to be extremely helpful in finding out
@@ -22,5 +27,5 @@ would be passed in `rdi`) was a bad idea: The UEFI code is PE/COFF and used `win
 setting up the argument in `rcx` instead. Changing calling conventions a bit and setting up a naked
 jump pad in `_start_kernel` fixed the problem.
 
-I then added a bit of RSDP/XSDP, i.e. ACPI 1.0 and 2.0 parsing, only to later on learn that QEMU
+I then added a bit of RSDP/XSDP, i.e., ACPI 1.0 and 2.0 parsing, only to later on learn that QEMU
 currently does not even support ACPI 2.0.
