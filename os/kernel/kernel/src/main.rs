@@ -45,9 +45,8 @@ static mut BOOT_STACK: Aligned<BOOT_STACK_SIZE> = Aligned([0; BOOT_STACK_SIZE]);
 /// The UEFI loader will jump here after `ExitBootServices`.
 ///
 /// # ABI
-/// The ABI is defined as `win64` since the kernel is called from a UEFI
-/// (PE/COFF) application. This passes the `boot_info` pointer as `RCX`
-/// (as opposed to `RDI` for the SysV ABI).
+/// The ABI is defined as `sysv64` (Rust's `extern "C"`), so the kernel is called
+/// with the `boot_info` pointer in `RDI` (System V AMD64 ABI, as on Linux/x86_64).
 ///
 /// # Naked function & Stack
 /// This is a naked function in order to set up the stack ourselves. Without
@@ -57,29 +56,23 @@ static mut BOOT_STACK: Aligned<BOOT_STACK_SIZE> = Aligned([0; BOOT_STACK_SIZE]);
 /// here, this would cause UB.
 #[unsafe(no_mangle)]
 #[unsafe(naked)]
-pub extern "win64" fn _start_kernel(_boot_info: *const KernelBootInfo) {
+pub extern "C" fn _start_kernel(_boot_info: *const KernelBootInfo) {
     core::arch::naked_asm!(
         "cli",
-
-        // save RCX (boot_info per Win64)
-        "mov r12, rcx",
-
+        // save RDI (boot_info per SysV64)
+        "mov r12, rdi",
         // Build our own kernel stack and establish a valid call frame for kernel_entry
         "lea rax, [rip + {stack_sym}]",
         "add rax, {stack_size}",
         // Align down to 16
         "and rax, -16",
-        // Reserve 32-byte shadow space
-        "sub rax, 32",
         // Set RSP to the prepared value
         "mov rsp, rax",
         // Emulate a CALL by pushing a dummy return address (so RSP % 16 == 8 at entry)
         "push 0",
         "xor rbp, rbp",
-
         // Restore boot_info into the expected arg register (SysV/C ABI)
         "mov rdi, r12",
-
         // Jump to Rust entry and never return
         "jmp {rust_entry}",
         stack_sym = sym BOOT_STACK,

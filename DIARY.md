@@ -82,8 +82,10 @@ requiring extra stack space. After successfully setting that up, the kernel stil
 because it was now trying to access the framebuffer which, of course, was not mapped. While entirely
 on purpose, this sent me searching for bugs in the UEFI loaded when in reality the error came from elsewhere.
 Had I looked closer in the `debug.log`, I could have noticed ...
-Anyway, to set up the memory map in the kernel it needed to allocate, so now I needed to cook up a
-`global_allocator` as well.
+Anyway, to set up the memory map in the kernel it needed to allocate, so now I needed to cook up an allocator as well.
+
+After implementing a basic virtual memory manager (VMM) on the Kernel to map the framebuffer,
+I reverted the UEFI/kernel trampoline to `sysv64` ABI.
 
 ## 2025-10-25
 

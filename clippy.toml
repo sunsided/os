@@ -1,1 +1,1 @@
-doc-valid-idents = ["SysV", "SystemV", ".."]
+doc-valid-idents = ["SysV", "SystemV", "x86_64", "Linux/x86_64", ".."]

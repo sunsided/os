@@ -74,7 +74,6 @@ unsafe impl GlobalAlloc for UefiBootAllocator {
 pub fn alloc_trampoline_stack(
     stack_size_bytes: usize, // e.g. 64 * 1024
     with_guard: bool,
-    win64_shadow_space: bool, // reserve 32 bytes if your kernel uses Win64 ABI
 ) -> (PhysAddr, VirtAddr) {
     let page_size = 4096usize;
     let pages_for_stack = stack_size_bytes.div_ceil(page_size);
@@ -101,11 +100,6 @@ pub fn alloc_trampoline_stack(
     // Both SysV and Win64 expect RSP % 16 == 8 at function entry (because of a pushed return address).
     // Since we *jmp* (no return address), we emulate that by subtracting 8.
     top -= 8;
-
-    // Win64 "shadow space" (32 bytes) is expected by callees; reserve it so they can write there.
-    if win64_shadow_space {
-        top -= 32;
-    }
 
     // VA == PA because we'll identity-map this span
     (PhysAddr::from_u64(stack_base_phys), VirtAddr::from_u64(top))
