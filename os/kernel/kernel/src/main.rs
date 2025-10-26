@@ -5,7 +5,7 @@
 #![allow(unsafe_code)]
 
 use core::hint::spin_loop;
-use kernel_info::{BootPixelFormat, FramebufferInfo, KernelBootInfo};
+use kernel_info::boot::{BootPixelFormat, FramebufferInfo, KernelBootInfo};
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {

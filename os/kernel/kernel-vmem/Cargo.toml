@@ -13,6 +13,7 @@ license.workspace = true
 [dependencies]
 bitfield-struct.workspace = true
 bitflags.workspace = true
+kernel-info = { path = "../kernel-info" }
 
 [lints]
 workspace = true

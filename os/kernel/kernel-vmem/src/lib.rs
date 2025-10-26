@@ -71,37 +71,17 @@
 #![allow(unsafe_code)]
 
 pub mod address_space;
+mod addresses;
 mod page_table;
 
 extern crate alloc;
 
 pub use crate::address_space::AddressSpace;
+use crate::addresses::{PhysAddr, VirtAddr};
 pub use crate::page_table::{PageTable, PageTableEntry};
 
-/// A memory address as it is used in pointers.
-///
-/// See [`PhysAddr`] and [`VirtAddr`] for usages.
-pub type MemoryAddress = u64;
-
-/// A **physical** memory address (machine bus address).
-///
-/// Newtype over `u64` to prevent mixing with virtual addresses.
-/// No alignment guarantees by itself.
-///
-/// ### Notes
-/// - When used inside page-table entries, the low N bits must be zeroed
-///   (N ∈ {12, 21, 30} for 4 KiB/2 MiB/1 GiB).
-#[repr(transparent)]
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
-pub struct PhysAddr(pub MemoryAddress);
-
-/// A **virtual** memory address (process/kernel address space).
-///
-/// Newtype over `u64` to prevent mixing with physical addresses.
-/// No alignment guarantees by itself.
-#[repr(transparent)]
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
-pub struct VirtAddr(pub MemoryAddress);
+/// Re-export constants as info module.
+pub use kernel_info::memory as info;
 
 /// Supported x86-64 page sizes.
 ///
@@ -222,197 +202,6 @@ pub trait PhysMapper {
     unsafe fn phys_to_mut<'a, T>(&self, pa: PhysAddr) -> &'a mut T;
 }
 
-impl VirtAddr {
-    /// Extract the PML4 index (bits 47-39 of the virtual address).
-    #[inline]
-    const fn pml4_index(self) -> Pml4Index {
-        Pml4Index(((self.0 >> 39) & 0x1ff) as usize)
-    }
-
-    /// Extract the PDPT index (bits 38-30 of the virtual address).
-    #[inline]
-    const fn pdpt_index(self) -> PdptIndex {
-        PdptIndex(((self.0 >> 30) & 0x1ff) as usize)
-    }
-
-    /// Extract the PD index (bits 29-21 of the virtual address).
-    #[inline]
-    const fn pd_index(self) -> PdIndex {
-        PdIndex(((self.0 >> 21) & 0x1ff) as usize)
-    }
-
-    /// Extract the PT index (bits 20-12 of the virtual address).
-    #[inline]
-    const fn pt_index(self) -> PtIndex {
-        PtIndex(((self.0 >> 12) & 0x1ff) as usize)
-    }
-}
-
-/// Implement common functionality for page tables.
-macro_rules! table_common {
-    ($name:tt, $T:ident, $Index:ident) => {
-        #[doc = concat!("The `", stringify!($name), "` page table.")]
-        #[repr(transparent)]
-        pub struct $T(PageTable);
-
-        #[doc = concat!("An index into the `", stringify!($name), "` page table.")]
-        #[derive(Copy, Clone)]
-        #[repr(transparent)]
-        pub struct $Index(usize);
-
-        impl $T {
-            #[inline]
-            pub fn zero(&mut self) {
-                self.0.zero()
-            }
-
-            #[inline]
-            pub const fn as_page_table_mut(&mut self) -> &mut PageTable {
-                &mut self.0
-            }
-
-            /// Get a mutable entry reference by index.
-            ///
-            /// `PageTable` exposes only `as_ptr()`; we provide a small, contained unsafe.
-            #[inline]
-            unsafe fn entry_mut(&mut self, idx: $Index) -> &mut PageTableEntry {
-                debug_assert!(idx.0 < 512);
-                unsafe { &mut *self.0.as_ptr().add(idx.0) }
-            }
-        }
-
-        impl AsMut<PageTable> for $T {
-            fn as_mut(&mut self) -> &mut PageTable {
-                &mut self.0
-            }
-        }
-
-        impl From<PageTable> for $T {
-            fn from(pt: PageTable) -> Self {
-                Self(pt)
-            }
-        }
-
-        impl From<$Index> for usize {
-            fn from(i: $Index) -> Self {
-                i.0
-            }
-        }
-    };
-}
-
-table_common!(PML4, Pml4PageTable, Pml4Index);
-table_common!(PDPT, PdptPageTable, PdptIndex);
-table_common!(PD, PdPageTable, PdIndex);
-table_common!(PT, PtPageTable, PtIndex);
-
-impl Pml4PageTable {
-    #[inline]
-    pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
-        unsafe { self.entry_mut(va.pml4_index()) }
-    }
-
-    /// Initialize a non-leaf entry to point to a PDPT table.
-    pub fn link_pdpt(&mut self, va: VirtAddr, pdpt_phys: PhysAddr) {
-        let e = self.entry_mut_by_va(va);
-        e.set_present(true);
-        e.set_writable(true);
-        e.set_ps(false);
-        e.set_addr(pdpt_phys.0);
-    }
-}
-
-impl PdptPageTable {
-    #[inline]
-    pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
-        unsafe { self.entry_mut(va.pdpt_index()) }
-    }
-
-    /// Non-leaf: link to a PD table.
-    pub fn link_pd(&mut self, va: VirtAddr, pd_phys: PhysAddr) {
-        let e = self.entry_mut_by_va(va);
-        e.set_present(true);
-        e.set_writable(true);
-        e.set_ps(false);
-        e.set_addr(pd_phys.0);
-    }
-
-    /// **Leaf (1 GiB):** set PDPTE as 1 GiB mapping.
-    pub fn map_1g_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: Flags) {
-        let e = self.entry_mut_by_va(va);
-        e.set_addr(pa.0);
-        e.set_present(true);
-        e.set_ps(true);
-        e.set_writable(flags.contains(Flags::WRITABLE));
-        e.set_user(flags.contains(Flags::USER));
-        e.set_write_through(flags.contains(Flags::WT));
-        e.set_cache_disable(flags.contains(Flags::CD));
-        e.set_global(flags.contains(Flags::GLOBAL));
-        e.set_nx(flags.contains(Flags::NX));
-    }
-}
-
-impl PdPageTable {
-    #[inline]
-    pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
-        unsafe { self.entry_mut(va.pd_index()) }
-    }
-
-    /// Non-leaf: link to a PT table.
-    pub fn link_pt(&mut self, va: VirtAddr, pt_phys: PhysAddr) {
-        let e = self.entry_mut_by_va(va);
-        e.set_present(true);
-        e.set_writable(true);
-        e.set_ps(false);
-        e.set_addr(pt_phys.0);
-    }
-
-    /// **Leaf (2 MiB):** set PDE as 2 MiB mapping.
-    pub fn map_2m_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: Flags) {
-        let e = self.entry_mut_by_va(va);
-        e.set_addr(pa.0);
-        e.set_present(true);
-        e.set_ps(true);
-        e.set_writable(flags.contains(Flags::WRITABLE));
-        e.set_user(flags.contains(Flags::USER));
-        e.set_write_through(flags.contains(Flags::WT));
-        e.set_cache_disable(flags.contains(Flags::CD));
-        e.set_global(flags.contains(Flags::GLOBAL));
-        e.set_nx(flags.contains(Flags::NX));
-    }
-}
-
-impl PtPageTable {
-    #[inline]
-    pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
-        unsafe { self.entry_mut(va.pt_index()) }
-    }
-
-    /// **Leaf (4 KiB):** set PTE as 4 KiB mapping (no PS).
-    pub fn map_4k_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: Flags) {
-        let e = self.entry_mut_by_va(va);
-        e.set_addr(pa.0);
-        e.set_present(true);
-        e.set_ps(false);
-        e.set_writable(flags.contains(Flags::WRITABLE));
-        e.set_user(flags.contains(Flags::USER));
-        e.set_write_through(flags.contains(Flags::WT));
-        e.set_cache_disable(flags.contains(Flags::CD));
-        e.set_global(flags.contains(Flags::GLOBAL));
-        e.set_nx(flags.contains(Flags::NX));
-    }
-}
-
-/// Handles to key paging structures owned by the caller.
-///
-/// The minimal thing we track here is the physical address of the **active PML4**.
-/// You can extend this struct to hold scratch tables, HHDM base, etc.
-#[derive(Copy, Clone)]
-pub struct Tables {
-    /// Physical address of the active PML4.
-    pub pml4_phys: PhysAddr,
-}
-
 /// Map a physical page table frame into the current virtual address space and
 /// return a mutable reference to it.
 ///
@@ -422,43 +211,6 @@ pub struct Tables {
 #[inline]
 unsafe fn get_table<'a, M: PhysMapper>(m: &M, phys: PhysAddr) -> &'a mut PageTable {
     unsafe { m.phys_to_mut::<PageTable>(phys) }
-}
-
-/// Apply `Flags` to a (leaf or non-leaf) entry. For non-leaf tables you typically
-/// keep USER/WT/CD/GLOBAL/NX = false, but we only set bits explicitly present in `flags`.
-#[inline]
-const fn apply_flags(e: &mut PageTableEntry, flags: Flags, is_leaf_huge: bool) {
-    if flags.contains(Flags::PRESENT) {
-        e.set_present(true);
-    }
-    if flags.contains(Flags::WRITABLE) {
-        e.set_writable(true);
-    }
-    if flags.contains(Flags::USER) {
-        e.set_user(true);
-    }
-    if flags.contains(Flags::WT) {
-        e.set_write_through(true);
-    }
-    if flags.contains(Flags::CD) {
-        e.set_cache_disable(true);
-    }
-    if flags.contains(Flags::ACCESSED) {
-        e.set_accessed(true);
-    }
-    if flags.contains(Flags::DIRTY) {
-        e.set_dirty(true);
-    }
-    if flags.contains(Flags::GLOBAL) {
-        e.set_global(true);
-    }
-    if flags.contains(Flags::NX) {
-        e.set_nx(true);
-    }
-    // PS only makes sense for leaves at PDPT/PD:
-    if flags.contains(Flags::PS) || is_leaf_huge {
-        e.set_ps(true);
-    }
 }
 
 #[cfg(test)]

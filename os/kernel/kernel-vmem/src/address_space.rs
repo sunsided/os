@@ -63,8 +63,9 @@
 #![allow(dead_code)]
 
 use crate::{
-    Flags, FrameAlloc, PageSize, PageTable, PdPageTable, PdptPageTable, PhysAddr, PhysMapper,
-    Pml4PageTable, PtPageTable, VirtAddr, apply_flags, get_table,
+    Flags, FrameAlloc, PageSize, PageTable, PageTableEntry, PhysAddr, PhysMapper, VirtAddr,
+    get_table,
+    page_table::{PdPageTable, PdptPageTable, Pml4PageTable, PtPageTable},
 };
 
 /// A handle to one **concrete address space** (page-table tree).
@@ -309,5 +310,42 @@ pub fn as_pd<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut PdPageTable {
 pub fn as_pt<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut PtPageTable {
     unsafe {
         &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<PtPageTable>()
+    }
+}
+
+/// Apply `Flags` to a (leaf or non-leaf) entry. For non-leaf tables you typically
+/// keep USER/WT/CD/GLOBAL/NX = false, but we only set bits explicitly present in `flags`.
+#[inline]
+const fn apply_flags(e: &mut PageTableEntry, flags: Flags, is_leaf_huge: bool) {
+    if flags.contains(Flags::PRESENT) {
+        e.set_present(true);
+    }
+    if flags.contains(Flags::WRITABLE) {
+        e.set_writable(true);
+    }
+    if flags.contains(Flags::USER) {
+        e.set_user(true);
+    }
+    if flags.contains(Flags::WT) {
+        e.set_write_through(true);
+    }
+    if flags.contains(Flags::CD) {
+        e.set_cache_disable(true);
+    }
+    if flags.contains(Flags::ACCESSED) {
+        e.set_accessed(true);
+    }
+    if flags.contains(Flags::DIRTY) {
+        e.set_dirty(true);
+    }
+    if flags.contains(Flags::GLOBAL) {
+        e.set_global(true);
+    }
+    if flags.contains(Flags::NX) {
+        e.set_nx(true);
+    }
+    // PS only makes sense for leaves at PDPT/PD:
+    if flags.contains(Flags::PS) || is_leaf_huge {
+        e.set_ps(true);
     }
 }

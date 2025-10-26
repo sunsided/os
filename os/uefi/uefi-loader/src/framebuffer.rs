@@ -1,6 +1,6 @@
 //! # GOP for the Kernel
 
-use kernel_info::{BootPixelFormat, BootPixelMasks, FramebufferInfo};
+use kernel_info::boot::{BootPixelFormat, BootPixelMasks, FramebufferInfo};
 use uefi::boot::ScopedProtocol;
 use uefi::proto::console::gop::{GraphicsOutput, PixelFormat};
 use uefi::{Status, boot};

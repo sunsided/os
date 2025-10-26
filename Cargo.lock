@@ -58,6 +58,7 @@ version = "0.0.0"
 dependencies = [
  "bitfield-struct",
  "bitflags",
+ "kernel-info",
 ]
 
 [[package]]

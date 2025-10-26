@@ -1,5 +1,7 @@
 //! Page Table Entries
 
+use crate::Flags;
+use crate::addresses::{PhysAddr, VirtAddr};
 use bitfield_struct::bitfield;
 
 /// A 4-level x86-64 **page table page** (512 `u64` entries), 4 KiB aligned.
@@ -138,5 +140,167 @@ impl PageTableEntry {
     #[must_use]
     pub const fn is_present_leaf(&self) -> bool {
         self.present() && !self.ps()
+    }
+}
+
+/// Implement common functionality for page tables.
+macro_rules! table_common {
+    ($name:tt, $T:ident, $Index:ident) => {
+        #[doc = concat!("The `", stringify!($name), "` page table.")]
+        #[repr(transparent)]
+        pub struct $T(PageTable);
+
+        #[doc = concat!("An index into the `", stringify!($name), "` page table.")]
+        #[derive(Copy, Clone)]
+        #[repr(transparent)]
+        pub struct $Index(usize);
+
+        impl $Index {
+            #[inline]
+            pub(crate) const fn new(idx: usize) -> Self {
+                Self(idx)
+            }
+        }
+
+        impl $T {
+            #[inline]
+            pub fn zero(&mut self) {
+                self.0.zero()
+            }
+
+            #[inline]
+            pub const fn as_page_table_mut(&mut self) -> &mut PageTable {
+                &mut self.0
+            }
+
+            /// Get a mutable entry reference by index.
+            ///
+            /// `PageTable` exposes only `as_ptr()`; we provide a small, contained unsafe.
+            #[inline]
+            unsafe fn entry_mut(&mut self, idx: $Index) -> &mut PageTableEntry {
+                debug_assert!(idx.0 < 512);
+                unsafe { &mut *self.0.as_ptr().add(idx.0) }
+            }
+        }
+
+        impl AsMut<PageTable> for $T {
+            fn as_mut(&mut self) -> &mut PageTable {
+                &mut self.0
+            }
+        }
+
+        impl From<PageTable> for $T {
+            fn from(pt: PageTable) -> Self {
+                Self(pt)
+            }
+        }
+
+        impl From<$Index> for usize {
+            fn from(i: $Index) -> Self {
+                i.0
+            }
+        }
+    };
+}
+
+table_common!(PML4, Pml4PageTable, Pml4Index);
+table_common!(PDPT, PdptPageTable, PdptIndex);
+table_common!(PD, PdPageTable, PdIndex);
+table_common!(PT, PtPageTable, PtIndex);
+
+impl Pml4PageTable {
+    #[inline]
+    pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
+        unsafe { self.entry_mut(va.pml4_index()) }
+    }
+
+    /// Initialize a non-leaf entry to point to a PDPT table.
+    pub fn link_pdpt(&mut self, va: VirtAddr, pdpt_phys: PhysAddr) {
+        let e = self.entry_mut_by_va(va);
+        e.set_present(true);
+        e.set_writable(true);
+        e.set_ps(false);
+        e.set_addr(pdpt_phys.0);
+    }
+}
+
+impl PdptPageTable {
+    #[inline]
+    pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
+        unsafe { self.entry_mut(va.pdpt_index()) }
+    }
+
+    /// Non-leaf: link to a PD table.
+    pub fn link_pd(&mut self, va: VirtAddr, pd_phys: PhysAddr) {
+        let e = self.entry_mut_by_va(va);
+        e.set_present(true);
+        e.set_writable(true);
+        e.set_ps(false);
+        e.set_addr(pd_phys.0);
+    }
+
+    /// **Leaf (1 GiB):** set PDPTE as 1 GiB mapping.
+    pub fn map_1g_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: Flags) {
+        let e = self.entry_mut_by_va(va);
+        e.set_addr(pa.0);
+        e.set_present(true);
+        e.set_ps(true);
+        e.set_writable(flags.contains(Flags::WRITABLE));
+        e.set_user(flags.contains(Flags::USER));
+        e.set_write_through(flags.contains(Flags::WT));
+        e.set_cache_disable(flags.contains(Flags::CD));
+        e.set_global(flags.contains(Flags::GLOBAL));
+        e.set_nx(flags.contains(Flags::NX));
+    }
+}
+
+impl PdPageTable {
+    #[inline]
+    pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
+        unsafe { self.entry_mut(va.pd_index()) }
+    }
+
+    /// Non-leaf: link to a PT table.
+    pub fn link_pt(&mut self, va: VirtAddr, pt_phys: PhysAddr) {
+        let e = self.entry_mut_by_va(va);
+        e.set_present(true);
+        e.set_writable(true);
+        e.set_ps(false);
+        e.set_addr(pt_phys.0);
+    }
+
+    /// **Leaf (2 MiB):** set PDE as 2 MiB mapping.
+    pub fn map_2m_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: Flags) {
+        let e = self.entry_mut_by_va(va);
+        e.set_addr(pa.0);
+        e.set_present(true);
+        e.set_ps(true);
+        e.set_writable(flags.contains(Flags::WRITABLE));
+        e.set_user(flags.contains(Flags::USER));
+        e.set_write_through(flags.contains(Flags::WT));
+        e.set_cache_disable(flags.contains(Flags::CD));
+        e.set_global(flags.contains(Flags::GLOBAL));
+        e.set_nx(flags.contains(Flags::NX));
+    }
+}
+
+impl PtPageTable {
+    #[inline]
+    pub fn entry_mut_by_va(&mut self, va: VirtAddr) -> &mut PageTableEntry {
+        unsafe { self.entry_mut(va.pt_index()) }
+    }
+
+    /// **Leaf (4 KiB):** set PTE as 4 KiB mapping (no PS).
+    pub fn map_4k_leaf(&mut self, va: VirtAddr, pa: PhysAddr, flags: Flags) {
+        let e = self.entry_mut_by_va(va);
+        e.set_addr(pa.0);
+        e.set_present(true);
+        e.set_ps(false);
+        e.set_writable(flags.contains(Flags::WRITABLE));
+        e.set_user(flags.contains(Flags::USER));
+        e.set_write_through(flags.contains(Flags::WT));
+        e.set_cache_disable(flags.contains(Flags::CD));
+        e.set_global(flags.contains(Flags::GLOBAL));
+        e.set_nx(flags.contains(Flags::NX));
     }
 }

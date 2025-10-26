@@ -11,14 +11,14 @@ mod framebuffer;
 mod memory;
 mod rsdp;
 
-use crate::elf::loader::ElfHeader;
+use crate::elf::parser::ElfHeader;
 use crate::file_system::load_file;
 use crate::framebuffer::get_framebuffer;
 use crate::rsdp::find_rsdp_addr;
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
-use kernel_info::{KernelBootInfo, KernelEntry, MemoryMapInfo};
+use kernel_info::boot::{KernelBootInfo, KernelEntry, MemoryMapInfo};
 use uefi::boot::MemoryType;
 use uefi::cstr16;
 use uefi::mem::memory_map::MemoryMap;
@@ -236,10 +236,10 @@ fn trace_boot_info(boot_info: &KernelBootInfo) {
     trace_u64(boot_info.fb.framebuffer_stride);
     trace(", FB format = ");
     match boot_info.fb.framebuffer_format {
-        kernel_info::BootPixelFormat::Rgb => trace("RGB"),
-        kernel_info::BootPixelFormat::Bgr => trace("BGR"),
-        kernel_info::BootPixelFormat::Bitmask => trace("Bitmask"),
-        kernel_info::BootPixelFormat::BltOnly => trace("BltOnly"),
+        kernel_info::boot::BootPixelFormat::Rgb => trace("RGB"),
+        kernel_info::boot::BootPixelFormat::Bgr => trace("BGR"),
+        kernel_info::boot::BootPixelFormat::Bitmask => trace("Bitmask"),
+        kernel_info::boot::BootPixelFormat::BltOnly => trace("BltOnly"),
     }
     trace("\n");
 }
