@@ -6,11 +6,6 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 - Line [141](./os/kernel/kernel-vmem/src/lib.rs#L141): Rework using bitfield_struct
 
-## [os/kernel/kernel/src/main.rs](./os/kernel/kernel/src/main.rs)
-
-- Line [133](./os/kernel/kernel/src/main.rs#L133): framebuffer mapped into HHDM at VGA-like offset
-- Line [246](./os/kernel/kernel/src/main.rs#L246): Use a panic here
-
 ## [os/uefi/uefi-loader/src/elf/parser.rs](./os/uefi/uefi-loader/src/elf/parser.rs)
 
 - Line [56](./os/uefi/uefi-loader/src/elf/parser.rs#L56): Rework flags using bitflags or bitfield_struct
