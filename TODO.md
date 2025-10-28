@@ -4,8 +4,8 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel-vmem/src/lib.rs](./os/kernel/kernel-vmem/src/lib.rs)
 
-- Line [140](./os/kernel/kernel-vmem/src/lib.rs#L140): Rework using bitfield_struct
-- Line [287](./os/kernel/kernel-vmem/src/lib.rs#L287): Have the mapper return a Result if the address cannot be mapped.
+- Line [141](./os/kernel/kernel-vmem/src/lib.rs#L141): Rework using bitfield_struct
+- Line [288](./os/kernel/kernel-vmem/src/lib.rs#L288): Have the mapper return a Result if the address cannot be mapped.
 
 ## [os/uefi/uefi-loader/src/elf/parser.rs](./os/uefi/uefi-loader/src/elf/parser.rs)
 

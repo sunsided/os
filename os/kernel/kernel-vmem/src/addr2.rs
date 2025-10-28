@@ -179,7 +179,7 @@ impl fmt::Debug for MemoryAddress {
 }
 
 impl Add<u64> for MemoryAddress {
-    type Output = MemoryAddress;
+    type Output = Self;
     #[inline]
     fn add(self, rhs: u64) -> Self::Output {
         Self(self.0 + rhs)
@@ -492,12 +492,20 @@ impl fmt::Debug for PhysicalAddress {
 #[repr(transparent)]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct VirtualPage<S: PageSize>(MemoryPage<S>);
+
 impl<S: PageSize> VirtualPage<S> {
+    #[inline]
+    #[must_use]
+    pub const fn from_page(p: MemoryPage<S>) -> Self {
+        Self(p)
+    }
+
     #[inline]
     #[must_use]
     pub const fn base(self) -> VirtualAddress {
         VirtualAddress(self.0.base())
     }
+
     #[inline]
     #[must_use]
     pub const fn join(self, off: MemoryAddressOffset<S>) -> VirtualAddress {
@@ -542,7 +550,20 @@ impl<S: PageSize> fmt::Debug for VirtualPage<S> {
 #[repr(transparent)]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct PhysicalPage<S: PageSize>(MemoryPage<S>);
+
 impl<S: PageSize> PhysicalPage<S> {
+    #[inline]
+    #[must_use]
+    pub const fn from_addr(p: PhysicalAddress) -> Self {
+        Self::from_page(MemoryPage::from_addr(p.0))
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn from_page(p: MemoryPage<S>) -> Self {
+        Self(p)
+    }
+
     #[inline]
     #[must_use]
     pub const fn base(self) -> PhysicalAddress {
@@ -592,6 +613,26 @@ impl From<u64> for PhysicalAddress {
     #[inline]
     fn from(v: u64) -> Self {
         Self::new(v)
+    }
+}
+
+impl<S> From<MemoryPage<S>> for VirtualPage<S>
+where
+    S: PageSize,
+{
+    #[inline]
+    fn from(p: MemoryPage<S>) -> Self {
+        Self(p)
+    }
+}
+
+impl<S> From<MemoryPage<S>> for PhysicalPage<S>
+where
+    S: PageSize,
+{
+    #[inline]
+    fn from(p: MemoryPage<S>) -> Self {
+        Self(p)
     }
 }
 

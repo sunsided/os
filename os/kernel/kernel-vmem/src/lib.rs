@@ -74,6 +74,7 @@ pub mod addr2;
 pub mod address_space;
 mod addresses;
 pub mod page_table;
+pub mod table2;
 
 pub use crate::address_space::AddressSpace;
 pub use crate::page_table::{PageTable, PageTableEntry};
