@@ -34,8 +34,10 @@ pub struct L2Index(u16);
 /// A single Page Directory entry (PDE).
 ///
 /// Semantics:
+///
 /// - If `PS=0`, points to a Page Table (PT).
 /// - If `PS=1`, encodes a 2 MiB leaf mapping.
+///
 /// All permission/cache/present bits are contained in the inner [`PageEntryBits`].
 #[repr(transparent)]
 #[derive(Copy, Clone)]
@@ -202,7 +204,7 @@ impl PageDirectory {
         self.entries[i.as_usize()] = e;
     }
 
-    /// Convenience: derive the PD index from a virtual address.
+    /// Derive the PD index from a virtual address.
     #[inline]
     #[must_use]
     pub const fn index_of(va: VirtualAddress) -> L2Index {

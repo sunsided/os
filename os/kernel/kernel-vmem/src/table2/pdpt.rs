@@ -209,7 +209,7 @@ impl PageDirectoryPointerTable {
         self.entries[i.as_usize()] = e;
     }
 
-    /// Convenience: derive the PDPT index from a virtual address.
+    /// Derive the PDPT index from a virtual address.
     #[inline]
     #[must_use]
     pub const fn index_of(va: VirtualAddress) -> L3Index {
