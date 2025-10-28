@@ -73,10 +73,12 @@
 pub mod addr2;
 pub mod address_space;
 mod addresses;
+mod page_entry_bits;
 pub mod page_table;
 pub mod table2;
 
 pub use crate::address_space::AddressSpace;
+pub use crate::page_entry_bits::PageEntryBits;
 pub use crate::page_table::{PageTable, PageTableEntry};
 pub use addresses::{MemoryAddress, PhysAddr, VirtAddr};
 
