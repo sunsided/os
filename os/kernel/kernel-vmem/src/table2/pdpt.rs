@@ -216,3 +216,34 @@ impl PageDirectoryPointerTable {
         L3Index::from(va)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::addr2::PhysicalAddress;
+
+    #[test]
+    fn pdpt_table_vs_1g() {
+        // next-level PD
+        let pd = PhysicalPage::<Size4K>::from_addr(PhysicalAddress::new(0x2000_0000));
+        let e_tbl = PdptEntry::make_next(pd, PageEntryBits::new_common_rw());
+        match e_tbl.kind().unwrap() {
+            PdptEntryKind::NextPageDirectory(p, f) => {
+                assert_eq!(p.base().as_u64(), 0x2000_0000);
+                assert!(!f.large_page());
+            }
+            _ => panic!("expected next PD"),
+        }
+
+        // 1 GiB leaf
+        let g1 = PhysicalPage::<Size1G>::from_addr(PhysicalAddress::new(0x8000_0000));
+        let e_1g = PdptEntry::make_1g(g1, PageEntryBits::new_common_rw());
+        match e_1g.kind().unwrap() {
+            PdptEntryKind::Leaf1GiB(p, f) => {
+                assert_eq!(p.base().as_u64(), 0x8000_0000);
+                assert!(f.large_page());
+            }
+            _ => panic!("expected 1GiB leaf"),
+        }
+    }
+}

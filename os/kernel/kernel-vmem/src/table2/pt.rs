@@ -178,3 +178,21 @@ impl PageTable {
         L1Index::from(va)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::addr2::PhysicalAddress;
+
+    #[test]
+    fn pte_4k_leaf() {
+        let k4 = PhysicalPage::<Size4K>::from_addr(PhysicalAddress::new(0x5555_0000));
+        let e = PtEntry::make_4k(k4, PageEntryBits::new_user_ro_nx());
+        let (p, fl) = e.page_4k().unwrap();
+        assert_eq!(p.base().as_u64(), 0x5555_0000);
+        assert!(!fl.large_page());
+        assert!(fl.no_execute());
+        assert!(fl.user_access());
+        assert!(!fl.writable());
+    }
+}

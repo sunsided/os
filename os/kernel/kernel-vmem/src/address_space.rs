@@ -1,434 +1,340 @@
-//! # Virtual Address Space
+//! # Address Space (x86-64, PML4-rooted)
 //!
-//! Thin, zero-overhead helpers for operating on a **single x86-64 address
-//! space** (page-table tree rooted at a PML4).
+//! Strongly-typed helpers to build and manipulate a **single** virtual address
+//! space (tree rooted at a PML4). This complements the typed paging layers
+//! (`PageMapLevel4`, `PageDirectoryPointerTable`, `PageDirectory`, `PageTable`).
 //!
-//! This module complements the paging primitives by providing:
+//! ## Highlights
 //!
-//! - An [`AddressSpace`] handle that knows the **physical address of the PML4**
-//!   and a [`PhysMapper`] to temporarily view/modify page tables.
-//! - [`AddressSpace::ensure_chain`] to **allocate missing intermediate tables**
-//!   on the walk from `PML4 → PDPT → PD → PT` for a given [`VirtAddr`] and
-//!   target [`PageSize`].
-//! - [`AddressSpace::map_one`] to **install a single mapping** (4 KiB / 2 MiB / 1 GiB).
-//! - [`AddressSpace::activate`] to **load CR3** with this address space (loader/kernel).
-//! - `as_*` helpers to temporarily treat a **physical frame** as a typed table
-//!   ([`Pml4PageTable`], [`PdptPageTable`], [`PdPageTable`], [`PtPageTable`]).
+//! - `AddressSpace::ensure_chain` to allocate/link missing intermediate tables
+//!   down to the level implied by the target page size.
+//! - `AddressSpace::map_one` to install one mapping (4 KiB / 2 MiB / 1 GiB).
+//! - `AddressSpace::unmap_one` to clear a single 4 KiB PTE.
+//! - `AddressSpace::query` to translate a VA to PA (handles huge pages).
+//! - `AddressSpace::activate` to load CR3 with this space’s root.
 //!
-//! ## Design notes
+//! ## Design
 //!
-//! - All table mutations happen through a provided [`PhysMapper`]. This keeps the
-//!   paging code agnostic of whether you use identity maps (loader) or a higher-half
-//!   direct map (HHDM) in the kernel.
-//! - Allocation is delegated to a minimal [`FrameAlloc`] which must return **4 KiB-aligned**
-//!   physical frames suitable for page tables.
-//! - We keep the API small on purpose; things like **splitting/merging huge pages**,
-//!   **unmapping**, or **permission changes** can be layered on top using the same
-//!   primitives.
+//! - Non-leaf entries are created with caller-provided **non-leaf flags**
+//!   (typically: present + writable, US as needed). Leaf flags come from the
+//!   mapping call. We never silently set US/GLOBAL/NX; the caller decides.
+//! - Uses `PhysicalPage<Size4K>` for page-table frames, and `VirtualAddress` /
+//!   `PhysicalAddress` for endpoints. Alignment is asserted via typed helpers.
+//! - Keeps `unsafe` confined to mapping a physical frame to a typed table
+//!   through the `PhysMapper`.
 //!
-//! ## Typical usage
+//! ## Safety
 //!
-//! ```ignore
-//! // Allocate a fresh PML4 and zero it
-//! let pml4_phys = alloc.alloc_4k().unwrap();
-//! unsafe { get_table(&mapper, pml4_phys).zero(); }
-//!
-//! // Bind an AddressSpace to it
-//! let aspace = AddressSpace::new(&mapper, pml4_phys);
-//!
-//! // Map a higher-half kernel page (4 KiB) as RW, global, NX
-//! aspace.map_one(
-//!     &mut alloc,
-//!     VirtAddr(0xffff_8000_0000_0000),
-//!     PhysAddr(0x0010_0000),
-//!     PageSize::Size4K,
-//!     Flags::WRITABLE | Flags::GLOBAL | Flags::NX,
-//! )?;
-//!
-//! // Make it active (requires having set CR0.WP/CR4.PGE/EFER.NXE as needed)
-//! unsafe { aspace.activate(); }
-//! ```
-//!
-//! ## Invariants & safety summary
-//!
-//! - **Tables are writable**: the caller’s [`PhysMapper`] must return **writable** references
-//!   for the page-table frames touched (PML4/PDPT/PD/PT).
-//! - **Root is active** when mutating live mappings: if you modify the active address
-//!   space, remember to **flush TLBs** (e.g., `invlpg` per page or CR3 reload).
-//! - **Alignment**: physical addresses used in leaves must be aligned to the chosen
-//!   page size; this is enforced via debug assertions.
-//!
-//! See also the companion docs in the paging module for a recap of the x86-64 walk.
+//! - Mutating active mappings requires appropriate **TLB maintenance** (e.g.,
+//!   `invlpg` per page or CR3 reload).
+//! - The provided `PhysMapper` must yield **writable** references to table frames.
 
-#![allow(dead_code)]
-
-use crate::{
-    FrameAlloc, MemoryPageFlags, PageSize, PageTable, PageTableEntry, PhysAddr, PhysMapper,
-    VirtAddr, get_table,
-    page_table::{PdPageTable, PdptPageTable, Pml4PageTable, PtPageTable},
+use crate::PageEntryBits;
+use crate::addr2::{
+    MemoryAddressOffset, PageSize, PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K,
+    VirtualAddress,
 };
+use crate::table2::pd::PdEntry;
+use crate::table2::pd::{L2Index, PageDirectory, PdEntryKind};
+use crate::table2::pdpt::{L3Index, PageDirectoryPointerTable, PdptEntry, PdptEntryKind};
+use crate::table2::pml4::{L4Index, PageMapLevel4, Pml4Entry};
+use crate::table2::pt::{L1Index, PageTable, PtEntry};
 
-/// A handle to one **concrete address space** (page-table tree).
-///
-/// It stores:
-/// - `root_phys`: the **physical** address of the active PML4.
-/// - `mapper`: a [`PhysMapper`] capable of providing temporary, writable access
-///   to page-table frames.
-///
-/// This type does **not** own the memory; it’s a **view** over an existing tree.
+/// Minimal allocator that hands out **4 KiB** page-table frames.
+pub trait FrameAlloc {
+    /// Allocate a zeroed 4 KiB page suitable for a page-table.
+    fn alloc_4k(&mut self) -> Option<PhysicalPage<Size4K>>;
+}
+
+/// Mapper capable of temporarily viewing physical frames as typed tables.
+pub trait PhysMapper {
+    /// Map a 4 KiB physical frame and get a **mutable** reference to type `T`.
+    ///
+    /// The implementation must ensure that the returned reference aliases the
+    /// mapped frame, and that writes reach memory.
+    unsafe fn phys_to_mut<T>(&self, at: PhysicalAddress) -> &mut T;
+}
+
+/// Handle to a single, concrete address space.
 pub struct AddressSpace<'m, M: PhysMapper> {
-    /// Physical address of the PML4 (root of this address space).
-    root_phys: PhysAddr,
+    root: PhysicalPage<Size4K>, // PML4 frame
     mapper: &'m M,
 }
 
 impl<'m, M: PhysMapper> AddressSpace<'m, M> {
-    /// Create a new [`AddressSpace`] view for `root_phys` using `mapper`.
+    /// Create a view for `root` using `mapper`. The PML4 is expected to be valid or zeroed.
     #[inline]
-    pub const fn new(mapper: &'m M, root_phys: PhysAddr) -> Self {
-        Self { root_phys, mapper }
+    pub const fn new(mapper: &'m M, root: PhysicalPage<Size4K>) -> Self {
+        Self { root, mapper }
     }
 
-    /// Borrow the **root PML4** as a typed table.
-    ///
-    /// This uses the [`PhysMapper`] to reinterpret `root_phys` as a [`Pml4PageTable`].
+    /// Physical page of the PML4.
     #[inline]
-    #[must_use]
-    pub fn pml4(&self) -> &mut Pml4PageTable {
-        as_pml4(self.mapper, self.root_phys)
+    pub const fn root_page(&self) -> PhysicalPage<Size4K> {
+        self.root
     }
 
-    /// Ensure the non-leaf chain for `va` exists down to the appropriate level for `size`,
-    /// allocating any missing intermediate tables.
-    ///
-    /// Returns `(leaf_phys, is_leaf_huge)` where:
-    /// - for **1 GiB** pages: `leaf_phys = PDPT frame`, `is_leaf_huge = true` (you will set the PDPTE leaf)
-    /// - for **2 MiB** pages: `leaf_phys = PD   frame`, `is_leaf_huge = true` (you will set the  PDE  leaf)
-    /// - for **4 KiB** pages: `leaf_phys = PT   frame`, `is_leaf_huge = false` (you will set the  PTE  leaf)
-    ///
-    /// Newly created intermediate entries are initialized as **present + writable**.
-    ///
-    /// # Errors
-    /// - `"OOM for PDPT" / "OOM for PD" / "OOM for PT"` if the allocator cannot
-    ///   provide a new 4 KiB frame.
-    ///
-    /// # Safety & invariants
-    /// - `root_phys` must correspond to the intended address space (ideally active).
-    /// - The provided [`PhysMapper`] must be able to map each table frame **writable**.
-    /// - If a conflicting huge leaf is encountered at an intermediate level,
-    ///   it will be **replaced** by a new non-leaf (split) to continue the chain.
-    #[allow(clippy::similar_names)]
+    /// Borrow the PML4 as a typed table.
     #[inline]
-    pub fn ensure_chain<A: FrameAlloc>(
-        &self,
-        alloc: &mut A,
-        va: VirtAddr,
-        size: PageSize,
-    ) -> Result<(PhysAddr, bool), &'static str> {
-        // PML4
-        let pml4 = self.pml4();
-        let e4 = pml4.entry_mut_by_va(va);
-        let pdpt_phys = if e4.present() {
-            PhysAddr::new(e4.addr().as_addr())
-        } else {
-            let f = alloc.alloc_4k().ok_or("OOM for PDPT")?;
-            as_pdpt(self.mapper, f).zero();
-            pml4.link_pdpt(va, f);
-            f
-        };
-
-        // PDPT
-        let pdpt = as_pdpt(self.mapper, pdpt_phys);
-        if matches!(size, PageSize::Size1G) {
-            // Caller will set PDPTE as a 1 GiB leaf.
-            return Ok((pdpt_phys, true));
-        }
-        let e3 = pdpt.entry_mut_by_va(va);
-        let pd_phys = if !e3.present() || e3.ps() {
-            // Absent or conflicting 1 GiB leaf → allocate PD and link
-            let f = alloc.alloc_4k().ok_or("OOM for PD")?;
-            as_pd(self.mapper, f).zero();
-            pdpt.link_pd(va, f);
-            f
-        } else {
-            PhysAddr::new(e3.addr().as_addr())
-        };
-
-        // PD
-        let pd = as_pd(self.mapper, pd_phys);
-        if matches!(size, PageSize::Size2M) {
-            // Caller will set PDE as a 2 MiB leaf.
-            return Ok((pd_phys, true));
-        }
-        let e2 = pd.entry_mut_by_va(va);
-        let pt_phys = if !e2.present() || e2.ps() {
-            // Absent or conflicting 2 MiB leaf → allocate PT and link
-            let f = alloc.alloc_4k().ok_or("OOM for PT")?;
-            as_pt(self.mapper, f).zero();
-            pd.link_pt(va, f);
-            f
-        } else {
-            PhysAddr::new(e2.addr().as_addr())
-        };
-
-        // PT leaf for 4 KiB mappings
-        Ok((pt_phys, false))
+    fn pml4_mut(&self) -> &mut PageMapLevel4 {
+        unsafe { self.mapper.phys_to_mut::<PageMapLevel4>(self.root.base()) }
     }
 
-    /// Map **one** page at `va → pa` with the given `size` and `flags`.
-    ///
-    /// - `PRESENT` is added automatically.
-    /// - For huge pages, `PS` is set automatically.
-    ///
-    /// ### Examples
-    /// - **User data page (4 KiB)**: `WRITABLE | USER | NX`
-    /// - **Kernel code page (2 MiB)**: `GLOBAL` (no `NX`)
-    /// - **HHDM mapping (1 GiB)**: `WRITABLE | GLOBAL | NX`
-    ///
-    /// ### Alignment
-    /// - `pa` **must** be aligned to the chosen `size` (debug-asserted).
-    /// - `va` should be aligned for sanity (hardware permits offsets, but avoid it).
-    ///
-    /// # Safety
-    /// - If you are **modifying live mappings**, you are responsible for performing
-    ///   required **TLB invalidations** (`invlpg` / CR3 reload).
-    /// - Splitting an existing huge page is allowed by this routine (via
-    ///   `ensure_chain`)—ensure this is acceptable for your use case.
-    ///
-    /// # Errors
-    /// - Propagates allocation failures from [`ensure_chain`](Self::ensure_chain).
-    #[allow(clippy::missing_errors_doc)]
+    /// Map a PDPT/PD/PT frame to its typed view.
     #[inline]
-    pub fn map_one<A: FrameAlloc>(
-        &self,
-        alloc: &mut A,
-        va: VirtAddr,
-        pa: PhysAddr,
-        size: PageSize,
-        mut flags: MemoryPageFlags,
-    ) -> Result<(), &'static str> {
-        flags |= MemoryPageFlags::PRESENT;
-
-        // Physical alignment sanity checks (debug builds).
-        debug_assert_eq!(pa.as_u64() & ((1u64 << 12) - 1), 0, "phys not 4K aligned");
-        if matches!(size, PageSize::Size2M) {
-            debug_assert_eq!(pa.as_u64() & ((1u64 << 21) - 1), 0, "phys not 2M aligned");
-        }
-        if matches!(size, PageSize::Size1G) {
-            debug_assert_eq!(pa.as_u64() & ((1u64 << 30) - 1), 0, "phys not 1G aligned");
-        }
-
+    fn pdpt_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageDirectoryPointerTable {
         unsafe {
-            let (leaf_phys, is_huge_leaf) = self.ensure_chain(alloc, va, size)?;
-            match size {
-                PageSize::Size1G => {
-                    // PDPTE leaf
-                    let pdpt = get_table::<M>(self.mapper, leaf_phys);
-                    let e = pdpt.entry_mut(va.pdpt_index());
-                    e.set_addr(pa);
-                    apply_flags(e, flags | MemoryPageFlags::PS, true);
-                }
-                PageSize::Size2M => {
-                    // PDE leaf
-                    let pd = get_table::<M>(self.mapper, leaf_phys);
-                    let e = pd.entry_mut(va.pd_index());
-                    e.set_addr(pa);
-                    apply_flags(e, flags | MemoryPageFlags::PS, true);
-                }
-                PageSize::Size4K => {
-                    // PTE leaf
-                    let pt = get_table::<M>(self.mapper, leaf_phys);
-                    let e = pt.entry_mut(va.pt_index());
-                    e.set_addr(pa);
-                    apply_flags(e, flags, is_huge_leaf);
-                }
+            self.mapper
+                .phys_to_mut::<PageDirectoryPointerTable>(page.base())
+        }
+    }
+
+    #[inline]
+    fn pd_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageDirectory {
+        unsafe { self.mapper.phys_to_mut::<PageDirectory>(page.base()) }
+    }
+
+    #[inline]
+    fn pt_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageTable {
+        unsafe { self.mapper.phys_to_mut::<PageTable>(page.base()) }
+    }
+
+    /// Ensure the non-leaf chain for `va` exists down to the level implied by `size`.
+    ///
+    /// Returns the **target table page** to write the leaf into and the **level**.
+    ///
+    /// - For 1 GiB: returns the PDPT page (you will write the PDPTE leaf).
+    /// - For 2 MiB: returns the PD page (you will write the PDE leaf).
+    /// - For 4 KiB: returns the PT page (you will write the PTE leaf).
+    ///
+    /// Newly created non-leaf entries are initialized with `nonleaf_flags`.
+    ///
+    /// # Errors
+    /// - `"oom: pdpt" / "oom: pd" / "oom: pt"` when the allocator fails.
+    pub fn ensure_chain<A: FrameAlloc, S: PageSize>(
+        &self,
+        alloc: &mut A,
+        va: VirtualAddress,
+        nonleaf_flags: PageEntryBits,
+    ) -> Result<(PhysicalPage<Size4K>, EnsureTarget), &'static str> {
+        let i4 = L4Index::from(va);
+        let i3 = L3Index::from(va);
+        let i2 = L2Index::from(va);
+
+        // L4 → L3
+        let pml4 = self.pml4_mut();
+        let e4 = pml4.get(i4);
+        let pdpt_page = if let Some(next) = e4.next_table() {
+            next
+        } else {
+            let f = alloc.alloc_4k().ok_or("oom: pdpt")?;
+            // zero and link
+            *self.pdpt_mut(f) = PageDirectoryPointerTable::zeroed();
+            pml4.set(i4, Pml4Entry::make(f, nonleaf_flags));
+            f
+        };
+
+        // Stop at L3 for 1 GiB leaves:
+        if Size1G::SIZE == S::SIZE {
+            return Ok((pdpt_page, EnsureTarget::L3For1G));
+        }
+
+        // L3 → L2
+        let pdpt = self.pdpt_mut(pdpt_page);
+        let e3 = pdpt.get(i3);
+        let pd_page = match e3.kind() {
+            Some(PdptEntryKind::NextPageDirectory(pd, _)) => pd,
+            Some(PdptEntryKind::Leaf1GiB(_, _)) => {
+                // conflicting huge leaf → split (allocate PD)
+                let f = alloc.alloc_4k().ok_or("oom: pd")?;
+                *self.pd_mut(f) = PageDirectory::zeroed();
+                pdpt.set(i3, PdptEntry::make_next(f, nonleaf_flags));
+                f
+            }
+            None => {
+                let f = alloc.alloc_4k().ok_or("oom: pd")?;
+                *self.pd_mut(f) = PageDirectory::zeroed();
+                pdpt.set(i3, PdptEntry::make_next(f, nonleaf_flags));
+                f
+            }
+        };
+
+        // Stop at L2 for 2 MiB leaves:
+        if Size2M::SIZE == S::SIZE {
+            return Ok((pd_page, EnsureTarget::L2For2M));
+        }
+
+        // L2 → L1
+        let pd = self.pd_mut(pd_page);
+        let e2 = pd.get(i2);
+        let pt_page = match e2.kind() {
+            Some(PdEntryKind::NextPageTable(pt, _)) => pt,
+            Some(PdEntryKind::Leaf2MiB(_, _)) => {
+                // conflicting huge leaf → split (allocate PT)
+                let f = alloc.alloc_4k().ok_or("oom: pt")?;
+                *self.pt_mut(f) = PageTable::zeroed();
+                pd.set(i2, PdEntry::make_next(f, nonleaf_flags));
+                f
+            }
+            None => {
+                let f = alloc.alloc_4k().ok_or("oom: pt")?;
+                *self.pt_mut(f) = PageTable::zeroed();
+                pd.set(i2, PdEntry::make_next(f, nonleaf_flags));
+                f
+            }
+        };
+
+        Ok((pt_page, EnsureTarget::L1For4K))
+    }
+
+    /// Map **one** page at `va → pa` with size `S` and `leaf_flags`.
+    ///
+    /// - Non-leaf links are created with `nonleaf_flags` (e.g., present+writable).
+    /// - Alignment is asserted (debug) via typed wrappers.
+    ///
+    /// # Errors
+    /// - Propagates allocation failures from [`ensure_chain`].
+    pub fn map_one<A: FrameAlloc, S: PageSize>(
+        &self,
+        alloc: &mut A,
+        va: VirtualAddress,
+        pa: PhysicalAddress,
+        nonleaf_flags: PageEntryBits,
+        leaf_flags: PageEntryBits,
+    ) -> Result<(), &'static str> {
+        // Assert physical alignment, then get the typed page base.
+        debug_assert_eq!(pa.offset::<S>().as_u64(), 0, "physical address not aligned");
+        let ppage = pa.page::<S>();
+
+        let (leaf_tbl_page, target) = self.ensure_chain::<A, S>(alloc, va, nonleaf_flags)?;
+        match target {
+            EnsureTarget::L3For1G => {
+                let pdpt = self.pdpt_mut(leaf_tbl_page);
+                let idx = L3Index::from(va);
+                let e = PdptEntry::make_1g(ppage.into(), leaf_flags);
+                pdpt.set(idx, e);
+            }
+            EnsureTarget::L2For2M => {
+                let pd = self.pd_mut(leaf_tbl_page);
+                let idx = L2Index::from(va);
+                let e = PdEntry::make_2m(ppage.into(), leaf_flags);
+                pd.set(idx, e);
+            }
+            EnsureTarget::L1For4K => {
+                let pt = self.pt_mut(leaf_tbl_page);
+                let idx = L1Index::from(va);
+
+                // convert back to 4K page
+                let k4 = PhysicalPage::<Size4K>::from_addr(pa);
+                let e = PtEntry::make_4k(k4, leaf_flags);
+                pt.set(idx, e);
             }
         }
         Ok(())
     }
 
-    /// Unmap a single 4 KiB page at the given virtual address.
-    ///
-    /// Returns Ok if unmapped, or Err if not mapped.
-    ///
-    /// # Errors
-    /// Returns an error of the address is not present.
-    pub fn unmap_one(&self, va: VirtAddr) -> Result<(), &'static str> {
-        // Walk: PML4 → PDPT → PD → PT
-        let pml4 = self.pml4();
-        let e4 = pml4.entry_mut_by_va(va);
-        if !e4.present() {
-            return Err("PML4 entry not present");
-        }
+    /// Unmap a single **4 KiB** page at `va`. Returns Err if missing.
+    pub fn unmap_one(&self, va: VirtualAddress) -> Result<(), &'static str> {
+        let i4 = L4Index::from(va);
+        let i3 = L3Index::from(va);
+        let i2 = L2Index::from(va);
+        let i1 = L1Index::from(va);
 
-        let pdpt = as_pdpt(self.mapper, PhysAddr::new(e4.addr().as_addr()));
-        let e3 = pdpt.entry_mut_by_va(va);
-        if !e3.present() || e3.ps() {
-            return Err("PDPT entry not present or huge");
-        }
+        // PML4
+        let pml4 = self.pml4_mut();
+        let e4 = pml4.get(i4);
+        let Some(pdpt_page) = e4.next_table() else {
+            return Err("missing: pml4");
+        };
 
-        let pd = as_pd(self.mapper, PhysAddr::new(e3.addr().as_addr()));
-        let e2 = pd.entry_mut_by_va(va);
-        if !e2.present() || e2.ps() {
-            return Err("PD entry not present or huge");
-        }
+        // PDPT
+        let pdpt = self.pdpt_mut(pdpt_page);
+        let e3 = pdpt.get(i3);
+        let Some(PdptEntryKind::NextPageDirectory(pd_page, _)) = e3.kind() else {
+            return Err("missing: pdpt (or 1GiB leaf)");
+        };
 
-        let pt = as_pt(self.mapper, PhysAddr::new(e2.addr().as_addr()));
-        let e1 = pt.entry_mut_by_va(va);
-        if !e1.present() {
-            return Err("PT entry not present");
-        }
+        // PD
+        let pd = self.pd_mut(pd_page);
+        let e2 = pd.get(i2);
+        let Some(PdEntryKind::NextPageTable(pt_page, _)) = e2.kind() else {
+            return Err("missing: pd (or 2MiB leaf)");
+        };
 
-        // Clear the entry
-        *e1 = PageTableEntry::default();
+        // PT
+        let pt = self.pt_mut(pt_page);
+        let e1 = pt.get(i1);
+        if !e1.is_present() {
+            return Err("missing: pte");
+        }
+        pt.set(i1, PtEntry::zero());
         Ok(())
     }
 
-    /// Query the physical address mapped to a virtual address (4 KiB page).
-    /// Returns Some(PhysAddr) if mapped, None otherwise.
+    /// Translate a `VirtualAddress` to `PhysicalAddress` if mapped.
+    ///
+    /// Handles 1 GiB and 2 MiB leaves by adding the appropriate **in-page offset**.
     #[must_use]
-    pub fn query(&self, va: VirtAddr) -> Option<PhysAddr> {
-        let pml4 = self.pml4();
-        let e4 = pml4.entry_mut_by_va(va);
-        if !e4.present() {
-            return None;
-        }
+    pub fn query(&self, va: VirtualAddress) -> Option<PhysicalAddress> {
+        let i4 = L4Index::from(va);
+        let i3 = L3Index::from(va);
+        let i2 = L2Index::from(va);
+        let i1 = L1Index::from(va);
 
-        let pdpt = as_pdpt(self.mapper, PhysAddr::new(e4.addr().as_addr()));
-        let e3 = pdpt.entry_mut_by_va(va);
-        if !e3.present() {
-            return None;
-        }
+        // PML4
+        let pml4 = self.pml4_mut();
+        let e4 = pml4.get(i4);
+        let pdpt_page = e4.next_table()?;
 
-        if e3.ps() {
-            // 1 GiB huge page
-            let base = e3.addr().as_addr();
-            let offset = va.as_u64() & ((1 << 30) - 1);
-            return Some(PhysAddr::from_u64(base.as_u64() + offset));
+        // PDPT
+        let pdpt = self.pdpt_mut(pdpt_page);
+        match pdpt.get(i3).kind()? {
+            PdptEntryKind::Leaf1GiB(base, _) => {
+                let off: MemoryAddressOffset<Size1G> = va.offset::<Size1G>();
+                Some(base.join(off))
+            }
+            PdptEntryKind::NextPageDirectory(pd_page, _) => {
+                // continue
+                let pd = self.pd_mut(pd_page);
+                match pd.get(i2).kind()? {
+                    PdEntryKind::Leaf2MiB(base, _) => {
+                        let off: MemoryAddressOffset<Size2M> = va.offset::<Size2M>();
+                        Some(base.join(off))
+                    }
+                    PdEntryKind::NextPageTable(pt_page, _) => {
+                        let pt = self.pt_mut(pt_page);
+                        let e1 = pt.get(i1);
+                        let (base4k, _) = e1.page_4k()?;
+                        let off: MemoryAddressOffset<Size4K> = va.offset::<Size4K>();
+                        Some(base4k.join(off))
+                    }
+                }
+            }
         }
-        let pd = as_pd(self.mapper, PhysAddr::new(e3.addr().as_addr()));
-        let e2 = pd.entry_mut_by_va(va);
-        if !e2.present() {
-            return None;
-        }
-
-        if e2.ps() {
-            // 2 MiB huge page
-            let base = e2.addr().as_addr();
-            let offset = va.as_u64() & ((1 << 21) - 1);
-            return Some(PhysAddr::from_u64(base.as_u64() + offset));
-        }
-        let pt = as_pt(self.mapper, PhysAddr::new(e2.addr().as_addr()));
-        let e1 = pt.entry_mut_by_va(va);
-        if !e1.present() {
-            return None;
-        }
-
-        // 4 KiB page
-        let base = e1.addr().as_addr();
-        let offset = va.as_u64() & ((1 << 12) - 1);
-        Some(PhysAddr::from_u64(base.as_u64() + offset))
     }
 
-    /// Load **CR3** with this address space’s `root_phys`.
-    ///
-    /// This is a low-level operation and assumes you have configured paging-related
-    /// CPU state appropriately (e.g., `CR0.WP`, `CR4.PGE`, `EFER.NXE`) to match the
-    /// flags you intend to use (e.g., `GLOBAL`, `NX`).
+    /// Load CR3 with this address space’s root.
     ///
     /// # Safety
-    /// - Switching CR3 changes the active address space. Ensure that:
-    ///   - The code executing after this call is mapped/executable in the target tree.
-    ///   - Interrupt and exception handlers are mapped accordingly.
-    ///   - Any per-CPU data/TSS locations are valid in the new space.
+    /// You must ensure the CPU paging state (CR0/CR4/EFER) and code/data mappings
+    /// are consistent with the target space. Consider reloading CR3 or issuing
+    /// `invlpg` after changes to active mappings.
     #[inline]
     pub unsafe fn activate(&self) {
-        // Enable/disable PGE/NXE elsewhere as needed
+        let cr3 = self.root.base().as_u64();
         unsafe {
-            core::arch::asm!("mov cr3, {}", in(reg) self.root_phys.as_u64(), options(nostack, preserves_flags));
+            core::arch::asm!("mov cr3, {}", in(reg) cr3, options(nostack, preserves_flags));
         }
     }
 }
 
-/// Treat a **physical frame** as a [`Pml4PageTable`].
-///
-/// # Safety
-/// - The frame at `pa` must contain a valid PML4 table (or be zeroed before first use).
-#[inline]
-pub fn as_pml4<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut Pml4PageTable {
-    unsafe {
-        &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa))
-            .cast::<Pml4PageTable>()
-    }
-}
-
-/// Treat a **physical frame** as a [`PdptPageTable`] (level 3).
-///
-/// # Safety
-/// - The frame at `pa` must contain a valid PDPT (or be zeroed before first use).
-#[inline]
-pub fn as_pdpt<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut PdptPageTable {
-    unsafe {
-        &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa))
-            .cast::<PdptPageTable>()
-    }
-}
-
-/// Treat a **physical frame** as a [`PdPageTable`] (level 2).
-///
-/// # Safety
-/// - The frame at `pa` must contain a valid PD (or be zeroed before first use).
-#[inline]
-pub fn as_pd<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut PdPageTable {
-    unsafe {
-        &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<PdPageTable>()
-    }
-}
-
-/// Treat a **physical frame** as a [`PtPageTable`] (level 1).
-///
-/// # Safety
-/// - The frame at `pa` must contain a valid PT (or be zeroed before first use).
-#[inline]
-pub fn as_pt<'t, M: PhysMapper>(m: &M, pa: PhysAddr) -> &'t mut PtPageTable {
-    unsafe {
-        &mut *core::ptr::from_mut::<PageTable>(m.phys_to_mut::<PageTable>(pa)).cast::<PtPageTable>()
-    }
-}
-
-/// Apply `Flags` to a (leaf or non-leaf) entry. For non-leaf tables you typically
-/// keep USER/WT/CD/GLOBAL/NX = false, but we only set bits explicitly present in `flags`.
-#[inline]
-const fn apply_flags(e: &mut PageTableEntry, flags: MemoryPageFlags, is_leaf_huge: bool) {
-    if flags.contains(MemoryPageFlags::PRESENT) {
-        e.set_present(true);
-    }
-    if flags.contains(MemoryPageFlags::WRITABLE) {
-        e.set_writable(true);
-    }
-    if flags.contains(MemoryPageFlags::USER) {
-        e.set_user(true);
-    }
-    if flags.contains(MemoryPageFlags::WT) {
-        e.set_write_through(true);
-    }
-    if flags.contains(MemoryPageFlags::CD) {
-        e.set_cache_disable(true);
-    }
-    if flags.contains(MemoryPageFlags::ACCESSED) {
-        e.set_accessed(true);
-    }
-    if flags.contains(MemoryPageFlags::DIRTY) {
-        e.set_dirty(true);
-    }
-    if flags.contains(MemoryPageFlags::GLOBAL) {
-        e.set_global(true);
-    }
-    if flags.contains(MemoryPageFlags::NX) {
-        e.set_nx(true);
-    }
-    // PS only makes sense for leaves at PDPT/PD:
-    if flags.contains(MemoryPageFlags::PS) || is_leaf_huge {
-        e.set_ps(true);
-    }
+/// Target table/level produced by `ensure_chain`.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum EnsureTarget {
+    /// You will write a **PDPTE** (1 GiB leaf).
+    L3For1G,
+    /// You will write a **PDE** (2 MiB leaf).
+    L2For2M,
+    /// You will write a **PTE** (4 KiB leaf).
+    L1For4K,
 }

@@ -192,3 +192,21 @@ impl PageMapLevel4 {
         L4Index::from(va)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::addr2::PhysicalAddress;
+
+    #[test]
+    fn pml4_points_to_pdpt() {
+        let pdpt_page = PhysicalPage::<Size4K>::from_addr(PhysicalAddress::new(0x1234_5000));
+        let mut f = PageEntryBits::new();
+        f.set_writable(true);
+        f.set_user_access(false);
+        let e = Pml4Entry::make(pdpt_page, f);
+        assert!(e.is_present());
+        assert!(!e.flags().large_page());
+        assert_eq!(e.next_table().unwrap().base().as_u64(), 0x1234_5000);
+    }
+}

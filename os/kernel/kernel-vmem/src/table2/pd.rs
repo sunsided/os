@@ -211,3 +211,32 @@ impl PageDirectory {
         L2Index::from(va)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::addr2::PhysicalAddress;
+
+    #[test]
+    fn pd_table_vs_2m() {
+        let pt = PhysicalPage::<Size4K>::from_addr(PhysicalAddress::new(0x3000_0000));
+        let e_tbl = PdEntry::make_next(pt, PageEntryBits::new_common_rw());
+        match e_tbl.kind().unwrap() {
+            PdEntryKind::NextPageTable(p, f) => {
+                assert_eq!(p.base().as_u64(), 0x3000_0000);
+                assert!(!f.large_page());
+            }
+            _ => panic!("expected next PT"),
+        }
+
+        let m2 = PhysicalPage::<Size2M>::from_addr(PhysicalAddress::new(0x4000_0000));
+        let e_2m = PdEntry::make_2m(m2, PageEntryBits::new_common_rw());
+        match e_2m.kind().unwrap() {
+            PdEntryKind::Leaf2MiB(p, f) => {
+                assert_eq!(p.base().as_u64(), 0x4000_0000);
+                assert!(f.large_page());
+            }
+            _ => panic!("expected 2MiB leaf"),
+        }
+    }
+}

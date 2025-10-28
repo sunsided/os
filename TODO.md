@@ -2,11 +2,6 @@
 
 _Auto-generated from code comments. Do not edit manually, recreate with `just todo`._
 
-## [os/kernel/kernel-vmem/src/lib.rs](./os/kernel/kernel-vmem/src/lib.rs)
-
-- Line [143](./os/kernel/kernel-vmem/src/lib.rs#L143): Rework using bitfield_struct
-- Line [290](./os/kernel/kernel-vmem/src/lib.rs#L290): Have the mapper return a Result if the address cannot be mapped.
-
 ## [os/uefi/uefi-loader/src/elf/parser.rs](./os/uefi/uefi-loader/src/elf/parser.rs)
 
 - Line [56](./os/uefi/uefi-loader/src/elf/parser.rs#L56): Rework flags using bitflags or bitfield_struct
