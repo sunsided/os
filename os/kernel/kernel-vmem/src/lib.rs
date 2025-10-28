@@ -70,6 +70,7 @@
 #![cfg_attr(not(test), no_std)]
 #![allow(unsafe_code, clippy::inline_always)]
 
+pub mod addr2;
 pub mod address_space;
 mod addresses;
 pub mod page_table;
