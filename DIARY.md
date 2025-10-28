@@ -1,5 +1,19 @@
 # Developer Diary
 
+## 2025-10-28
+
+Realized I had a misconception with the virtual memory virtual address / physical address mapping
+today: We cannot just map any arbitrary VA onto any arbitrary PA. The PAs in the page table
+always have their lower bits zeroed because they are page-aligned: The 4 KiB page has the lower
+12 bits set to zero because the pages are 4 KiB aligned, and 4096 is `0b1000000000000`. By the same logic,
+2 MiB and 1 GiB pages are zeroed out on the lower 21 and 30 bits respectively.
+The actual physical address is determined by offset into the page, and that offset has to either be tracked
+kernel-side or simply align with the physical offset. Since the kernel is the one deciding which addressses
+to hand out there shouldn't be any issue: It just picks any arbitrary virtual base, a feasible ("allocated")
+physical base and then ensures that the VA offset (i.e., lower bits) concide with the PA offset
+(i.e., lower bits). The virtual memory mapper only sees pages and has no concept about the offsets whatsoever;
+this is all done in "user code", which in this case is the kernel.
+
 ## 2025-10-26
 
 I have started wrapping my head around the Virtual Memory Manager.
