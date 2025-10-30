@@ -1,7 +1,6 @@
 //! # Virtual Memory Setup for Kernel loading (new typed API)
 
 use crate::elf::loader::LoadedSegMap;
-use crate::elf::{PF_W, PF_X};
 use kernel_info::memory::{HHDM_BASE /*KERNEL_BASE,*/ /*PHYS_LOAD*/};
 
 use kernel_vmem::{
@@ -101,8 +100,8 @@ pub fn create_kernel_pagetables(
             let leaf_flags = PageEntryBits::new()
                 .with_present(true)
                 .with_global_translation(true)
-                .with_writable((m.flags & PF_W) != 0)
-                .with_no_execute((m.flags & PF_X) == 0);
+                .with_writable(m.flags.write())
+                .with_no_execute(!m.flags.execute());
 
             // Try 2 MiB leaf where legal
             let remaining = end_u64 - cur_va.as_u64();

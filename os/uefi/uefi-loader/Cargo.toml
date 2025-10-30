@@ -15,6 +15,7 @@ default = ["qemu"]
 qemu = ["kernel-qemu/enabled"]
 
 [dependencies]
+bitfield-struct.workspace = true
 kernel-info = { path = "../../kernel/kernel-info" }
 kernel-qemu = { path = "../../kernel/kernel-qemu", default-features = false }
 kernel-vmem = { path = "../../kernel/kernel-vmem" }

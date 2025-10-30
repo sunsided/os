@@ -34,7 +34,7 @@ struct Elf64Ehdr {
 #[allow(clippy::struct_field_names)]
 struct Elf64Phdr {
     p_type: u32,
-    p_flags: u32,
+    p_flags: PFlags,
     p_offset: u64,
     p_vaddr: VirtualAddress,
     p_paddr: PhysicalAddress,
@@ -53,8 +53,7 @@ pub struct LoadSegment {
     pub offset: u64,
     pub filesz: u64,
     pub memsz: u64,
-    // TODO: Rework flags using bitflags or bitfield_struct
-    pub flags: u32,
+    pub flags: PFlags,
     pub align: u64,
 }
 
@@ -130,4 +129,23 @@ impl ElfHeader {
             segments,
         })
     }
+}
+
+/// Bitfield wrapper for `Elf64_Phdr.p_flags` (32-bit)
+///
+/// Layout (LSB→MSB):
+/// - bit 0: execute
+/// - bit 1: write
+/// - bit 2: read
+/// - bits 3..31: reserved (must be zero for standard flags)
+#[bitfield_struct::bitfield(u32)]
+pub struct PFlags {
+    #[bits(1)]
+    pub execute: bool,
+    #[bits(1)]
+    pub write: bool,
+    #[bits(1)]
+    pub read: bool,
+    #[bits(29)]
+    __: u32,
 }
