@@ -15,6 +15,7 @@ A toy x86-64 operating system written in Rust, using UEFI to boot and load a ker
     - [Rust targets](#rust-targets)
     - [Pitfalls for Compiling](#pitfalls-for-compiling)
     - [Example Build Commands](#example-build-commands)
+- [Related Projects](#related-projects)
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -80,6 +81,10 @@ Or, manually:
 ```sh
 cargo build --package uefi-loader --target x86_64-unknown-uefi
 ```
+
+# Related Projects
+
+* The [ruefi](https://github.com/sunsided/ruefi) project is the spiritual parent of this repo.
 
 # License
 
