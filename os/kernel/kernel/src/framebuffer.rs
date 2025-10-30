@@ -10,45 +10,52 @@ use kernel_info::boot::{BootPixelFormat, FramebufferInfo};
 /// This reduces the risk of having to split a 1 GiB page into 4 KiB pages.
 pub const VGA_LIKE_OFFSET: u64 = (1u64 << 30) + 0x000B_8000; // 1 GiB + 0xB8000 inside HHDM range
 
-#[allow(clippy::missing_safety_doc)]
+#[allow(clippy::missing_safety_doc, clippy::many_single_char_names)]
 pub unsafe fn fill_solid(fb: &FramebufferInfo, r: u8, g: u8, b: u8) {
-    unsafe {
-        if matches!(fb.framebuffer_format, BootPixelFormat::BltOnly) {
-            return; // nothing to draw to
+    // Nothing to draw into
+    if matches!(fb.framebuffer_format, BootPixelFormat::BltOnly) {
+        return;
+    }
+
+    // Precompute the packed pixel once (little-endian):
+    // - RGB format => bytes [R, G, B, 0xFF] -> value 0xFF_BB_GG_RR
+    // - BGR format => bytes [B, G, R, 0xFF] -> value 0xFF_RR_GG_BB
+    let px: u32 = match fb.framebuffer_format {
+        BootPixelFormat::Rgb => {
+            (0xFFu32 << 24) | (u32::from(b) << 16) | (u32::from(g) << 8) | u32::from(r)
         }
+        BootPixelFormat::Bgr => {
+            (0xFFu32 << 24) | (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b)
+        }
+        BootPixelFormat::Bitmask | BootPixelFormat::BltOnly => return,
+    };
 
-        let bpp = 4usize; // bytes per pixel
-        let row_bytes = usize::try_from(fb.framebuffer_stride).unwrap_or_default() * bpp;
+    // 32-bit pixels
+    let base = fb.framebuffer_ptr as *mut u32;
 
-        let start_x = fb.framebuffer_width / 4;
-        let end_x = fb.framebuffer_width * 3 / 4;
-        let start_y = fb.framebuffer_height / 4;
-        let end_y = fb.framebuffer_height * 3 / 4;
+    // pixels per row (GOP "PixelsPerScanLine")
+    let stride = usize::try_from(fb.framebuffer_stride).unwrap_or_default();
+    if stride == 0 {
+        return;
+    }
 
-        for y in start_y..end_y {
-            // move to the start of this row
-            let mut row = (fb.framebuffer_ptr as *mut u8)
-                .add(usize::try_from(y).unwrap_or_default() * row_bytes);
-            // move to the start_x pixel
-            row = row.add((start_x as usize) * bpp);
+    let w = usize::try_from(fb.framebuffer_width).unwrap_or_default();
+    let h = usize::try_from(fb.framebuffer_height).unwrap_or_default();
 
-            for _x in start_x..end_x {
-                match fb.framebuffer_format {
-                    BootPixelFormat::Rgb => {
-                        core::ptr::write_unaligned(row.add(0), r);
-                        core::ptr::write_unaligned(row.add(1), g);
-                        core::ptr::write_unaligned(row.add(2), b);
-                        core::ptr::write_unaligned(row.add(3), 0xff);
-                    }
-                    BootPixelFormat::Bgr => {
-                        core::ptr::write_unaligned(row.add(0), b);
-                        core::ptr::write_unaligned(row.add(1), g);
-                        core::ptr::write_unaligned(row.add(2), r);
-                        core::ptr::write_unaligned(row.add(3), 0xff);
-                    }
-                    BootPixelFormat::BltOnly | BootPixelFormat::Bitmask => {}
-                }
-                row = row.add(bpp);
+    let start_x = w / 4;
+    let end_x = w * 3 / 4;
+    let start_y = h / 4;
+    let end_y = h * 3 / 4;
+
+    for y in start_y..end_y {
+        // Pointer to first pixel in this row at start_x
+        let mut p = unsafe { base.add(y * stride + start_x) };
+
+        // Fill [start_x, end_x)
+        for _ in start_x..end_x {
+            unsafe {
+                p.write_volatile(px);
+                p = p.add(1);
             }
         }
     }
