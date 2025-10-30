@@ -12,6 +12,7 @@ license.workspace = true
 
 [dependencies]
 bitfield-struct.workspace = true
+getset.workspace = true
 kernel-info = { path = "../kernel-info" }
 thiserror.workspace = true
 

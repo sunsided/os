@@ -5,6 +5,7 @@ pub mod pd;
 pub mod pdpt;
 pub mod pml4;
 pub mod pt;
+pub mod unified2;
 
 use crate::addresses::VirtualAddress;
 use crate::page_table::pd::L2Index;

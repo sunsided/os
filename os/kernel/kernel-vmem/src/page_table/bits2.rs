@@ -1,5 +1,8 @@
-use bitfield_struct::bitfield;
 use crate::addresses::PhysicalAddress;
+use bitfield_struct::bitfield;
+
+/// Hardware **Present** bit position shared across levels (bit 0).
+const PRESENT_BIT: u64 = 1 << 0;
 
 /// Hardware **Page Size** (PS) bit position shared across levels (bit 7).
 ///
@@ -97,14 +100,14 @@ pub struct Pml4e {
 impl Pml4e {
     /// Set the PDPT base address (must be 4 KiB-aligned).
     #[inline]
-    pub fn set_physical_address(&mut self, phys: PhysicalAddress) {
+    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
         debug_assert!(phys.is_aligned_to(0x1000));
         self.set_phys_addr_51_12(phys.as_u64() >> 12);
     }
 
     /// Get the PDPT base address (4 KiB-aligned).
     #[inline]
-    pub fn physical_address(&self) -> PhysicalAddress {
+    pub const fn physical_address(self) -> PhysicalAddress {
         PhysicalAddress::new(self.phys_addr_51_12() << 12)
     }
 }
@@ -161,14 +164,14 @@ pub struct Pdpte {
 impl Pdpte {
     /// Set the Page Directory base (4 KiB-aligned).
     #[inline]
-    pub fn set_physical_address(&mut self, phys: PhysicalAddress) {
+    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
         debug_assert!(phys.is_aligned_to(0x1000));
         self.set_phys_addr_51_12(phys.as_u64() >> 12);
     }
 
     /// Get the Page Directory base (4 KiB-aligned).
     #[inline]
-    pub fn physical_address(&self) -> PhysicalAddress {
+    pub const fn physical_address(self) -> PhysicalAddress {
         PhysicalAddress::new(self.phys_addr_51_12() << 12)
     }
 }
@@ -200,7 +203,8 @@ pub struct Pdpte1G {
     pub dirty: bool,
 
     /// **Page Size** (bit 7): **must be 1** for 1 GiB leaf.
-    pub page_size: bool,
+    #[bits(default = true)]
+    page_size: bool,
 
     /// **Global** (bit 8): TLB entry not flushed on CR3 reload.
     pub global: bool,
@@ -235,7 +239,8 @@ pub struct Pdpte1G {
 impl Pdpte1G {
     /// Set the 1 GiB page base (must be 1 GiB-aligned).
     #[inline]
-    pub fn set_physical_address(&mut self, phys: PhysicalAddress) {
+    #[allow(clippy::cast_possible_truncation)]
+    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
         debug_assert!(phys.is_aligned_to(1 << 30));
         self.set_phys_addr_51_30((phys.as_u64() >> 30) as u32);
         self.set_page_size(true);
@@ -243,7 +248,7 @@ impl Pdpte1G {
 
     /// Get the 1 GiB page base.
     #[inline]
-    pub fn physical_address(&self) -> PhysicalAddress {
+    pub const fn physical_address(self) -> PhysicalAddress {
         PhysicalAddress::new((self.phys_addr_51_30() as u64) << 30)
     }
 }
@@ -303,14 +308,14 @@ pub struct Pde {
 impl Pde {
     /// Set the Page Table base (4 KiB-aligned).
     #[inline]
-    pub fn set_physical_address(&mut self, phys: PhysicalAddress) {
+    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
         debug_assert!(phys.is_aligned_to(0x1000));
         self.set_phys_addr_51_12(phys.as_u64() >> 12);
     }
 
     /// Get the Page Table base.
     #[inline]
-    pub fn physical_address(&self) -> PhysicalAddress {
+    pub const fn physical_address(self) -> PhysicalAddress {
         PhysicalAddress::new(self.phys_addr_51_12() << 12)
     }
 }
@@ -342,7 +347,8 @@ pub struct Pde2M {
     pub dirty: bool,
 
     /// **Page Size** (bit 7): **must be 1** for 2 MiB leaf.
-    pub page_size: bool,
+    #[bits(default = true)]
+    pub(crate) page_size: bool,
 
     /// **Global** (bit 8): TLB entry not flushed on CR3 reload.
     pub global: bool,
@@ -377,7 +383,8 @@ pub struct Pde2M {
 impl Pde2M {
     /// Set the 2 MiB page base (must be 2 MiB-aligned).
     #[inline]
-    pub fn set_physical_address(&mut self, phys: PhysicalAddress) {
+    #[allow(clippy::cast_possible_truncation)]
+    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
         debug_assert!(phys.is_aligned_to(1 << 21));
         self.set_phys_addr_51_21((phys.as_u64() >> 21) as u32);
         self.set_page_size(true);
@@ -385,7 +392,7 @@ impl Pde2M {
 
     /// Get the 2 MiB page base.
     #[inline]
-    pub fn physical_address(&self) -> PhysicalAddress {
+    pub const fn physical_address(self) -> PhysicalAddress {
         PhysicalAddress::new((self.phys_addr_51_21() as u64) << 21)
     }
 }
@@ -443,14 +450,14 @@ pub struct Pte4K {
 impl Pte4K {
     /// Set the 4 KiB page base (4 KiB-aligned).
     #[inline]
-    pub fn set_physical_address(&mut self, phys: PhysicalAddress) {
+    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
         debug_assert!(phys.is_aligned_to(0x1000));
         self.set_phys_addr_51_12(phys.as_u64() >> 12);
     }
 
     /// Get the 4 KiB page base.
     #[inline]
-    pub fn physical_address(&self) -> PhysicalAddress {
+    pub const fn physical_address(self) -> PhysicalAddress {
         PhysicalAddress::new(self.phys_addr_51_12() << 12)
     }
 }
@@ -465,6 +472,7 @@ impl Pte4K {
 /// active and return a safe borrowed view.
 ///
 /// Storing/retrieving raw bits is possible via `from_bits`/`into_bits`.
+#[derive(Copy, Clone)]
 #[repr(C)]
 pub union PdpteUnion {
     /// Raw 64-bit storage of the entry.
@@ -475,11 +483,38 @@ pub union PdpteUnion {
     leaf_1g: Pdpte1G,
 }
 
+impl PdpteUnion {
+    #[inline]
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { bits: 0 }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn new_entry(entry: Pdpte) -> Self {
+        Self { entry }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn new_leaf(leaf: Pdpte1G) -> Self {
+        Self { leaf_1g: leaf }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn present(self) -> bool {
+        unsafe { self.bits & PRESENT_BIT != 0 }
+    }
+}
+
 /// **L2 PDE union** — overlays non-leaf [`Pde`] and leaf [`Pde2M`]
 /// on the same 64-bit storage.
 ///
 /// Prefer [`PdeUnion::view`] / [`PdeUnion::view_mut`] for safe typed access.
 /// These check the **PS** bit and hand you the correct variant.
+#[derive(Copy, Clone)]
 #[repr(C)]
 pub union PdeUnion {
     /// Raw 64-bit storage of the entry.
@@ -488,6 +523,28 @@ pub union PdeUnion {
     entry: Pde,
     /// Leaf form: 2 MiB mapping (PS=1).
     leaf_2m: Pde2M,
+}
+
+impl PdeUnion {
+    pub const fn new() -> Self {
+        Self { bits: 0 }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn new_entry(entry: Pde) -> Self {
+        Self { entry }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn new_leaf(leaf: Pde2M) -> Self {
+        Self { leaf_2m: leaf }
+    }
+
+    pub const fn present(self) -> bool {
+        unsafe { self.bits & PRESENT_BIT != 0 }
+    }
 }
 
 /// **Borrowed view** into an L3 PDPTE.
@@ -500,16 +557,6 @@ pub enum L3View<'a> {
     Leaf1G(&'a Pdpte1G),
 }
 
-/// **Mutable borrowed view** into an L3 PDPTE.
-///
-/// Returned by [`PdpteUnion::view_mut`].
-pub enum L3ViewMut<'a> {
-    /// Non-leaf PDPTE view (PS=0).
-    Entry(&'a mut Pdpte),
-    /// 1 GiB leaf PDPTE view (PS=1).
-    Leaf1G(&'a mut Pdpte1G),
-}
-
 /// **Borrowed view** into an L2 PDE.
 ///
 /// Returned by [`PdeUnion::view`].
@@ -518,16 +565,6 @@ pub enum L2View<'a> {
     Entry(&'a Pde),
     /// 2 MiB leaf PDE view (PS=1).
     Leaf2M(&'a Pde2M),
-}
-
-/// **Mutable borrowed view** into an L2 PDE.
-///
-/// Returned by [`PdeUnion::view_mut`].
-pub enum L2ViewMut<'a> {
-    /// Non-leaf PDE view (PS=0).
-    Entry(&'a mut Pde),
-    /// 2 MiB leaf PDE view (PS=1).
-    Leaf2M(&'a mut Pde2M),
 }
 
 impl PdpteUnion {
@@ -550,26 +587,12 @@ impl PdpteUnion {
     ///
     /// This function is safe: it returns a view consistent with the PS bit.
     #[inline]
-    pub fn view(&self) -> L3View<'_> {
+    pub const fn view(&self) -> L3View<'_> {
         unsafe {
             if (self.bits & PS_BIT) != 0 {
                 L3View::Leaf1G(&self.leaf_1g)
             } else {
                 L3View::Entry(&self.entry)
-            }
-        }
-    }
-
-    /// **Typed mutable view** chosen by the **PS** bit.
-    ///
-    /// Mutably borrows the active variant in place.
-    #[inline]
-    pub fn view_mut(&mut self) -> L3ViewMut<'_> {
-        unsafe {
-            if (self.bits & PS_BIT) != 0 {
-                L3ViewMut::Leaf1G(&mut self.leaf_1g)
-            } else {
-                L3ViewMut::Entry(&mut self.entry)
             }
         }
     }
@@ -593,24 +616,12 @@ impl PdeUnion {
     /// - If PS=1 → [`L2View::Leaf2M`]
     /// - If PS=0 → [`L2View::Entry`]
     #[inline]
-    pub fn view(&self) -> L2View<'_> {
+    pub const fn view(&self) -> L2View<'_> {
         unsafe {
             if (self.bits & PS_BIT) != 0 {
                 L2View::Leaf2M(&self.leaf_2m)
             } else {
                 L2View::Entry(&self.entry)
-            }
-        }
-    }
-
-    /// **Typed mutable view** chosen by the **PS** bit.
-    #[inline]
-    pub fn view_mut(&mut self) -> L2ViewMut<'_> {
-        unsafe {
-            if (self.bits & PS_BIT) != 0 {
-                L2ViewMut::Leaf2M(&mut self.leaf_2m)
-            } else {
-                L2ViewMut::Entry(&mut self.entry)
             }
         }
     }
@@ -623,8 +634,8 @@ impl Pml4e {
     ///
     /// Sets: `present`, `writable`, clears `user`, `write_through`, `cache_disable`, `no_execute`.
     #[inline]
-    pub fn new_common_rw() -> Self {
-        Self::from_bits(0)
+    pub const fn new_common_rw() -> Self {
+        Self::new()
             .with_present(true)
             .with_writable(true)
             .with_user(false)
@@ -637,22 +648,37 @@ impl Pml4e {
 impl Pdpte {
     /// Non-leaf PDPTE with common kernel RW flags.
     #[inline]
-    pub fn new_common_rw() -> Self {
-        Self::from_bits(0)
+    pub const fn new_common_rw() -> Self {
+        Self::new()
             .with_present(true)
             .with_writable(true)
             .with_user(false)
             .with_write_through(false)
             .with_cache_disable(false)
             .with_no_execute(false)
+    }
+}
+
+impl Pdpte1G {
+    /// Leaf PDPTE with common kernel RW flags.
+    #[inline]
+    pub const fn new_common_rw() -> Self {
+        Self::new()
+            .with_present(true)
+            .with_writable(true)
+            .with_user(false)
+            .with_write_through(false)
+            .with_cache_disable(false)
+            .with_no_execute(false)
+            .with_page_size(true)
     }
 }
 
 impl Pde {
     /// Non-leaf PDE with common kernel RW flags.
     #[inline]
-    pub fn new_common_rw() -> Self {
-        Self::from_bits(0)
+    pub const fn new_common_rw() -> Self {
+        Self::new()
             .with_present(true)
             .with_writable(true)
             .with_user(false)
@@ -662,11 +688,26 @@ impl Pde {
     }
 }
 
+impl Pde2M {
+    /// Leaf PDE with common kernel RW flags.
+    #[inline]
+    pub const fn new_common_rw() -> Self {
+        Self::new()
+            .with_present(true)
+            .with_writable(true)
+            .with_user(false)
+            .with_write_through(false)
+            .with_cache_disable(false)
+            .with_no_execute(false)
+            .with_page_size(true)
+    }
+}
+
 impl Pte4K {
     /// 4 KiB **user RX** mapping (read+exec, no write).
     #[inline]
-    pub fn new_user_rx() -> Self {
-        Self::from_bits(0)
+    pub const fn new_user_rx() -> Self {
+        Self::new()
             .with_present(true)
             .with_writable(false)
             .with_user(true)
@@ -677,48 +718,11 @@ impl Pte4K {
 
     /// 4 KiB **user RO+NX** mapping (read-only, no execute).
     #[inline]
-    pub fn new_user_ro_nx() -> Self {
-        Self::from_bits(0)
+    pub const fn new_user_ro_nx() -> Self {
+        Self::new()
             .with_present(true)
             .with_writable(false)
             .with_user(true)
             .with_no_execute(true)
     }
-}
-
-/* ─────────────────────── Helpers to build unions safely ─────────────────── */
-
-/// Build an L3 union from raw bits and (for demo) also return a typed view.
-///
-/// ⚠️ **Lifetime note**: In real code, prefer to **keep the union in scope**
-/// and call `.view()` / `.view_mut()` as needed; returning a view tied to a
-/// temporary can be foot-gunny. This helper shows the pattern only.
-#[inline]
-pub fn l3_from_bits_view(bits: u64) -> (PdpteUnion, L3View<'static>) {
-    let u = PdpteUnion::from_bits(bits);
-    // Demonstration only — see note above.
-    let v = unsafe {
-        if (bits & PS_BIT) != 0 {
-            L3View::Leaf1G(&*((&u as *const PdpteUnion).cast::<Pdpte1G>()))
-        } else {
-            L3View::Entry(&*((&u as *const PdpteUnion).cast::<Pdpte>()))
-        }
-    };
-    (u, v)
-}
-
-/// Build an L2 union from raw bits and (for demo) also return a typed view.
-///
-/// ⚠️ See the lifetime warning in [`l3_from_bits_view`].
-#[inline]
-pub fn l2_from_bits_view(bits: u64) -> (PdeUnion, L2View<'static>) {
-    let u = PdeUnion::from_bits(bits);
-    let v = unsafe {
-        if (bits & PS_BIT) != 0 {
-            L2View::Leaf2M(&*((&u as *const PdeUnion).cast::<Pde2M>()))
-        } else {
-            L2View::Entry(&*((&u as *const PdeUnion).cast::<Pde>()))
-        }
-    };
-    (u, v)
 }

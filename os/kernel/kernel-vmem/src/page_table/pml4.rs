@@ -26,8 +26,8 @@
 //! `present`, `large_page (PS)`, and addresses/flags are delegated to
 //! [`PageEntryBits`], which encapsulates bit-level manipulation.
 
-use crate::PageEntryBits;
 use crate::addresses::{PhysicalPage, Size4K, VirtualAddress};
+use crate::page_table::bits2::Pml4e;
 
 /// Index into the PML4 table (derived from virtual-address bits `[47:39]`).
 ///
@@ -47,7 +47,7 @@ pub struct L4Index(u16);
 #[doc(alias = "PML4E")]
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct Pml4Entry(PageEntryBits);
+pub struct Pml4Entry(Pml4e);
 
 /// The top-level page map (PML4).
 ///
@@ -96,7 +96,7 @@ impl Pml4Entry {
     #[inline]
     #[must_use]
     pub const fn zero() -> Self {
-        Self(PageEntryBits::new())
+        Self(Pml4e::new())
     }
 
     /// Check whether the entry is marked present.
@@ -111,7 +111,7 @@ impl Pml4Entry {
     /// Prefer higher-level helpers where possible.
     #[inline]
     #[must_use]
-    pub const fn flags(self) -> PageEntryBits {
+    pub const fn flags(self) -> Pml4e {
         self.0
     }
 
@@ -135,8 +135,7 @@ impl Pml4Entry {
     /// - This function sets `present=1` and the physical base to `next_pdpt_page.base()`.
     #[inline]
     #[must_use]
-    pub fn make(next_pdpt_page: PhysicalPage<Size4K>, mut flags: PageEntryBits) -> Self {
-        debug_assert!(!flags.large_page(), "PML4E must have PS=0");
+    pub const fn make(next_pdpt_page: PhysicalPage<Size4K>, mut flags: Pml4e) -> Self {
         flags.set_present(true);
         flags.set_physical_address(next_pdpt_page.base());
         Self(flags)
@@ -155,7 +154,7 @@ impl Pml4Entry {
     #[inline]
     #[must_use]
     pub fn from_raw(v: u64) -> Self {
-        Self(PageEntryBits::from(v))
+        Self(Pml4e::from(v))
     }
 }
 
@@ -203,12 +202,9 @@ mod tests {
     #[test]
     fn pml4_points_to_pdpt() {
         let pdpt_page = PhysicalPage::<Size4K>::from_addr(PhysicalAddress::new(0x1234_5000));
-        let mut f = PageEntryBits::new();
-        f.set_writable(true);
-        f.set_user_access(false);
+        let f = Pml4e::new().with_writable(true).with_user(false);
         let e = Pml4Entry::make(pdpt_page, f);
         assert!(e.is_present());
-        assert!(!e.flags().large_page());
         assert_eq!(e.next_table().unwrap().base().as_u64(), 0x1234_5000);
     }
 }

@@ -15,7 +15,8 @@
 
 use kernel_vmem::address_space::AddressSpaceMapRegionError;
 use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
-use kernel_vmem::{AddressSpace, FrameAlloc, PageEntryBits, PhysMapper};
+use kernel_vmem::page_table::unified2::UnifiedEntry;
+use kernel_vmem::{AddressSpace, FrameAlloc, PhysMapper};
 
 /// Minimal kernel virtual memory manager.
 pub struct Vmm<'m, M: PhysMapper, A: FrameAlloc> {
@@ -39,8 +40,8 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
         va: VirtualAddress,
         pa: PhysicalAddress,
         len: u64,
-        nonleaf: PageEntryBits,
-        leaf: PageEntryBits,
+        nonleaf: UnifiedEntry,
+        leaf: UnifiedEntry,
     ) -> Result<(), AddressSpaceMapRegionError> {
         self.aspace
             .map_region(self.alloc, va, pa, len, nonleaf, leaf)

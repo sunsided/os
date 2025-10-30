@@ -4,7 +4,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel-vmem/src/address_space.rs](./os/kernel/kernel-vmem/src/address_space.rs)
 
-- Line [150](./os/kernel/kernel-vmem/src/address_space.rs#L150): Refactor to error type
+- Line [151](./os/kernel/kernel-vmem/src/address_space.rs#L151): Refactor to error type
 
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 

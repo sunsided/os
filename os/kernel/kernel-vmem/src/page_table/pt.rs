@@ -19,8 +19,8 @@
 //! - Raw constructors do not validate consistency; prefer typed helpers.
 //! - After modifying active mappings, the caller must perform any required TLB maintenance.
 
-use crate::PageEntryBits;
 use crate::addresses::{PhysicalPage, Size4K, VirtualAddress};
+use crate::page_table::bits2::Pte4K;
 
 /// Index into the Page Table (derived from VA bits `[20:12]`).
 ///
@@ -41,7 +41,7 @@ pub struct L1Index(u16);
 #[doc(alias = "PTE")]
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct PtEntry(PageEntryBits);
+pub struct PtEntry(Pte4K);
 
 /// The Page Table (L1): 512 entries, 4 KiB-aligned.
 #[doc(alias = "PT")]
@@ -84,7 +84,7 @@ impl PtEntry {
     #[inline]
     #[must_use]
     pub const fn zero() -> Self {
-        Self(PageEntryBits::new())
+        Self(Pte4K::new())
     }
 
     /// Return `true` if the entry is marked present.
@@ -99,7 +99,7 @@ impl PtEntry {
     /// Prefer typed helpers when possible.
     #[inline]
     #[must_use]
-    pub const fn flags(self) -> PageEntryBits {
+    pub const fn flags(self) -> Pte4K {
         self.0
     }
 
@@ -108,11 +108,10 @@ impl PtEntry {
     /// Debug-asserts that `PS=0` (required at L1).
     #[inline]
     #[must_use]
-    pub fn page_4k(self) -> Option<(PhysicalPage<Size4K>, PageEntryBits)> {
+    pub const fn page_4k(self) -> Option<(PhysicalPage<Size4K>, Pte4K)> {
         if !self.is_present() {
             return None;
         }
-        debug_assert!(!self.0.large_page(), "PTE must have PS=0");
         Some((PhysicalPage::from_addr(self.0.physical_address()), self.0))
     }
 
@@ -122,8 +121,7 @@ impl PtEntry {
     /// The base must be 4 KiB-aligned.
     #[inline]
     #[must_use]
-    pub const fn make_4k(page: PhysicalPage<Size4K>, mut flags: PageEntryBits) -> Self {
-        flags.set_large_page(false);
+    pub const fn make_4k(page: PhysicalPage<Size4K>, mut flags: Pte4K) -> Self {
         flags.set_present(true);
         flags.set_physical_address(page.base());
         Self(flags)
@@ -142,7 +140,7 @@ impl PtEntry {
     #[inline]
     #[must_use]
     pub fn from_raw(v: u64) -> Self {
-        Self(PageEntryBits::from(v))
+        Self(Pte4K::from(v))
     }
 }
 
@@ -198,12 +196,11 @@ mod test {
     #[test]
     fn pte_4k_leaf() {
         let k4 = PhysicalPage::<Size4K>::from_addr(PhysicalAddress::new(0x5555_0000));
-        let e = PtEntry::make_4k(k4, PageEntryBits::new_user_ro_nx());
+        let e = PtEntry::make_4k(k4, Pte4K::new_user_ro_nx());
         let (p, fl) = e.page_4k().unwrap();
         assert_eq!(p.base().as_u64(), 0x5555_0000);
-        assert!(!fl.large_page());
         assert!(fl.no_execute());
-        assert!(fl.user_access());
+        assert!(fl.user());
         assert!(!fl.writable());
     }
 }

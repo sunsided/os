@@ -21,8 +21,8 @@
 //! - Callers must handle TLB maintenance after changing active mappings.
 //! - Raw constructors perform no validation; use with care.
 
-use crate::PageEntryBits;
 use crate::addresses::{PhysicalPage, Size1G, Size4K, VirtualAddress};
+use crate::page_table::bits2::{L3View, Pdpte, Pdpte1G, PdpteUnion};
 
 /// Index into the PDPT (derived from virtual-address bits `[38:30]`).
 ///
@@ -43,15 +43,15 @@ pub struct L3Index(u16);
 #[doc(alias = "PDPTE")]
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct PdptEntry(PageEntryBits);
+pub struct PdptEntry(PdpteUnion);
 
 /// Decoded PDPT entry kind.
 ///
 /// - [`NextPageDirectory`](PdptEntryKind::NextPageDirectory): non-leaf; `PS=0`; holds the 4 KiB-aligned PD base.
 /// - [`Leaf1GiB`](PdptEntryKind::Leaf1GiB): leaf; `PS=1`; holds the 1 GiB-aligned large-page base.
 pub enum PdptEntryKind {
-    NextPageDirectory(PhysicalPage<Size4K>, PageEntryBits),
-    Leaf1GiB(PhysicalPage<Size1G>, PageEntryBits),
+    NextPageDirectory(PhysicalPage<Size4K>, Pdpte),
+    Leaf1GiB(PhysicalPage<Size1G>, Pdpte1G),
 }
 
 /// The PDPT (L3) table: 512 entries, 4 KiB aligned.
@@ -95,7 +95,7 @@ impl PdptEntry {
     #[inline]
     #[must_use]
     pub const fn zero() -> Self {
-        Self(PageEntryBits::new())
+        Self(PdpteUnion::new())
     }
 
     /// Return `true` if the entry is marked present.
@@ -105,13 +105,11 @@ impl PdptEntry {
         self.0.present()
     }
 
-    /// Expose the underlying flag/address bitfield for advanced use.
-    ///
-    /// Prefer using typed helpers where possible.
+    /// Expose the underlying bitfield for advanced inspection/masking.
     #[inline]
     #[must_use]
-    pub const fn flags(self) -> PageEntryBits {
-        self.0
+    pub const fn view(&self) -> L3View<'_> {
+        self.0.view()
     }
 
     /// Decode the entry into its semantic kind, or `None` if not present.
@@ -125,19 +123,16 @@ impl PdptEntry {
             return None;
         }
 
-        let flags = self.0;
-        let base = self.0.physical_address();
-        if flags.large_page() {
-            Some(PdptEntryKind::Leaf1GiB(
-                PhysicalPage::<Size1G>::from_addr(base),
-                flags,
-            ))
-        } else {
-            Some(PdptEntryKind::NextPageDirectory(
-                PhysicalPage::<Size4K>::from_addr(base),
-                flags,
-            ))
-        }
+        Some(match self.view() {
+            L3View::Entry(entry) => {
+                let base = entry.physical_address();
+                PdptEntryKind::NextPageDirectory(PhysicalPage::<Size4K>::from_addr(base), *entry)
+            }
+            L3View::Leaf1G(entry) => {
+                let base = entry.physical_address();
+                PdptEntryKind::Leaf1GiB(PhysicalPage::<Size1G>::from_addr(base), *entry)
+            }
+        })
     }
 
     /// Create a non-leaf PDPTE that points to a Page Directory (`PS=0`).
@@ -146,11 +141,10 @@ impl PdptEntry {
     /// The PD base must be 4 KiB-aligned.
     #[inline]
     #[must_use]
-    pub const fn make_next(pd_page: PhysicalPage<Size4K>, mut flags: PageEntryBits) -> Self {
-        flags.set_large_page(false);
+    pub const fn make_next(pd_page: PhysicalPage<Size4K>, mut flags: Pdpte) -> Self {
         flags.set_present(true);
         flags.set_physical_address(pd_page.base());
-        Self(flags)
+        Self(PdpteUnion::new_entry(flags))
     }
 
     /// Create a 1 GiB leaf PDPTE (`PS=1`).
@@ -159,11 +153,10 @@ impl PdptEntry {
     /// The page base must be 1 GiB-aligned.
     #[inline]
     #[must_use]
-    pub const fn make_1g(page: PhysicalPage<Size1G>, mut flags: PageEntryBits) -> Self {
-        flags.set_large_page(true);
+    pub const fn make_1g(page: PhysicalPage<Size1G>, mut flags: Pdpte1G) -> Self {
         flags.set_present(true);
         flags.set_physical_address(page.base());
-        Self(flags)
+        Self(PdpteUnion::new_leaf(flags))
     }
 
     /// Return the raw 64-bit value (flags + address).
@@ -178,8 +171,8 @@ impl PdptEntry {
     /// No validation is performed; callers must ensure a consistent `PS`/kind.
     #[inline]
     #[must_use]
-    pub fn from_raw(v: u64) -> Self {
-        Self(PageEntryBits::from(v))
+    pub const fn from_raw(v: u64) -> Self {
+        Self(PdpteUnion::from_bits(v))
     }
 }
 
@@ -237,22 +230,22 @@ mod test {
     fn pdpt_table_vs_1g() {
         // next-level PD
         let pd = PhysicalPage::<Size4K>::from_addr(PhysicalAddress::new(0x2000_0000));
-        let e_tbl = PdptEntry::make_next(pd, PageEntryBits::new_common_rw());
+        let e_tbl = PdptEntry::make_next(pd, Pdpte::new_common_rw());
         match e_tbl.kind().unwrap() {
             PdptEntryKind::NextPageDirectory(p, f) => {
                 assert_eq!(p.base().as_u64(), 0x2000_0000);
-                assert!(!f.large_page());
+                assert_eq!(f.into_bits() & (1 << 7), 0, "must be PS=0");
             }
             _ => panic!("expected next PD"),
         }
 
         // 1 GiB leaf
         let g1 = PhysicalPage::<Size1G>::from_addr(PhysicalAddress::new(0x8000_0000));
-        let e_1g = PdptEntry::make_1g(g1, PageEntryBits::new_common_rw());
+        let e_1g = PdptEntry::make_1g(g1, Pdpte1G::new_common_rw());
         match e_1g.kind().unwrap() {
             PdptEntryKind::Leaf1GiB(p, f) => {
                 assert_eq!(p.base().as_u64(), 0x8000_0000);
-                assert!(f.large_page());
+                assert_ne!(f.into_bits() & (1 << 7), 0, "must be PS=1");
             }
             _ => panic!("expected 1GiB leaf"),
         }

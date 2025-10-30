@@ -16,7 +16,8 @@ use crate::page_table::pd::{L2Index, PdEntry, PdEntryKind};
 use crate::page_table::pdpt::{L3Index, PdptEntry, PdptEntryKind};
 use crate::page_table::pml4::{L4Index, Pml4Entry};
 use crate::page_table::pt::{L1Index, PtEntry};
-use crate::{AddressSpace, FrameAlloc, PageEntryBits, PhysMapper};
+use crate::page_table::unified2::UnifiedEntry;
+use crate::{AddressSpace, FrameAlloc, PhysMapper};
 
 /// # Page-size–directed mapping behavior
 ///
@@ -84,7 +85,7 @@ pub trait MapSize: PageSize {
         aspace: &AddressSpace<M>,
         alloc: &mut A,
         va: VirtualAddress,
-        nonleaf_flags: PageEntryBits,
+        nonleaf_flags: UnifiedEntry,
     ) -> Result<PhysicalPage<Size4K>, MapSizeEnsureChainError>;
 
     /// Install the **leaf** entry for `va → pa` in the `leaf_tbl_page`
@@ -101,7 +102,7 @@ pub trait MapSize: PageSize {
         leaf_tbl_page: PhysicalPage<Size4K>,
         va: VirtualAddress,
         pa: PhysicalAddress,
-        leaf_flags: PageEntryBits,
+        leaf_flags: UnifiedEntry,
     );
 }
 
@@ -123,7 +124,7 @@ impl MapSize for Size1G {
         aspace: &AddressSpace<M>,
         alloc: &mut A,
         va: VirtualAddress,
-        nonleaf_flags: PageEntryBits,
+        nonleaf_flags: UnifiedEntry,
     ) -> Result<PhysicalPage<Size4K>, MapSizeEnsureChainError> {
         let i4 = L4Index::from(va);
 
@@ -135,7 +136,7 @@ impl MapSize for Size1G {
         }
         let f = alloc.alloc_4k().ok_or(MapSizeEnsureChainError::OomPdpt)?;
         aspace.zero_pdpt(f);
-        pml4.set(i4, Pml4Entry::make(f, nonleaf_flags));
+        pml4.set(i4, Pml4Entry::make(f, nonleaf_flags.to_pml4e()));
         Ok(f)
     }
 
@@ -144,14 +145,14 @@ impl MapSize for Size1G {
         leaf_tbl_page: PhysicalPage<Size4K>,
         va: VirtualAddress,
         pa: PhysicalAddress,
-        leaf_flags: PageEntryBits,
+        leaf_flags: UnifiedEntry,
     ) {
         // require 1 GiB alignment in debug
         debug_assert_eq!(pa.offset::<Self>().as_u64(), 0);
         let pdpt = aspace.pdpt_mut(leaf_tbl_page);
         let idx = L3Index::from(va);
         let g1 = PhysicalPage::<Self>::from_addr(pa);
-        pdpt.set(idx, PdptEntry::make_1g(g1, leaf_flags));
+        pdpt.set(idx, PdptEntry::make_1g(g1, leaf_flags.to_pdpte_1g()));
     }
 }
 
@@ -160,7 +161,7 @@ impl MapSize for Size2M {
         aspace: &AddressSpace<M>,
         alloc: &mut A,
         va: VirtualAddress,
-        nonleaf_flags: PageEntryBits,
+        nonleaf_flags: UnifiedEntry,
     ) -> Result<PhysicalPage<Size4K>, MapSizeEnsureChainError> {
         let i4 = L4Index::from(va);
         let i3 = L3Index::from(va);
@@ -173,7 +174,7 @@ impl MapSize for Size2M {
         } else {
             let f = alloc.alloc_4k().ok_or(MapSizeEnsureChainError::OomPdpt)?;
             aspace.zero_pdpt(f);
-            pml4.set(i4, Pml4Entry::make(f, nonleaf_flags));
+            pml4.set(i4, Pml4Entry::make(f, nonleaf_flags.to_pml4e()));
             f
         };
 
@@ -185,7 +186,7 @@ impl MapSize for Size2M {
             Some(PdptEntryKind::Leaf1GiB(_, _)) | None => {
                 let f = alloc.alloc_4k().ok_or(MapSizeEnsureChainError::OomPd)?;
                 aspace.zero_pd(f);
-                pdpt.set(i3, PdptEntry::make_next(f, nonleaf_flags));
+                pdpt.set(i3, PdptEntry::make_next(f, nonleaf_flags.to_pdpte()));
                 f
             }
         })
@@ -196,13 +197,13 @@ impl MapSize for Size2M {
         leaf_tbl_page: PhysicalPage<Size4K>,
         va: VirtualAddress,
         pa: PhysicalAddress,
-        leaf_flags: PageEntryBits,
+        leaf_flags: UnifiedEntry,
     ) {
         debug_assert_eq!(pa.offset::<Self>().as_u64(), 0);
         let pd = aspace.pd_mut(leaf_tbl_page);
         let idx = L2Index::from(va);
         let m2 = PhysicalPage::<Self>::from_addr(pa);
-        pd.set(idx, PdEntry::make_2m(m2, leaf_flags));
+        pd.set(idx, PdEntry::make_2m(m2, leaf_flags.to_pde_2m()));
     }
 }
 
@@ -211,7 +212,7 @@ impl MapSize for Size4K {
         aspace: &AddressSpace<M>,
         alloc: &mut A,
         va: VirtualAddress,
-        nonleaf_flags: PageEntryBits,
+        nonleaf_flags: UnifiedEntry,
     ) -> Result<PhysicalPage<Size4K>, MapSizeEnsureChainError> {
         let i4 = L4Index::from(va);
         let i3 = L3Index::from(va);
@@ -225,7 +226,7 @@ impl MapSize for Size4K {
         } else {
             let f = alloc.alloc_4k().ok_or(MapSizeEnsureChainError::OomPdpt)?;
             aspace.zero_pdpt(f);
-            pml4.set(i4, Pml4Entry::make(f, nonleaf_flags));
+            pml4.set(i4, Pml4Entry::make(f, nonleaf_flags.to_pml4e()));
             f
         };
 
@@ -237,7 +238,7 @@ impl MapSize for Size4K {
             Some(PdptEntryKind::Leaf1GiB(_, _)) | None => {
                 let f = alloc.alloc_4k().ok_or(MapSizeEnsureChainError::OomPd)?;
                 aspace.zero_pd(f);
-                pdpt.set(i3, PdptEntry::make_next(f, nonleaf_flags));
+                pdpt.set(i3, PdptEntry::make_next(f, nonleaf_flags.to_pdpte()));
                 f
             }
         };
@@ -250,7 +251,7 @@ impl MapSize for Size4K {
             Some(PdEntryKind::Leaf2MiB(_, _)) | None => {
                 let f = alloc.alloc_4k().ok_or(MapSizeEnsureChainError::OomPt)?;
                 aspace.zero_pt(f);
-                pd.set(i2, PdEntry::make_next(f, nonleaf_flags));
+                pd.set(i2, PdEntry::make_next(f, nonleaf_flags.to_pde()));
                 f
             }
         })
@@ -261,12 +262,12 @@ impl MapSize for Size4K {
         leaf_tbl_page: PhysicalPage<Size4K>,
         va: VirtualAddress,
         pa: PhysicalAddress,
-        leaf_flags: PageEntryBits,
+        leaf_flags: UnifiedEntry,
     ) {
         debug_assert_eq!(pa.offset::<Self>().as_u64(), 0);
         let pt = aspace.pt_mut(leaf_tbl_page);
         let idx = L1Index::from(va);
         let k4 = PhysicalPage::<Self>::from_addr(pa);
-        pt.set(idx, PtEntry::make_4k(k4, leaf_flags));
+        pt.set(idx, PtEntry::make_4k(k4, leaf_flags.to_pte_4k()));
     }
 }
