@@ -2,12 +2,14 @@
 
 extern crate alloc;
 
+use crate::elf::PF_X;
 use crate::elf::parser::ElfHeader;
-use crate::elf::{PAGE_SIZE, PF_X};
 use alloc::vec::Vec;
 use core::ptr;
 use kernel_info::memory::{KERNEL_BASE, PHYS_LOAD};
-use kernel_vmem::{MemoryAddress, align_down, align_up};
+use kernel_vmem::addresses::{
+    MemoryAddress, PageSize, PhysicalAddress, PhysicalPage, Size4K, VirtualPage,
+};
 use uefi::Status;
 use uefi::boot::{self, AllocateType, MemoryType};
 
@@ -47,11 +49,13 @@ pub fn load_pt_load_segments_hi(
             continue;
         }
 
-        // LMA math you already have:
-        let lma = seg
-            .vaddr
+        // LMA math
+        let seg_vaddr = seg.vaddr;
+        let lma = seg_vaddr
+            .as_u64()
             .checked_sub(KERNEL_BASE)
             .ok_or(ElfLoaderError::PointerArithmetic)?;
+
         let phys_start = PHYS_LOAD
             .checked_add(lma)
             .ok_or(ElfLoaderError::PointerArithmetic)?;
@@ -59,10 +63,12 @@ pub fn load_pt_load_segments_hi(
             .checked_add(seg.memsz)
             .ok_or(ElfLoaderError::PointerArithmetic)?;
 
-        // Page-rounded allocation window
-        let alloc_start = align_down(phys_start.into(), PAGE_SIZE);
-        let alloc_end = align_up(phys_end.into(), PAGE_SIZE);
-        let pages = ((alloc_end - alloc_start) / PAGE_SIZE) as usize;
+        // Page-rounded allocation window (physical)
+        let alloc_start = MemoryAddress::new(phys_start)
+            .align_down::<Size4K>()
+            .as_u64();
+        let alloc_end = align_up_u64(phys_end, Size4K::SIZE);
+        let pages = ((alloc_end - alloc_start) / Size4K::SIZE) as usize;
 
         let mem_type = if (seg.flags & PF_X) != 0 {
             MemoryType::LOADER_CODE
@@ -70,16 +76,16 @@ pub fn load_pt_load_segments_hi(
             MemoryType::LOADER_DATA
         };
 
-        // Reserve at the *address* we computed (page-aligned)
-        let ptr =
-            boot::allocate_pages(AllocateType::Address(alloc_start.as_u64()), mem_type, pages)
-                .map_err(ElfLoaderError::PhysicalAllocationFailed)?;
-        let base = MemoryAddress::new(ptr.as_ptr() as u64); // == alloc_start.as_u64()
+        // Reserve at the *physical address* we computed (UEFI AllocatePages at address)
+        let ptr = boot::allocate_pages(AllocateType::Address(alloc_start), mem_type, pages)
+            .map_err(ElfLoaderError::PhysicalAllocationFailed)?;
+        // This is a physical address returned by UEFI:
+        let phys_base = PhysicalAddress::from_nonnull(ptr);
 
         // Zero full in-memory size (BSS tail)
         let mem_len = usize::try_from(seg.memsz).map_err(|_| ElfLoaderError::AddressOutOfBounds)?;
-        let in_seg_off = phys_start - alloc_start.as_u64(); // offset to the real seg.vaddr inside first page
-        let dst = (base.as_u64() + in_seg_off) as *mut u8;
+        let in_seg_off = phys_start - alloc_start; // offset *within first page* to seg start
+        let dst = (phys_base.as_u64() + in_seg_off) as *mut u8;
         unsafe {
             ptr::write_bytes(dst, 0, mem_len);
         }
@@ -101,17 +107,18 @@ pub fn load_pt_load_segments_hi(
             }
         }
 
-        // Build mapping info (all page-rounded from the *VMA* perspective)
-        let vaddr_page = align_down(seg.vaddr.as_addr(), PAGE_SIZE);
-        let vaddr_end = align_up(
-            MemoryAddress::new(seg.vaddr.as_u64() + seg.memsz),
-            PAGE_SIZE,
-        );
-        let map_len = vaddr_end - vaddr_page;
+        // Build mapping info from the *VMA* perspective (page-rounded)
+        let vaddr_page = seg_vaddr.page::<Size4K>(); // page-aligned VA base
+        let vaddr_end_u64 = seg_vaddr
+            .as_u64()
+            .checked_add(seg.memsz)
+            .ok_or(ElfLoaderError::PointerArithmetic)?;
+        let vaddr_end_aligned = align_up_u64(vaddr_end_u64, Size4K::SIZE);
+        let map_len = vaddr_end_aligned - vaddr_page.base().as_u64();
 
         maps.push(LoadedSegMap {
             vaddr_page,
-            phys_page: base, // page-aligned physical base we actually got
+            phys_page: PhysicalPage::<Size4K>::from_addr(phys_base),
             map_len,
             flags: seg.flags,
         });
@@ -123,11 +130,17 @@ pub fn load_pt_load_segments_hi(
 #[derive(Clone, Copy)]
 pub struct LoadedSegMap {
     /// page-aligned VMA start used for mapping
-    pub vaddr_page: MemoryAddress,
+    pub vaddr_page: VirtualPage<Size4K>,
     /// page-aligned physical base actually allocated
-    pub phys_page: MemoryAddress,
+    pub phys_page: PhysicalPage<Size4K>,
     /// bytes to map from `vaddr_page` (page-rounded)
     pub map_len: u64,
     /// ELF `p_flags` (`PF_X`, `PF_W`)
     pub flags: u32,
+}
+
+#[inline]
+const fn align_up_u64(x: u64, a: u64) -> u64 {
+    // 'a' must be a power of two
+    (x + (a - 1)) & !(a - 1)
 }

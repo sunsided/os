@@ -16,7 +16,8 @@ use kernel_alloc::vmm::Vmm;
 use kernel_info::boot::{FramebufferInfo, KernelBootInfo};
 use kernel_info::memory::HHDM_BASE;
 use kernel_qemu::qemu_trace;
-use kernel_vmem::{MemoryPageFlags, PhysAddr, VirtAddr};
+use kernel_vmem::PageEntryBits;
+use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -133,17 +134,22 @@ fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
 fn remap_boot_memory(bi: &KernelBootInfo) -> FramebufferInfo {
     // Set up PMM (bootstrap) and VMM (kernel)
     let mut pmm = BitmapFrameAlloc::new();
-    let mut vmm = Vmm::new(&MAPPER, &mut pmm);
+    let mut vmm = unsafe { Vmm::from_current(&MAPPER, &mut pmm) };
 
     // Map framebuffer
     let fb_pa = bi.fb.framebuffer_ptr;
     let fb_len = bi.fb.framebuffer_size;
     let va_base = HHDM_BASE + VGA_LIKE_OFFSET;
-    let fb_flags = MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL | MemoryPageFlags::NX;
+    let fb_flags = PageEntryBits::default()
+        .with_writable(true)
+        .with_global_translation(true)
+        .with_no_execute(true);
+
     vmm.map_region(
-        VirtAddr::from_u64(va_base),
-        PhysAddr::from_u64(fb_pa),
+        VirtualAddress::new(va_base),
+        PhysicalAddress::new(fb_pa),
         fb_len,
+        fb_flags,
         fb_flags,
     )
     .expect("Framebuffer mapping failed");

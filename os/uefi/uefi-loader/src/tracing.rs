@@ -3,12 +3,12 @@
 use crate::TrampolineStackVirtualAddress;
 use kernel_info::boot::KernelBootInfo;
 use kernel_qemu::qemu_trace;
-use kernel_vmem::VirtAddr;
+use kernel_vmem::addresses::VirtualAddress;
 
 pub fn trace_boot_info(
     boot_info: &KernelBootInfo,
-    bi_ptr_va: VirtAddr,
-    kernel_va: VirtAddr,
+    bi_ptr_va: VirtualAddress,
+    kernel_va: VirtualAddress,
     trampoline_stack_va: TrampolineStackVirtualAddress,
 ) {
     qemu_trace!("Boot Info in UEFI Loader:\n");

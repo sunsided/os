@@ -73,6 +73,7 @@ use core::fmt;
 use core::hash::Hash;
 use core::marker::PhantomData;
 use core::ops::{Add, AddAssign};
+use core::ptr::NonNull;
 
 /// Sealed trait pattern to restrict `PageSize` impls to our markers.
 mod sealed {
@@ -122,6 +123,18 @@ impl PageSize for Size1G {
 pub struct MemoryAddress(u64);
 
 impl MemoryAddress {
+    #[inline]
+    #[must_use]
+    pub fn from_nonnull<T>(ptr: NonNull<T>) -> Self {
+        Self::from_ptr(ptr.as_ptr())
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn from_ptr<T>(ptr: *const T) -> Self {
+        Self::new(ptr as u64)
+    }
+
     #[inline]
     #[must_use]
     pub const fn new(value: u64) -> Self {
@@ -175,6 +188,12 @@ impl fmt::Debug for MemoryAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // 0xHHHH_HHHH_HHHH_HHHH style
         write!(f, "MemoryAddress(0x{:016X})", self.0)
+    }
+}
+
+impl fmt::Display for MemoryAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{:016X}", self.as_u64())
     }
 }
 
@@ -366,9 +385,22 @@ pub struct VirtualAddress(MemoryAddress);
 impl VirtualAddress {
     #[inline]
     #[must_use]
+    pub fn from_nonnull<T>(ptr: NonNull<T>) -> Self {
+        Self::from_ptr(ptr.as_ptr())
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn from_ptr<T>(ptr: *const T) -> Self {
+        Self(MemoryAddress::from_ptr(ptr))
+    }
+
+    #[inline]
+    #[must_use]
     pub const fn new(v: u64) -> Self {
         Self(MemoryAddress::new(v))
     }
+
     #[inline]
     #[must_use]
     pub const fn as_u64(self) -> u64 {
@@ -397,6 +429,12 @@ impl VirtualAddress {
 impl fmt::Debug for VirtualAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "VirtualAddress(0x{:016X})", self.as_u64())
+    }
+}
+
+impl fmt::Display for VirtualAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{:016X}", self.as_u64())
     }
 }
 
@@ -432,9 +470,22 @@ pub struct PhysicalAddress(MemoryAddress);
 impl PhysicalAddress {
     #[inline]
     #[must_use]
+    pub fn from_nonnull<T>(ptr: NonNull<T>) -> Self {
+        Self::from_ptr(ptr.as_ptr())
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn from_ptr<T>(ptr: *const T) -> Self {
+        Self(MemoryAddress::from_ptr(ptr))
+    }
+
+    #[inline]
+    #[must_use]
     pub const fn new(v: u64) -> Self {
         Self(MemoryAddress::new(v))
     }
+
     #[inline]
     #[must_use]
     pub const fn as_u64(self) -> u64 {
@@ -463,6 +514,12 @@ impl PhysicalAddress {
 impl fmt::Debug for PhysicalAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "PhysicalAddress(0x{:016X})", self.as_u64())
+    }
+}
+
+impl fmt::Display for PhysicalAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{:016X}", self.as_u64())
     }
 }
 

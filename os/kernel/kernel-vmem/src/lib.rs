@@ -90,14 +90,19 @@ pub use kernel_info::memory as info;
 pub trait FrameAlloc {
     /// Allocate a zeroed 4 KiB page suitable for a page-table.
     fn alloc_4k(&mut self) -> Option<PhysicalPage<Size4K>>;
+
+    /// Deallocate a zeroed 4 KiB page suitable for a page-table.
+    fn free_4k(&mut self, pa: PhysicalPage<Size4K>);
 }
 
 /// Mapper capable of temporarily viewing physical frames as typed tables.
 pub trait PhysMapper {
     /// Map a 4 KiB physical frame and get a **mutable** reference to type `T`.
     ///
+    /// # Safety
     /// The implementation must ensure that the returned reference aliases the
     /// mapped frame, and that writes reach memory.
+    #[allow(clippy::mut_from_ref)]
     unsafe fn phys_to_mut<T>(&self, at: PhysicalAddress) -> &mut T;
 
     /// Borrow the [`PageMapLevel4`] (PML4) located in the given 4 KiB
@@ -105,12 +110,25 @@ pub trait PhysMapper {
     ///
     /// # Arguments
     /// * `page` - The `page` parameter identifies the physical frame whose contents
-    ///     are interpreted as a PML4 table. The frame must contain either a
-    ///     valid or zero-initialized PML4.
+    ///   are interpreted as a PML4 table. The frame must contain either a
+    ///   valid or zero-initialized PML4.
     #[inline]
+    #[allow(clippy::mut_from_ref)]
     fn pml4_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageMapLevel4 {
         // SAFETY: 4 KiB alignment guaranteed by `PhysicalPage<Size4K>`.
         unsafe { self.phys_to_mut::<PageMapLevel4>(page.base()) }
+    }
+
+    /// Sets the provided [`PageMapLevel4`] at the specified `page`.
+    #[inline]
+    fn set_pml4(&self, page: PhysicalPage<Size4K>, pml4: PageMapLevel4) {
+        *self.pml4_mut(page) = pml4;
+    }
+
+    /// Sets the provided [`PageMapLevel4`] at the specified `page`.
+    #[inline]
+    fn zero_pml4(&self, page: PhysicalPage<Size4K>) {
+        self.set_pml4(page, PageMapLevel4::zeroed());
     }
 
     /// Borrow a [`PageDirectoryPointerTable`] (PDPT) located in the given 4 KiB
@@ -118,12 +136,25 @@ pub trait PhysMapper {
     ///
     /// # Arguments
     /// * `page` - The `page` parameter identifies the physical frame whose contents
-    ///     are interpreted as a PDP table. The frame must contain either a
-    ///     valid or zero-initialized PDPT.
+    ///   are interpreted as a PDP table. The frame must contain either a
+    ///   valid or zero-initialized PDPT.
     #[inline]
+    #[allow(clippy::mut_from_ref)]
     fn pdpt_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageDirectoryPointerTable {
         // SAFETY: 4 KiB alignment guaranteed by `PhysicalPage<Size4K>`.
         unsafe { self.phys_to_mut::<PageDirectoryPointerTable>(page.base()) }
+    }
+
+    /// Sets the provided [`PageDirectoryPointerTable`] at the specified `page`.
+    #[inline]
+    fn set_pdpt(&self, page: PhysicalPage<Size4K>, pml4: PageDirectoryPointerTable) {
+        *self.pdpt_mut(page) = pml4;
+    }
+
+    /// Sets the provided [`PageDirectoryPointerTable`] at the specified `page`.
+    #[inline]
+    fn zero_pdpt(&self, page: PhysicalPage<Size4K>) {
+        self.set_pdpt(page, PageDirectoryPointerTable::zeroed());
     }
 
     /// Borrow a [`PageDirectory`] (PD) located in the given 4 KiB
@@ -131,12 +162,25 @@ pub trait PhysMapper {
     ///
     /// # Arguments
     /// * `page` - The `page` parameter identifies the physical frame whose contents
-    ///     are interpreted as a PD table. The frame must contain either a
-    ///     valid or zero-initialized PD.
+    ///   are interpreted as a PD table. The frame must contain either a
+    ///   valid or zero-initialized PD.
     #[inline]
+    #[allow(clippy::mut_from_ref)]
     fn pd_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageDirectory {
         // SAFETY: 4 KiB alignment guaranteed by `PhysicalPage<Size4K>`.
         unsafe { self.phys_to_mut::<PageDirectory>(page.base()) }
+    }
+
+    /// Sets the provided [`PageDirectory`] at the specified `page`.
+    #[inline]
+    fn set_pd(&self, page: PhysicalPage<Size4K>, pml4: PageDirectory) {
+        *self.pd_mut(page) = pml4;
+    }
+
+    /// Sets the provided [`PageDirectory`] at the specified `page`.
+    #[inline]
+    fn zero_pd(&self, page: PhysicalPage<Size4K>) {
+        self.set_pd(page, PageDirectory::zeroed());
     }
 
     /// Borrow a [`PageTable`] (PT) located in the given 4 KiB
@@ -144,12 +188,25 @@ pub trait PhysMapper {
     ///
     /// # Arguments
     /// * `page` - The `page` parameter identifies the physical frame whose contents
-    ///     are interpreted as a PT. The frame must contain either a
-    ///     valid or zero-initialized PT.
+    ///   are interpreted as a PT. The frame must contain either a
+    ///   valid or zero-initialized PT.
     #[inline]
+    #[allow(clippy::mut_from_ref)]
     fn pt_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageTable {
         // SAFETY: 4 KiB alignment guaranteed by `PhysicalPage<Size4K>`.
         unsafe { self.phys_to_mut::<PageTable>(page.base()) }
+    }
+
+    /// Sets the provided [`PageTable`] at the specified `page`.
+    #[inline]
+    fn set_pt(&self, page: PhysicalPage<Size4K>, pml4: PageTable) {
+        *self.pt_mut(page) = pml4;
+    }
+
+    /// Sets the provided [`PageTable`] at the specified `page`.
+    #[inline]
+    fn zero_pt(&self, page: PhysicalPage<Size4K>) {
+        self.set_pt(page, PageTable::zeroed());
     }
 }
 

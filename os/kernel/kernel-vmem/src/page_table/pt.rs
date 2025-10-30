@@ -173,6 +173,15 @@ impl PageTable {
         self.entries[i.as_usize()] = e;
     }
 
+    /// Set the entry at `i` to [`PtEntry::zero`].
+    ///
+    /// Caller is responsible for necessary TLB invalidations if this affects an
+    /// active address space.
+    #[inline]
+    pub const fn set_zero(&mut self, i: L1Index) {
+        self.set(i, PtEntry::zero());
+    }
+
     /// Derive the PT index from a virtual address.
     #[inline]
     #[must_use]

@@ -24,7 +24,7 @@ use crate::uefi_mmap::exit_boot_services;
 use alloc::boxed::Box;
 use kernel_info::boot::{KernelBootInfo, MemoryMapInfo};
 use kernel_qemu::qemu_trace;
-use kernel_vmem::{MemoryAddress, PhysAddr, VirtAddr};
+use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
 use uefi::boot::PAGE_SIZE;
 use uefi::cstr16;
 use uefi::prelude::*;
@@ -100,7 +100,7 @@ fn efi_main() -> Status {
 
     // The trampoline code must also be mapped, otherwise we won't be able to execute it
     // when switching the CR3 page tables.
-    let tramp_code_va = VirtAddr::from_u64(switch_to_kernel as usize as u64);
+    let tramp_code_va = VirtualAddress::new(switch_to_kernel as usize as u64);
     let tramp_code_len: usize = PAGE_SIZE; // should be enough
 
     // Allocate a trampoline stack (with guard page)
@@ -108,9 +108,7 @@ fn efi_main() -> Status {
         alloc_trampoline_stack(TRAMPOLINE_STACK_SIZE_BYTES, true);
 
     // Pass identity-mapped low pointer
-    let bi_ptr_va = VirtAddr::new(MemoryAddress::from_ptr(
-        core::ptr::from_ref::<KernelBootInfo>(boot_info).cast(),
-    ));
+    let bi_ptr_va = VirtualAddress::from_ptr(core::ptr::from_ref::<KernelBootInfo>(boot_info));
 
     // Build page tables
     let Ok(pml4_phys) = create_kernel_pagetables(
@@ -185,10 +183,10 @@ unsafe fn enable_wp_nxe_pge() {
     }
 }
 
-type PageTablePhysicalAddress = PhysAddr;
-type KernelVirtualAddress = VirtAddr;
-type BootInfoVirtualAddress = VirtAddr;
-type TrampolineStackVirtualAddress = VirtAddr;
+type PageTablePhysicalAddress = PhysicalAddress;
+type KernelVirtualAddress = VirtualAddress;
+type BootInfoVirtualAddress = VirtualAddress;
+type TrampolineStackVirtualAddress = VirtualAddress;
 
 /// Enter the kernel via a tiny trampoline.
 /// - `new_cr3`: phys addr of PML4 (4KiB aligned)

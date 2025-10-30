@@ -1,219 +1,253 @@
-//! # Virtual Memory Setup for Kernel loading
-
-#![allow(clippy::inline_always)]
+//! # Virtual Memory Setup for Kernel loading (new typed API)
 
 use crate::elf::loader::LoadedSegMap;
 use crate::elf::{PF_W, PF_X};
-use kernel_info::memory::{HHDM_BASE, KERNEL_BASE, PHYS_LOAD};
+use kernel_info::memory::{HHDM_BASE /*KERNEL_BASE,*/ /*PHYS_LOAD*/};
+
 use kernel_vmem::{
-    AddressSpace, FrameAlloc, MemoryAddress, MemoryPageFlags, PageSize, PageTable, PhysAddr,
-    PhysMapper, VirtAddr, align_down, align_up, is_aligned,
+    AddressSpace, FrameAlloc, PageEntryBits, PhysMapper,
+    addresses::{PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress},
 };
+
+use kernel_vmem::address_space::AddressSpaceMapOneError;
+use kernel_vmem::addresses::PageSize;
 use uefi::boot;
 use uefi::boot::{AllocateType, MemoryType};
 
-const PAGE_4K: u64 = 4 * 1024;
-const PAGE_2M: u64 = 2 * 1024 * 1024;
-const PAGE_1G: u64 = 1024 * 1024 * 1024;
+#[inline]
+const fn align_up_u64(x: u64, a: u64) -> u64 {
+    (x + (a - 1)) & !(a - 1)
+}
 
-const PAGE_4K_MASK: u64 = PAGE_4K - 1;
-const PAGE_2M_MASK: u64 = PAGE_2M - 1;
-const PAGE_1G_MASK: u64 = PAGE_1G - 1;
-
+/// UEFI-backed frame allocator: hands out zeroed 4 KiB frames.
 struct BsFrameAlloc;
 
 impl FrameAlloc for BsFrameAlloc {
-    fn alloc_4k(&mut self) -> Option<PhysAddr> {
+    fn alloc_4k(&mut self) -> Option<PhysicalPage<Size4K>> {
         let pages = 1usize;
         let mem_type = MemoryType::LOADER_DATA;
         let ptr = boot::allocate_pages(AllocateType::AnyPages, mem_type, pages).ok()?;
-        let pa = ptr.as_ptr() as u64;
-        // Zero the frame
+        // Zero the frame (UEFI gives physical RAM identity-mapped in loader)
         unsafe {
             core::ptr::write_bytes(ptr.as_ptr(), 0, 4096);
         }
-        Some(PhysAddr::new(MemoryAddress::new(pa)))
+        let pa = PhysicalAddress::from_nonnull(ptr);
+        Some(PhysicalPage::<Size4K>::from_addr(pa))
     }
 
-    fn free_4k(&mut self, pa: PhysAddr) {
-        // SAFETY: The address must be a page allocated by UEFI allocate_pages.
-        // Convert the address to NonNull<u8> as required by free_pages
-        if let Some(ptr) = core::ptr::NonNull::new(pa.as_u64() as *mut u8) {
-            // Ignore errors: freeing a page that wasn't allocated is UB anyway.
-            let _ = unsafe { boot::free_pages(ptr, 1) };
+    fn free_4k(&mut self, pa: PhysicalPage<Size4K>) {
+        if let Some(nn) = core::ptr::NonNull::new(pa.base().as_u64() as *mut u8) {
+            let _ = unsafe { boot::free_pages(nn, 1) };
         }
     }
 }
 
+/// Loader mapper: treat low physical memory frames as directly accessible.
+/// Safety: valid only in the UEFI loader context where those frames are mapped.
 struct LoaderPhysMapper;
 
 impl PhysMapper for LoaderPhysMapper {
-    unsafe fn phys_to_mut<'a, T>(&self, pa: PhysAddr) -> &'a mut T {
-        // In the loader we *temporarily* assume identity for page-table frames we allocate.
-        // (They’re in low memory and UEFI page tables map them.)
-        unsafe { &mut *(pa.as_u64() as *mut T) }
+    unsafe fn phys_to_mut<T>(&self, at: PhysicalAddress) -> &mut T {
+        unsafe { &mut *(at.as_u64() as *mut T) }
     }
 }
 
-/// Derive physical for a kernel VMA per your linker `AT()`
-#[inline(always)]
-const fn kernel_va_to_pa(va: VirtAddr) -> PhysAddr {
-    PhysAddr::new(MemoryAddress::new(PHYS_LOAD + (va.as_u64() - KERNEL_BASE)))
-}
-
-/// The physical address of the Page-Map Level-4 Table (PML4).
-type Pml4Phys = PhysAddr;
-
-#[inline(always)]
-const fn can_use_2m(va: VirtAddr, pa: PhysAddr, remaining: u64) -> bool {
-    is_aligned(va.as_addr(), PAGE_2M) && is_aligned(pa.as_addr(), PAGE_2M) && remaining >= PAGE_2M
-}
-
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::similar_names
+)]
 pub fn create_kernel_pagetables(
     kernel_maps: &[LoadedSegMap],
-    tramp_code_va: VirtAddr,
+    tramp_code_va: VirtualAddress,
     tramp_code_len: usize,
-    tramp_stack_base_phys: PhysAddr,
+    tramp_stack_base_phys: PhysicalAddress,
     tramp_stack_size_bytes: usize,
-    boot_info_ptr_va: VirtAddr,
-) -> Result<Pml4Phys, &'static str> {
+    boot_info_ptr_va: VirtualAddress,
+) -> Result<PhysicalAddress, KernelPageTableError> {
     let mapper = LoaderPhysMapper;
     let mut alloc = BsFrameAlloc;
 
-    // Create the root PML4 (Page-Map Level-4 Table)
-    let pml4_phys = alloc.alloc_4k().ok_or("OOM: PML4")?;
-    unsafe {
-        mapper.phys_to_mut::<PageTable>(pml4_phys).zero();
-    }
+    // Root PML4
+    let pml4_phys = alloc
+        .alloc_4k()
+        .ok_or(KernelPageTableError::OutOfMemoryPml4)?;
+    mapper.zero_pml4(pml4_phys);
 
-    let aspace = AddressSpace::new(&mapper, pml4_phys);
+    let aspace = AddressSpace::from_root(&mapper, pml4_phys);
+    let pml4_phys = aspace.root_page().base();
 
-    // Map each loaded segment using (phys_page + (va - vaddr_page))
+    // Common flags
+    // Non-leaf: present + writable (no NX on non-leaves)
+    let nonleaf_flags: PageEntryBits = PageEntryBits::new().with_present(true).with_writable(true);
+
+    // Map each PT_LOAD segment
     for m in kernel_maps {
-        let mut va = m.vaddr_page;
-        let end = m.vaddr_page.as_u64() + m.map_len;
+        let mut cur_va = m.vaddr_page.base(); // VirtualAddress (page-aligned)
+        let end_u64 = m
+            .vaddr_page
+            .base()
+            .as_u64()
+            .checked_add(m.map_len)
+            .ok_or(KernelPageTableError::SegmentLengthOverflow)?;
 
-        let mut flags = MemoryPageFlags::GLOBAL;
-        if (m.flags & PF_W) != 0 {
-            flags |= MemoryPageFlags::WRITABLE;
-        }
-        if (m.flags & PF_X) == 0 {
-            flags |= MemoryPageFlags::NX;
-        } // leave NX *clear* iff PF_X set
+        while cur_va.as_u64() < end_u64 {
+            // Compute PA = phys_page.base + (cur_va - vaddr_page.base)
+            let off = cur_va.as_u64() - m.vaddr_page.base().as_u64();
+            let cur_pa = PhysicalAddress::new(m.phys_page.base().as_u64() + off);
 
-        while va.as_u64() < end {
-            let off = va - m.vaddr_page;
-            let pa = m.phys_page.as_u64() + off;
+            // Leaf flags from ELF PF_*:
+            // start with present + global; add writable if PF_W; add NX if !PF_X
+            let mut leaf_flags = PageEntryBits::new()
+                .with_present(true)
+                .with_global_translation(true);
+            if (m.flags & PF_W) != 0 {
+                leaf_flags.set_writable(true);
+            }
+            if (m.flags & PF_X) == 0 {
+                leaf_flags.set_no_execute(true);
+            }
+            // If using bitfield_struct-style setters instead, build with:
+            // let leaf_flags = PageEntryBits::new()
+            //     .with_present(true)
+            //     .with_global(true)
+            //     .with_writable((m.flags & PF_W) != 0)
+            //     .with_nx((m.flags & PF_X) == 0);
 
-            let can2m = (va.as_u64() & (PAGE_2M - 1) == 0)
-                && (pa & (PAGE_2M - 1) == 0)
-                && (end - va.as_u64()) >= PAGE_2M;
+            // Try 2 MiB leaf where legal
+            let remaining = end_u64 - cur_va.as_u64();
+            let can_2m = (cur_va.as_u64() & (Size2M::SIZE - 1) == 0)
+                && (cur_pa.as_u64() & (Size2M::SIZE - 1) == 0)
+                && remaining >= Size2M::SIZE;
 
-            if can2m {
-                aspace.map_one(
+            if can_2m {
+                aspace.map_one::<_, Size2M>(
                     &mut alloc,
-                    VirtAddr::new(va),
-                    PhysAddr::from_u64(pa),
-                    PageSize::Size2M,
-                    flags,
+                    cur_va,
+                    cur_pa,
+                    nonleaf_flags,
+                    leaf_flags,
                 )?;
-                va += PAGE_2M;
+                cur_va = VirtualAddress::new(cur_va.as_u64() + Size2M::SIZE);
             } else {
-                aspace.map_one(
+                aspace.map_one::<_, Size4K>(
                     &mut alloc,
-                    VirtAddr::new(va),
-                    PhysAddr::from_u64(pa),
-                    PageSize::Size4K,
-                    flags,
+                    cur_va,
+                    cur_pa,
+                    nonleaf_flags,
+                    leaf_flags,
                 )?;
-                va += PAGE_4K;
+                cur_va = VirtualAddress::new(cur_va.as_u64() + Size4K::SIZE);
             }
         }
     }
 
-    // HHDM: map first 1 GiB of physical memory (easy bring-up)
-    // VA = HHDM_BASE, PA = 0
-    aspace.map_one(
-        &mut alloc,
-        VirtAddr::from_u64(HHDM_BASE),
-        PhysAddr::from_u64(0),
-        PageSize::Size1G,
-        MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL | MemoryPageFlags::NX,
-    )?;
-
-    // Identity map first 2 MiB so that the trampoline continues executing after CR3.
-    // Mark executable (no NX) because control resumes at the current low VA after mov cr3.
-    aspace.map_one(
-        &mut alloc,
-        VirtAddr::from_u64(0),
-        PhysAddr::from_u64(0),
-        PageSize::Size2M,
-        MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL,
-    )?;
-
-    // Identity map the trampoline stack (4 KiB leaves)
+    // HHDM: map first 1 GiB VA = HHDM_BASE → PA = 0, NX + writable + global
     {
-        let start = align_down(tramp_stack_base_phys.as_addr(), PAGE_4K);
-        let end = align_up(
+        let hhdm_va = VirtualAddress::new(HHDM_BASE);
+        let zero_pa = PhysicalAddress::new(0);
+        let leaf = PageEntryBits::new()
+            .with_present(true)
+            .with_writable(true)
+            .with_global_translation(true)
+            .with_no_execute(true);
+        aspace.map_one::<_, Size1G>(&mut alloc, hhdm_va, zero_pa, nonleaf_flags, leaf)?;
+    }
+
+    // Identity map first 2 MiB of low VA so the trampoline keeps executing after mov cr3.
+    // Executable (i.e., NX not set), global, writable.
+    {
+        let va0 = VirtualAddress::new(0);
+        let pa0 = PhysicalAddress::new(0);
+        let leaf = PageEntryBits::new()
+            .with_present(true)
+            .with_writable(true)
+            .with_global_translation(true);
+        aspace.map_one::<_, Size2M>(&mut alloc, va0, pa0, nonleaf_flags, leaf)?;
+    }
+
+    // Identity map the trampoline stack (4 KiB, NX)
+    {
+        let start = tramp_stack_base_phys.as_u64() & !(Size4K::SIZE - 1);
+        let end = align_up_u64(
             tramp_stack_base_phys
                 .as_u64()
                 .checked_add(tramp_stack_size_bytes as u64)
-                .ok_or("stack range overflow")?
-                .into(),
-            PAGE_4K,
+                .ok_or(KernelPageTableError::TrampolineStackRangeOverflow)?,
+            Size4K::SIZE,
         );
+        let leaf = PageEntryBits::new()
+            .with_present(true)
+            .with_writable(true)
+            .with_global_translation(true)
+            .with_no_execute(true);
 
         let mut pa = start;
         while pa < end {
-            // Identity: VA == PA
-            aspace.map_one(
-                &mut alloc,
-                VirtAddr::new(pa),
-                PhysAddr::new(pa),
-                PageSize::Size4K,
-                MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL | MemoryPageFlags::NX,
-            )?;
-            pa += PAGE_4K;
+            let va = VirtualAddress::new(pa); // identity
+            let phys = PhysicalAddress::new(pa);
+            aspace.map_one::<_, Size4K>(&mut alloc, va, phys, nonleaf_flags, leaf)?;
+            pa += Size4K::SIZE;
         }
     }
 
-    // Identity map the trampoline code
+    // Identity map the trampoline code (4 KiB, executable)
     {
-        let start = align_down(tramp_code_va.as_addr(), PAGE_4K);
-        let end = align_up(
+        let start = tramp_code_va.page::<Size4K>().base().as_u64();
+        let end = align_up_u64(
             tramp_code_va
                 .as_u64()
                 .checked_add(tramp_code_len as u64)
-                .ok_or("tramp code overflow")?
-                .into(),
-            PAGE_4K,
+                .ok_or(KernelPageTableError::TrampolineCodeRangeOverflow)?,
+            Size4K::SIZE,
         );
-        let mut pa = start;
-        while pa < end {
-            aspace.map_one(
-                &mut alloc,
-                VirtAddr(pa), // identity
-                PhysAddr(pa),
-                PageSize::Size4K,
-                // Executable! keep NX clear; writable not needed:
-                MemoryPageFlags::GLOBAL,
-            )?;
-            pa += PAGE_4K;
+        let leaf = PageEntryBits::new()
+            .with_present(true)
+            .with_global_translation(true)
+            .with_no_execute(false) // executable (no NX)
+            .with_writable(false);
+
+        let mut addr = start;
+        while addr < end {
+            let va = VirtualAddress::new(addr);
+            let pa = PhysicalAddress::new(addr); // identity
+            aspace.map_one::<_, Size4K>(&mut alloc, va, pa, nonleaf_flags, leaf)?;
+            addr += Size4K::SIZE;
         }
     }
 
-    // Identity map just the BootInfo pointer page (NX)
+    // Identity map just the BootInfo pointer page (4 KiB, NX)
     {
-        let bi_page = align_down(boot_info_ptr_va.as_addr(), PAGE_4K);
-        aspace.map_one(
+        let bi_page = boot_info_ptr_va.page::<Size4K>().base();
+        let leaf = PageEntryBits::new()
+            .with_present(true)
+            .with_writable(true)
+            .with_global_translation(true)
+            .with_no_execute(true);
+        aspace.map_one::<_, Size4K>(
             &mut alloc,
-            VirtAddr::new(bi_page),
-            PhysAddr::new(bi_page),
-            PageSize::Size4K,
-            MemoryPageFlags::WRITABLE | MemoryPageFlags::GLOBAL | MemoryPageFlags::NX,
+            bi_page,
+            PhysicalAddress::new(bi_page.as_u64()),
+            nonleaf_flags,
+            leaf,
         )?;
     }
 
     Ok(pml4_phys)
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum KernelPageTableError {
+    #[error("out of memory in PML4")]
+    OutOfMemoryPml4,
+    #[error("PT_LOAD segment length overflow")]
+    SegmentLengthOverflow,
+    /// Address arithmetic overflow while mapping trampoline stack memory range.
+    #[error("stack range overflow")]
+    TrampolineStackRangeOverflow,
+    /// Address arithmetic overflow while mapping trampoline code memory range.
+    #[error("trampoline code overflow")]
+    TrampolineCodeRangeOverflow,
+    #[error(transparent)]
+    OutOfMemoryPageTable(#[from] AddressSpaceMapOneError),
 }

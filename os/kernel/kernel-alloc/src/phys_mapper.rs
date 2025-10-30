@@ -19,13 +19,12 @@
 //!
 //! ## Example
 //! ```rust,no_run
-//! use kernel_vmem::{PhysAddr, PageTable, PhysMapper};
+//! use kernel_vmem::{addresses::PhysicalAddress, page_table::pt::PageTable, PhysMapper};
 //! use kernel_alloc::phys_mapper::HhdmPhysMapper;
-//! let phys = PhysAddr::from_u64(0x1234_0000);
+//! let phys = PhysicalAddress::new(0x1234_0000);
 //! let mapper = HhdmPhysMapper;
 //! unsafe {
 //!     let table: &mut PageTable = mapper.phys_to_mut(phys);
-//!     table.zero();
 //! }
 //! ```
 //!
@@ -34,7 +33,8 @@
 //! - Your kernel's memory layout and HHDM configuration
 
 use kernel_info::memory::HHDM_BASE;
-use kernel_vmem::{PhysAddr, PhysMapper};
+use kernel_vmem::PhysMapper;
+use kernel_vmem::addresses::PhysicalAddress;
 
 /// [`PhysMapper`] implementation for kernels with a higher-half direct map (HHDM).
 ///
@@ -47,19 +47,18 @@ use kernel_vmem::{PhysAddr, PhysMapper};
 ///
 /// # Example
 /// ```rust,no_run
-/// use kernel_vmem::{PhysAddr, PageTable, PhysMapper};
+/// use kernel_vmem::{addresses::PhysicalAddress, page_table::pt::PageTable, PhysMapper};
 /// use kernel_alloc::phys_mapper::HhdmPhysMapper;
-/// let phys = PhysAddr::from_u64(0x1234_0000);
+/// let phys = PhysicalAddress::new(0x1234_0000);
 /// let mapper = HhdmPhysMapper;
 /// unsafe {
 ///     let table: &mut PageTable = mapper.phys_to_mut(phys);
-///     table.zero();
 /// }
 /// ```
 pub struct HhdmPhysMapper;
 
 impl PhysMapper for HhdmPhysMapper {
-    unsafe fn phys_to_mut<'a, T>(&self, pa: PhysAddr) -> &'a mut T {
+    unsafe fn phys_to_mut<T>(&self, pa: PhysicalAddress) -> &mut T {
         let va = (HHDM_BASE + pa.as_u64()) as *mut T;
         // SAFETY: Caller must ensure the physical address is valid and mapped via HHDM.
         unsafe { &mut *va }

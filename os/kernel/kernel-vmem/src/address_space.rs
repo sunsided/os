@@ -32,13 +32,14 @@
 mod map_size;
 
 pub use crate::address_space::map_size::MapSize;
+use crate::address_space::map_size::MapSizeEnsureChainError;
 use crate::addresses::{
-    MemoryAddressOffset, PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress,
+    PageSize, PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress,
 };
-use crate::page_table::pd::{PageDirectory, PdEntryKind};
-use crate::page_table::pdpt::{PageDirectoryPointerTable, PdptEntryKind};
-use crate::page_table::pml4::PageMapLevel4;
-use crate::page_table::pt::{PageTable, PtEntry};
+use crate::page_table::pd::{L2Index, PageDirectory, PdEntry, PdEntryKind};
+use crate::page_table::pdpt::{L3Index, PageDirectoryPointerTable, PdptEntry, PdptEntryKind};
+use crate::page_table::pml4::{L4Index, PageMapLevel4, Pml4Entry};
+use crate::page_table::pt::{L1Index, PageTable, PtEntry};
 use crate::{FrameAlloc, PageEntryBits, PhysMapper, read_cr3_phys};
 
 /// Handle to a single, concrete address space.
@@ -86,8 +87,274 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
 
     /// Physical page of the PML4.
     #[inline]
+    #[must_use]
     pub const fn root_page(&self) -> RootPage {
         self.root
+    }
+
+    /// Borrow a [`PageTable`] (PT) in this frame.
+    ///
+    /// Convenience wrapper for [`PhysMapper::pt_mut`.
+    #[inline]
+    pub(crate) fn pt_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageTable {
+        self.mapper.pt_mut(page)
+    }
+
+    /// Translate a `VirtualAddress` to `PhysicalAddress` if mapped.
+    ///
+    /// Handles 1 GiB and 2 MiB leaves by adding the appropriate **in-page offset**.
+    #[must_use]
+    pub fn query(&self, va: VirtualAddress) -> Option<PhysicalAddress> {
+        match self.walk(va) {
+            WalkResult::Leaf1G { base, .. } => {
+                let off = va.offset::<Size1G>();
+                Some(base.join(off))
+            }
+            WalkResult::Leaf2M { base, .. } => {
+                let off = va.offset::<Size2M>();
+                Some(base.join(off))
+            }
+            WalkResult::L1 { pte, .. } => {
+                let (base4k, _fl) = pte.page_4k()?;
+                let off = va.offset::<Size4K>();
+                Some(base4k.join(off))
+            }
+            WalkResult::Missing => None,
+        }
+    }
+
+    /// Map **one** page at `va → pa` with size `S` and `leaf_flags`.
+    ///
+    /// - Non-leaf links are created with `nonleaf_flags` (e.g., present+writable).
+    /// - Alignment is asserted (debug) via typed wrappers.
+    ///
+    /// # Errors
+    /// - An Out of Memory error occurred in one of the tables.
+    pub fn map_one<A: FrameAlloc, S: MapSize>(
+        &self,
+        alloc: &mut A,
+        va: VirtualAddress,
+        pa: PhysicalAddress,
+        nonleaf_flags: PageEntryBits,
+        leaf_flags: PageEntryBits,
+    ) -> Result<(), AddressSpaceMapOneError> {
+        debug_assert_eq!(pa.offset::<S>().as_u64(), 0, "physical address not aligned");
+
+        let leaf_tbl = S::ensure_chain_for(self, alloc, va, nonleaf_flags)?;
+        S::set_leaf(self, leaf_tbl, va, pa, leaf_flags);
+        Ok(())
+    }
+
+    /// Unmap a single **4 KiB** page at `va`. Returns Err if missing.
+    ///
+    /// # Errors
+    /// - Invalid tables
+    // TODO: Refactor to error type
+    pub fn unmap_one(&self, va: VirtualAddress) -> Result<(), &'static str> {
+        match self.walk(va) {
+            WalkResult::L1 { pt, i1, pte } => {
+                if !pte.is_present() {
+                    return Err("missing: pte");
+                }
+                pt.set_zero(i1);
+                Ok(())
+            }
+            WalkResult::Leaf2M { .. } => Err("found 2MiB leaf (not a 4KiB mapping)"),
+            WalkResult::Leaf1G { .. } => Err("found 1GiB leaf (not a 4KiB mapping)"),
+            WalkResult::Missing => Err("missing: chain"),
+        }
+    }
+
+    /// Greedy region mapping: tiles `[virt_start .. virt_start+len)` onto
+    /// `[phys_start .. phys_start+len)` using 1G / 2M / 4K pages as alignment permits.
+    ///
+    /// - Non-leaf links use `nonleaf_flags` (e.g. present|writable).
+    /// - Leaves use `leaf_flags` (e.g. perms, NX, GLOBAL).
+    ///
+    /// # Errors
+    /// - Propagates OOMs from intermediate table allocation.
+    pub fn map_region<A: FrameAlloc>(
+        &self,
+        alloc: &mut A,
+        virt_start: VirtualAddress,
+        phys_start: PhysicalAddress,
+        len: u64,
+        nonleaf_flags: PageEntryBits,
+        leaf_flags: PageEntryBits,
+    ) -> Result<(), AddressSpaceMapRegionError> {
+        let mut off = 0u64;
+        while off < len {
+            let va = VirtualAddress::new(virt_start.as_u64() + off);
+            let pa = PhysicalAddress::new(phys_start.as_u64() + off);
+            let remain = len - off;
+
+            // Try 1 GiB
+            if (va.as_u64() & (Size1G::SIZE - 1) == 0)
+                && (pa.as_u64() & (Size1G::SIZE - 1) == 0)
+                && remain >= Size1G::SIZE
+            {
+                self.map_one::<A, Size1G>(alloc, va, pa, nonleaf_flags, leaf_flags)?;
+                off += Size1G::SIZE;
+                continue;
+            }
+
+            // Try 2 MiB
+            if (va.as_u64() & (Size2M::SIZE - 1) == 0)
+                && (pa.as_u64() & (Size2M::SIZE - 1) == 0)
+                && remain >= Size2M::SIZE
+            {
+                self.map_one::<A, Size2M>(alloc, va, pa, nonleaf_flags, leaf_flags)?;
+                off += Size2M::SIZE;
+                continue;
+            }
+
+            // Fall back to 4 KiB
+            if (va.as_u64() & (Size4K::SIZE - 1) == 0) && (pa.as_u64() & (Size4K::SIZE - 1) == 0) {
+                self.map_one::<A, Size4K>(alloc, va, pa, nonleaf_flags, leaf_flags)?;
+                off += Size4K::SIZE;
+                continue;
+            }
+
+            return Err(AddressSpaceMapRegionError::Unaligned(va, pa));
+        }
+        Ok(())
+    }
+
+    /// Greedy unmap of a region: clears whole 1G/2M leaves when aligned, otherwise 4K PTEs.
+    /// (Does not collapse tables; that's a separate optimization pass.)
+    pub fn unmap_region(&self, virt_start: VirtualAddress, len: u64) {
+        let mut off = 0u64;
+        while off < len {
+            let va = VirtualAddress::new(virt_start.as_u64() + off);
+            match self.walk(va) {
+                WalkResult::Leaf1G { pdpt, i3, .. }
+                    if (va.as_u64() & (Size1G::SIZE - 1) == 0) && (len - off) >= Size1G::SIZE =>
+                {
+                    // Clear the PDPTE
+                    pdpt.set_zero(i3);
+                    off += Size1G::SIZE;
+                }
+                WalkResult::Leaf2M { pd, i2, .. }
+                    if (va.as_u64() & (Size2M::SIZE - 1) == 0) && (len - off) >= Size2M::SIZE =>
+                {
+                    // Clear the PDE
+                    pd.set_zero(i2);
+                    off += Size2M::SIZE;
+                }
+                WalkResult::L1 { pt, i1, pte } => {
+                    if pte.is_present() {
+                        pt.set_zero(i1);
+                    }
+                    off += Size4K::SIZE;
+                }
+                // Missing entry: treat as unmapped 4K and advance to avoid infinite loop,
+                // or
+                // Leaf size larger than remaining or unaligned start: fall back to 4K step.
+                _ => off += Size4K::SIZE,
+            }
+        }
+    }
+
+    /// Walks the whole tree and frees empty tables (PT/PD/PDPT). Does not merge leaves.
+    #[allow(clippy::similar_names)]
+    pub fn collapse_empty_tables<F: FrameAlloc>(&self, free: &mut F) {
+        let pml4 = self.pml4_mut();
+
+        // For every L4 entry:
+        for i4 in 0..512 {
+            let e4 = pml4.get(L4Index::new(i4));
+            let Some(pdpt_page) = e4.next_table() else {
+                continue;
+            };
+            let pdpt = self.pdpt_mut(pdpt_page);
+
+            // For every L3 entry:
+            let mut used_l3 = false;
+            for i3 in 0..512 {
+                match pdpt.get(L3Index::new(i3)).kind() {
+                    Some(PdptEntryKind::Leaf1GiB(_, _)) => {
+                        used_l3 = true;
+                    }
+                    Some(PdptEntryKind::NextPageDirectory(pd_page, _)) => {
+                        let pd = self.pd_mut(pd_page);
+                        // For every L2 entry:
+                        let mut used_l2 = false;
+                        for i2 in 0..512 {
+                            match pd.get(L2Index::new(i2)).kind() {
+                                Some(PdEntryKind::Leaf2MiB(_, _)) => {
+                                    used_l2 = true;
+                                }
+                                Some(PdEntryKind::NextPageTable(pt_page, _)) => {
+                                    let pt = self.pt_mut(pt_page);
+                                    let mut any_present = false;
+                                    for i1 in 0..512 {
+                                        if pt.get(L1Index::new(i1)).is_present() {
+                                            any_present = true;
+                                            break;
+                                        }
+                                    }
+                                    if any_present {
+                                        used_l2 = true;
+                                    } else {
+                                        // free PT
+                                        pd.set(L2Index::new(i2), PdEntry::zero());
+                                        free.free_4k(pt_page);
+                                    }
+                                }
+                                None => {}
+                            }
+                        }
+                        // If PD ended up empty (no leaves / no child PTs left), free it.
+                        if used_l2 {
+                            used_l3 = true;
+                        } else {
+                            pdpt.set(L3Index::new(i3), PdptEntry::zero());
+                            free.free_4k(pd_page);
+                        }
+                    }
+                    None => {}
+                }
+            }
+
+            // If PDPT is now empty, free it.
+            if !used_l3 {
+                pml4.set(L4Index::new(i4), Pml4Entry::zero());
+                free.free_4k(pdpt_page);
+            }
+        }
+    }
+
+    /// Internal walker: resolves VA to the point it terminates.
+    #[allow(clippy::similar_names)]
+    fn walk(&self, va: VirtualAddress) -> WalkResult<'_> {
+        let (i4, i3, i2, i1) = crate::page_table::split_indices(va);
+
+        // PML4
+        let pml4 = self.pml4_mut();
+        let Some(pdpt_page) = pml4.get(i4).next_table() else {
+            return WalkResult::Missing;
+        };
+
+        // PDPT
+        let pdpt = self.pdpt_mut(pdpt_page);
+        match pdpt.get(i3).kind() {
+            Some(PdptEntryKind::Leaf1GiB(base, _fl)) => WalkResult::Leaf1G { base, pdpt, i3 },
+            Some(PdptEntryKind::NextPageDirectory(pd_page, _fl)) => {
+                // PD
+                let pd = self.pd_mut(pd_page);
+                match pd.get(i2).kind() {
+                    Some(PdEntryKind::Leaf2MiB(base, _fl)) => WalkResult::Leaf2M { base, pd, i2 },
+                    Some(PdEntryKind::NextPageTable(pt_page, _fl)) => {
+                        // PT
+                        let pt = self.pt_mut(pt_page);
+                        let pte = pt.get(i1);
+                        WalkResult::L1 { pt, i1, pte }
+                    }
+                    None => WalkResult::Missing,
+                }
+            }
+            None => WalkResult::Missing,
+        }
     }
 
     /// Borrow the [`PageMapLevel4`] (PML4) as a typed table.
@@ -114,107 +381,51 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
         self.mapper.pd_mut(page)
     }
 
-    /// Borrow a [`PageTable`] (PT) in this frame.
+    /// Zeroes the [`PageDirectoryPointerTable`] (PDPT) in this frame
     ///
-    /// Convenience wrapper for [`PhysMapper::pt_mut`.
+    /// Convenience wrapper for [`PhysMapper::zero_pdpt`].
     #[inline]
-    pub(crate) fn pt_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageTable {
-        self.mapper.pt_mut(page)
+    pub(crate) fn zero_pdpt(&self, page: PhysicalPage<Size4K>) {
+        self.mapper.zero_pdpt(page);
     }
 
-    /// Map **one** page at `va → pa` with size `S` and `leaf_flags`.
+    /// Zeroes the [`PageDirectory`] (PD) in this frame
     ///
-    /// - Non-leaf links are created with `nonleaf_flags` (e.g., present+writable).
-    /// - Alignment is asserted (debug) via typed wrappers.
-    ///
-    /// # Errors
-    /// - Propagates allocation failures from [`ensure_chain`](Self::ensure_chain).
-    pub fn map_one<A: FrameAlloc, S: MapSize>(
-        &self,
-        alloc: &mut A,
-        va: VirtualAddress,
-        pa: PhysicalAddress,
-        nonleaf_flags: PageEntryBits,
-        leaf_flags: PageEntryBits,
-    ) -> Result<(), &'static str> {
-        debug_assert_eq!(pa.offset::<S>().as_u64(), 0, "physical address not aligned");
-
-        let leaf_tbl = S::ensure_chain_for(self, alloc, va, nonleaf_flags)?;
-        S::set_leaf(self, leaf_tbl, va, pa, leaf_flags);
-        Ok(())
+    /// Convenience wrapper for [`PhysMapper::zero_pd`].
+    #[inline]
+    pub(crate) fn zero_pd(&self, page: PhysicalPage<Size4K>) {
+        self.mapper.zero_pd(page);
     }
 
-    /// Unmap a single **4 KiB** page at `va`. Returns Err if missing.
-    pub fn unmap_one(&self, va: VirtualAddress) -> Result<(), &'static str> {
-        let (i4, i3, i2, i1) = crate::page_table::split_indices(va);
-
-        // PML4
-        let pml4 = self.pml4_mut();
-        let e4 = pml4.get(i4);
-        let Some(pdpt_page) = e4.next_table() else {
-            return Err("missing: pml4");
-        };
-
-        // PDPT
-        let pdpt = self.pdpt_mut(pdpt_page);
-        let e3 = pdpt.get(i3);
-        let Some(PdptEntryKind::NextPageDirectory(pd_page, _)) = e3.kind() else {
-            return Err("missing: pdpt (or 1GiB leaf)");
-        };
-
-        // PD
-        let pd = self.pd_mut(pd_page);
-        let e2 = pd.get(i2);
-        let Some(PdEntryKind::NextPageTable(pt_page, _)) = e2.kind() else {
-            return Err("missing: pd (or 2MiB leaf)");
-        };
-
-        // PT
-        let pt = self.pt_mut(pt_page);
-        let e1 = pt.get(i1);
-        if !e1.is_present() {
-            return Err("missing: pte");
-        }
-        pt.set(i1, PtEntry::zero());
-        Ok(())
-    }
-
-    /// Translate a `VirtualAddress` to `PhysicalAddress` if mapped.
+    /// Zeroes the [`PageTable`] (PD) in this frame
     ///
-    /// Handles 1 GiB and 2 MiB leaves by adding the appropriate **in-page offset**.
-    #[must_use]
-    pub fn query(&self, va: VirtualAddress) -> Option<PhysicalAddress> {
-        let (i4, i3, i2, i1) = crate::page_table::split_indices(va);
+    /// Convenience wrapper for [`PhysMapper::zero_pt`].
+    #[inline]
+    pub(crate) fn zero_pt(&self, page: PhysicalPage<Size4K>) {
+        self.mapper.zero_pt(page);
+    }
+}
 
-        // PML4
-        let pml4 = self.pml4_mut();
-        let e4 = pml4.get(i4);
-        let pdpt_page = e4.next_table()?;
+/// A mapping error.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum AddressSpaceMapOneError {
+    #[error(transparent)]
+    OutOfMemory(#[from] MapSizeEnsureChainError),
+}
 
-        // PDPT
-        let pdpt = self.pdpt_mut(pdpt_page);
-        match pdpt.get(i3).kind()? {
-            PdptEntryKind::Leaf1GiB(base, _) => {
-                let off: MemoryAddressOffset<Size1G> = va.offset::<Size1G>();
-                Some(base.join(off))
-            }
-            PdptEntryKind::NextPageDirectory(pd_page, _) => {
-                // continue
-                let pd = self.pd_mut(pd_page);
-                match pd.get(i2).kind()? {
-                    PdEntryKind::Leaf2MiB(base, _) => {
-                        let off: MemoryAddressOffset<Size2M> = va.offset::<Size2M>();
-                        Some(base.join(off))
-                    }
-                    PdEntryKind::NextPageTable(pt_page, _) => {
-                        let pt = self.pt_mut(pt_page);
-                        let e1 = pt.get(i1);
-                        let (base4k, _) = e1.page_4k()?;
-                        let off: MemoryAddressOffset<Size4K> = va.offset::<Size4K>();
-                        Some(base4k.join(off))
-                    }
-                }
-            }
+/// A mapping error.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum AddressSpaceMapRegionError {
+    #[error(transparent)]
+    OutOfMemory(#[from] MapSizeEnsureChainError),
+    #[error("unaligned va/pa for remaining size: {0:?} -> {1:?}")]
+    Unaligned(VirtualAddress, PhysicalAddress),
+}
+
+impl From<AddressSpaceMapOneError> for AddressSpaceMapRegionError {
+    fn from(e: AddressSpaceMapOneError) -> Self {
+        match e {
+            AddressSpaceMapOneError::OutOfMemory(e) => Self::OutOfMemory(e),
         }
     }
 }
@@ -228,4 +439,29 @@ pub enum EnsureTarget {
     L2For2M,
     /// You will write a **PTE** (4 KiB leaf).
     L1For4K,
+}
+
+/// The result of a table walk.
+#[allow(dead_code)]
+enum WalkResult<'a> {
+    /// Hit a 1 GiB leaf at PDPT.
+    Leaf1G {
+        base: PhysicalPage<Size1G>,
+        pdpt: &'a mut PageDirectoryPointerTable,
+        i3: L3Index,
+    },
+    /// Hit a 2 MiB leaf at PD.
+    Leaf2M {
+        base: PhysicalPage<Size2M>,
+        pd: &'a mut PageDirectory,
+        i2: L2Index,
+    },
+    /// Reached PT (L1) with its index and current entry.
+    L1 {
+        pt: &'a mut PageTable,
+        i1: L1Index,
+        pte: PtEntry,
+    },
+    /// Missing somewhere in the chain.
+    Missing,
 }

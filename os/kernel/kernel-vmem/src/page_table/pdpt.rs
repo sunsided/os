@@ -211,6 +211,15 @@ impl PageDirectoryPointerTable {
         self.entries[i.as_usize()] = e;
     }
 
+    /// Set the entry at `i` to [`PdptEntry::zero`].
+    ///
+    /// Caller is responsible for necessary TLB invalidations if this affects an
+    /// active address space.
+    #[inline]
+    pub const fn set_zero(&mut self, i: L3Index) {
+        self.set(i, PdptEntry::zero());
+    }
+
     /// Derive the PDPT index from a virtual address.
     #[inline]
     #[must_use]

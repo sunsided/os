@@ -13,121 +13,45 @@
 //! // Map, unmap, query...
 //! ```
 
-use kernel_vmem::{
-    AddressSpace, FrameAlloc, MemoryPageFlags, PageSize, PhysAddr, PhysMapper, VirtAddr,
-};
+use kernel_vmem::address_space::AddressSpaceMapRegionError;
+use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
+use kernel_vmem::{AddressSpace, FrameAlloc, PageEntryBits, PhysMapper};
 
 /// Minimal kernel virtual memory manager.
-pub struct Vmm<'a, M: PhysMapper, F: FrameAlloc> {
-    aspace: AddressSpace<'a, M>,
-    /// The physical memory allocator.
-    ///
-    /// Not to be confused with the [`PhysMapper`].
-    pmm: &'a mut F,
+pub struct Vmm<'m, M: PhysMapper, A: FrameAlloc> {
+    aspace: AddressSpace<'m, M>,
+    alloc: &'m mut A,
 }
 
-impl<'a, M: PhysMapper, F: FrameAlloc> Vmm<'a, M, F> {
-    /// Create a new VMM for the given address space root (current CR3).
-    pub fn new(mapper: &'a M, pmm: &'a mut F) -> Self {
-        let cr3 = unsafe { kernel_vmem::read_cr3_phys() };
-        let aspace = AddressSpace::new(mapper, cr3);
-        Self { aspace, pmm }
+impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
+    /// # Safety
+    /// - Must run at CPL0 with paging enabled.
+    /// - Assumes CR3 points at a valid PML4 frame.
+    pub unsafe fn from_current(mapper: &'m M, alloc: &'m mut A) -> Self {
+        let aspace = unsafe { AddressSpace::from_current(mapper) };
+        Self { aspace, alloc }
     }
 
-    /// Query the physical address mapped to a virtual address.
-    #[must_use]
-    pub fn query(&self, va: VirtAddr) -> Option<PhysAddr> {
-        self.aspace.query(va)
-    }
-
-    /// Map a virtual address to a physical frame with the given flags and size.
-    #[allow(clippy::missing_errors_doc)]
-    pub fn map(
-        &mut self,
-        va: VirtAddr,
-        pa: PhysAddr,
-        size: PageSize,
-        flags: MemoryPageFlags,
-    ) -> Result<(), &'static str> {
-        self.aspace.map_one(self.pmm, va, pa, size, flags)
-    }
-
-    /// Unmap a virtual address (single page).
-    #[allow(clippy::missing_errors_doc)]
-    pub fn unmap(&mut self, va: VirtAddr) -> Result<(), &'static str> {
-        self.aspace.unmap_one(va)
-    }
-
-    /// Map a region of physical memory to a virtual address range using the largest possible pages.
-    /// Handles alignment and size automatically (2 MiB pages, then 4 KiB for head/tail).
-    #[allow(clippy::missing_errors_doc)]
+    /// # Errors
+    /// Allocation fails, e.g. due to OOM.
     pub fn map_region(
         &mut self,
-        virt_start: VirtAddr,
-        phys_start: PhysAddr,
-        size: u64,
-        flags: MemoryPageFlags,
-    ) -> Result<(), &'static str> {
-        let mut offset = 0u64;
-        let mut remaining = size;
-        while remaining > 0 {
-            let va = virt_start + offset;
-            let pa = phys_start + offset;
-            // Try 2 MiB page if both addrs and remaining are aligned
-            if (va.as_u64() & ((1 << 21) - 1) == 0)
-                && (pa.as_u64() & ((1 << 21) - 1) == 0)
-                && remaining >= 2 * 1024 * 1024
-            {
-                self.map(va, pa, PageSize::Size2M, flags)?;
-                offset += 2 * 1024 * 1024;
-                remaining -= 2 * 1024 * 1024;
-            } else if (va.as_u64() & ((1 << 12) - 1) == 0)
-                && (pa.as_u64() & ((1 << 12) - 1) == 0)
-                && remaining >= 4096
-            {
-                self.map(va, pa, PageSize::Size4K, flags)?;
-                offset += 4096;
-                remaining -= 4096;
-            } else {
-                return Err("Unaligned mapping or unsupported page size");
-            }
-        }
-        Ok(())
+        va: VirtualAddress,
+        pa: PhysicalAddress,
+        len: u64,
+        nonleaf: PageEntryBits,
+        leaf: PageEntryBits,
+    ) -> Result<(), AddressSpaceMapRegionError> {
+        self.aspace
+            .map_region(self.alloc, va, pa, len, nonleaf, leaf)
     }
 
-    /// Unmap a region of virtual memory using the largest possible pages.
-    /// Handles alignment and size automatically (2 MiB pages, then 4 KiB for head/tail).
-    #[allow(clippy::missing_errors_doc)]
-    pub fn unmap_region(
-        &mut self,
-        virt_start: VirtAddr,
-        phys_start: PhysAddr,
-        size: u64,
-    ) -> Result<(), &'static str> {
-        let mut offset = 0u64;
-        let mut remaining = size;
-        while remaining > 0 {
-            let va = virt_start + offset;
-            let pa = phys_start + offset;
-            // Try 2 MiB page if both addrs and remaining are aligned
-            if (va.as_u64() & ((1 << 21) - 1) == 0)
-                && (pa.as_u64() & ((1 << 21) - 1) == 0)
-                && remaining >= 2 * 1024 * 1024
-            {
-                self.unmap(va)?;
-                offset += 2 * 1024 * 1024;
-                remaining -= 2 * 1024 * 1024;
-            } else if (va.as_u64() & ((1 << 12) - 1) == 0)
-                && (pa.as_u64() & ((1 << 12) - 1) == 0)
-                && remaining >= 4096
-            {
-                self.unmap(va)?;
-                offset += 4096;
-                remaining -= 4096;
-            } else {
-                return Err("Unaligned unmapping or unsupported page size");
-            }
-        }
-        Ok(())
+    pub fn unmap_region(&mut self, va: VirtualAddress, len: u64) {
+        self.aspace.unmap_region(va, len);
+    }
+
+    #[must_use]
+    pub fn query(&self, va: VirtualAddress) -> Option<PhysicalAddress> {
+        self.aspace.query(va)
     }
 }
