@@ -509,6 +509,12 @@ impl PhysicalAddress {
     pub const fn split<S: PageSize>(self) -> (PhysicalPage<S>, MemoryAddressOffset<S>) {
         (self.page::<S>(), self.offset::<S>())
     }
+
+    /// True if `self` is aligned to `align` (power-of-two).
+    #[inline]
+    pub(crate) const fn is_aligned_to(self, align: u64) -> bool {
+        (self.as_u64() & (align - 1)) == 0
+    }
 }
 
 impl fmt::Debug for PhysicalAddress {

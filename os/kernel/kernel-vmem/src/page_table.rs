@@ -1,5 +1,6 @@
 //! # Memory Page Table
 
+mod bits2;
 pub mod pd;
 pub mod pdpt;
 pub mod pml4;
