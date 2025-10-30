@@ -6,10 +6,6 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 - Line [150](./os/kernel/kernel-vmem/src/address_space.rs#L150): Refactor to error type
 
-## [os/uefi/uefi-loader/src/elf/parser.rs](./os/uefi/uefi-loader/src/elf/parser.rs)
-
-- Line [56](./os/uefi/uefi-loader/src/elf/parser.rs#L56): Rework flags using bitflags or bitfield_struct
-
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
 - Line [33](./os/uefi/uefi-loader/src/main.rs#L33): Add proper documentation.

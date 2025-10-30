@@ -2,8 +2,7 @@
 
 extern crate alloc;
 
-use crate::elf::PF_X;
-use crate::elf::parser::ElfHeader;
+use crate::elf::parser::{ElfHeader, PFlags};
 use alloc::vec::Vec;
 use core::ptr;
 use kernel_info::memory::{KERNEL_BASE, PHYS_LOAD};
@@ -70,7 +69,7 @@ pub fn load_pt_load_segments_hi(
         let alloc_end = align_up_u64(phys_end, Size4K::SIZE);
         let pages = ((alloc_end - alloc_start) / Size4K::SIZE) as usize;
 
-        let mem_type = if (seg.flags & PF_X) != 0 {
+        let mem_type = if seg.flags.execute() {
             MemoryType::LOADER_CODE
         } else {
             MemoryType::LOADER_DATA
@@ -136,7 +135,7 @@ pub struct LoadedSegMap {
     /// bytes to map from `vaddr_page` (page-rounded)
     pub map_len: u64,
     /// ELF `p_flags` (`PF_X`, `PF_W`)
-    pub flags: u32,
+    pub flags: PFlags,
 }
 
 #[inline]
