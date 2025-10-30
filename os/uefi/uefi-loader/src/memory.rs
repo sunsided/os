@@ -1,10 +1,11 @@
 #![allow(unsafe_code)]
 
+use crate::elf::PAGE_SIZE;
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr;
 use core::ptr::NonNull;
 use core::ptr::null_mut;
-use kernel_vmem::{PhysAddr, VirtAddr};
+use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
 use uefi::boot;
 use uefi::boot::{AllocateType, MemoryType};
 
@@ -70,12 +71,12 @@ unsafe impl GlobalAlloc for UefiBootAllocator {
 
 /// Allocate a trampoline stack (optionally with a guard page) and return:
 /// - `base_phys`: physical base address (also used as VA, since we'll identity-map it)
-/// - `top_va`:    virtual top-of-stack address you'll load into RSP
+/// - `top_va`: virtual top-of-stack address you'll load into RSP
 pub fn alloc_trampoline_stack(
     stack_size_bytes: usize, // e.g. 64 * 1024
     with_guard: bool,
-) -> (PhysAddr, VirtAddr) {
-    let page_size = 4096usize;
+) -> (PhysicalAddress, VirtualAddress) {
+    let page_size = usize::try_from(PAGE_SIZE).expect("PAGE_SIZE is too large");
     let pages_for_stack = stack_size_bytes.div_ceil(page_size);
     let guard_pages = usize::from(with_guard);
     let total_pages = pages_for_stack + guard_pages;
@@ -102,5 +103,8 @@ pub fn alloc_trampoline_stack(
     top -= 8;
 
     // VA == PA because we'll identity-map this span
-    (PhysAddr::from_u64(stack_base_phys), VirtAddr::from_u64(top))
+    (
+        PhysicalAddress::new(stack_base_phys),
+        VirtualAddress::new(top),
+    )
 }

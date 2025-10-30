@@ -2,10 +2,9 @@
 
 _Auto-generated from code comments. Do not edit manually, recreate with `just todo`._
 
-## [os/kernel/kernel-vmem/src/lib.rs](./os/kernel/kernel-vmem/src/lib.rs)
+## [os/kernel/kernel-vmem/src/address_space.rs](./os/kernel/kernel-vmem/src/address_space.rs)
 
-- Line [139](./os/kernel/kernel-vmem/src/lib.rs#L139): Rework using bitfield_struct
-- Line [286](./os/kernel/kernel-vmem/src/lib.rs#L286): Have the mapper return a Result if the address cannot be mapped.
+- Line [150](./os/kernel/kernel-vmem/src/address_space.rs#L150): Refactor to error type
 
 ## [os/uefi/uefi-loader/src/elf/parser.rs](./os/uefi/uefi-loader/src/elf/parser.rs)
 
@@ -13,10 +12,10 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
-- Line [32](./os/uefi/uefi-loader/src/main.rs#L32): Add proper documentation.
-- Line [163](./os/uefi/uefi-loader/src/main.rs#L163): Document this properly
-- Line [170](./os/uefi/uefi-loader/src/main.rs#L170): Handle properly
+- Line [33](./os/uefi/uefi-loader/src/main.rs#L33): Add proper documentation.
+- Line [162](./os/uefi/uefi-loader/src/main.rs#L162): Document this properly
+- Line [169](./os/uefi/uefi-loader/src/main.rs#L169): Handle properly
 
 ## [os/uefi/uefi-loader/src/memory.rs](./os/uefi/uefi-loader/src/memory.rs)
 
-- Line [92](./os/uefi/uefi-loader/src/memory.rs#L92): Convert to actual pointer arithmetic ops.
+- Line [93](./os/uefi/uefi-loader/src/memory.rs#L93): Convert to actual pointer arithmetic ops.

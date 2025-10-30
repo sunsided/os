@@ -26,7 +26,8 @@
 //! - The user must ensure that reserved/used frames (e.g., kernel, bootloader) are marked as used before allocation.
 //! - No synchronization is provided; not thread-safe.
 
-use kernel_vmem::{FrameAlloc, PhysAddr};
+use kernel_vmem::FrameAlloc;
+use kernel_vmem::addresses::{PhysicalAddress, PhysicalPage, Size4K};
 
 const PHYS_MEM_START: u64 = 0x0010_0000; // 1 MiB, example
 const PHYS_MEM_SIZE: u64 = 64 * 1024 * 1024; // 64 MiB, example
@@ -95,7 +96,7 @@ impl BitmapFrameAlloc {
 }
 
 impl FrameAlloc for BitmapFrameAlloc {
-    fn alloc_4k(&mut self) -> Option<PhysAddr> {
+    fn alloc_4k(&mut self) -> Option<PhysicalPage<Size4K>> {
         for (i, word) in self.bitmap.iter_mut().enumerate() {
             if *word != u64::MAX {
                 for bit in 0..64 {
@@ -106,7 +107,7 @@ impl FrameAlloc for BitmapFrameAlloc {
                     if (*word & (1 << bit)) == 0 {
                         *word |= 1 << bit;
                         let pa = self.base + (idx as u64) * FRAME_SIZE;
-                        return Some(PhysAddr::from_u64(pa));
+                        return Some(PhysicalPage::from_addr(PhysicalAddress::new(pa)));
                     }
                 }
             }
@@ -114,8 +115,8 @@ impl FrameAlloc for BitmapFrameAlloc {
         None
     }
 
-    fn free_4k(&mut self, pa: PhysAddr) {
-        let idx = ((pa.as_u64() - self.base) / FRAME_SIZE) as usize;
+    fn free_4k(&mut self, pa: PhysicalPage<Size4K>) {
+        let idx = ((pa.base().as_u64() - self.base) / FRAME_SIZE) as usize;
         self.mark_free(idx);
     }
 }

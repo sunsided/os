@@ -79,9 +79,15 @@ clean:
 # Run test in all projects
 test: test-docs test-libs
 
+[private]
+doc-test: test-docs
+
 # Run documentation test in all projects
 test-docs:
     @cargo test --doc
+
+[private]
+lib-test: test-libs
 
 # Run library test in all projects
 test-libs *ARGS:

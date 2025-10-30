@@ -1,5 +1,17 @@
 # Developer Diary
 
+## 2025-10-30
+
+Rewriting the virtual memory to explicitly size-typed pages has been quite a journey; strangely
+everything worked out right away when firing up the emulator. I'm still not happy with the UEFI
+side of things, especially around the ELF loader and the initial page table setup, but I'm more than
+happy with the kernel-vmem libray now.
+
+I also realized that the naive `alloc_range` is working now but definitely a candidate for more elaborate
+implementation, and that deallocation, defragmentation and the likes are a game for themselves.
+Future me: I'm sorry you have to deal with that again once the userland applications begin allocating
+in a loop.
+
 ## 2025-10-28
 
 Realized I had a misconception with the virtual memory virtual address / physical address mapping
