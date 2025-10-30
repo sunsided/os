@@ -27,7 +27,7 @@
 //! [`PageEntryBits`], which encapsulates bit-level manipulation.
 
 use crate::PageEntryBits;
-use crate::addr2::{PhysicalPage, Size4K, VirtualAddress};
+use crate::addresses::{PhysicalPage, Size4K, VirtualAddress};
 
 /// Index into the PML4 table (derived from virtual-address bits `[47:39]`).
 ///
@@ -44,6 +44,7 @@ pub struct L4Index(u16);
 /// - The `PS` (Page Size) bit **must be 0** at this level.
 /// - Presence and other permission/cache flags live in the inner
 ///   [`PageEntryBits`].
+#[doc(alias = "PML4E")]
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct Pml4Entry(PageEntryBits);
@@ -55,6 +56,7 @@ pub struct Pml4Entry(PageEntryBits);
 /// - 4 KiB aligned, as required by the hardware.
 ///
 /// Use [`PageMapLevel4::get`] and [`PageMapLevel4::set`] to read/write entries.
+#[doc(alias = "PML4")]
 #[repr(C, align(4096))]
 pub struct PageMapLevel4 {
     entries: [Pml4Entry; 512],
@@ -196,7 +198,7 @@ impl PageMapLevel4 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::addr2::PhysicalAddress;
+    use crate::addresses::PhysicalAddress;
 
     #[test]
     fn pml4_points_to_pdpt() {

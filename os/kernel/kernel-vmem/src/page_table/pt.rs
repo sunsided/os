@@ -20,7 +20,7 @@
 //! - After modifying active mappings, the caller must perform any required TLB maintenance.
 
 use crate::PageEntryBits;
-use crate::addr2::{PhysicalPage, Size4K, VirtualAddress};
+use crate::addresses::{PhysicalPage, Size4K, VirtualAddress};
 
 /// Index into the Page Table (derived from VA bits `[20:12]`).
 ///
@@ -38,11 +38,13 @@ pub struct L1Index(u16);
 /// - A present PTE maps exactly one 4 KiB page.
 ///
 /// All permission/cache/present bits live inside the inner [`PageEntryBits`].
+#[doc(alias = "PTE")]
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct PtEntry(PageEntryBits);
 
 /// The Page Table (L1): 512 entries, 4 KiB-aligned.
+#[doc(alias = "PT")]
 #[repr(C, align(4096))]
 pub struct PageTable {
     entries: [PtEntry; 512],
@@ -182,7 +184,7 @@ impl PageTable {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::addr2::PhysicalAddress;
+    use crate::addresses::PhysicalAddress;
 
     #[test]
     fn pte_4k_leaf() {

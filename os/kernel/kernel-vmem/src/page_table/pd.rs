@@ -21,7 +21,7 @@
 //! - TLB maintenance is the caller’s responsibility after mutating active mappings.
 
 use crate::PageEntryBits;
-use crate::addr2::{PhysicalPage, Size2M, Size4K, VirtualAddress};
+use crate::addresses::{PhysicalPage, Size2M, Size4K, VirtualAddress};
 
 /// Index into the Page Directory (derived from VA bits `[29:21]`).
 ///
@@ -39,20 +39,22 @@ pub struct L2Index(u16);
 /// - If `PS=1`, encodes a 2 MiB leaf mapping.
 ///
 /// All permission/cache/present bits are contained in the inner [`PageEntryBits`].
+#[doc(alias = "PDE")]
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct PdEntry(PageEntryBits);
 
 /// Decoded PDE kind.
 ///
-/// - [`NextPageTable`]: non-leaf (`PS=0`), contains the 4 KiB-aligned PT base.
-/// - [`Leaf2MiB`]: leaf (`PS=1`), contains the 2 MiB-aligned large-page base.
+/// - [`NextPageTable`](PdEntryKind::NextPageTable): non-leaf (`PS=0`), contains the 4 KiB-aligned PT base.
+/// - [`Leaf2MiB`](PdEntryKind::Leaf2MiB): leaf (`PS=1`), contains the 2 MiB-aligned large-page base.
 pub enum PdEntryKind {
     NextPageTable(PhysicalPage<Size4K>, PageEntryBits),
     Leaf2MiB(PhysicalPage<Size2M>, PageEntryBits),
 }
 
 /// The Page Directory (L2): 512 entries, 4 KiB-aligned.
+#[doc(alias = "PD")]
 #[repr(C, align(4096))]
 pub struct PageDirectory {
     entries: [PdEntry; 512],
@@ -215,7 +217,7 @@ impl PageDirectory {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::addr2::PhysicalAddress;
+    use crate::addresses::PhysicalAddress;
 
     #[test]
     fn pd_table_vs_2m() {

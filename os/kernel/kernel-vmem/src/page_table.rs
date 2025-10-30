@@ -1,13 +1,15 @@
+//! # Memory Page Table
+
 pub mod pd;
 pub mod pdpt;
 pub mod pml4;
 pub mod pt;
 
-use crate::addr2::VirtualAddress;
-use crate::table2::pd::L2Index;
-use crate::table2::pdpt::L3Index;
-use crate::table2::pml4::L4Index;
-use crate::table2::pt::L1Index;
+use crate::addresses::VirtualAddress;
+use crate::page_table::pd::L2Index;
+use crate::page_table::pdpt::L3Index;
+use crate::page_table::pml4::L4Index;
+use crate::page_table::pt::L1Index;
 
 #[inline]
 #[must_use]

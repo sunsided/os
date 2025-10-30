@@ -1,4 +1,6 @@
-use crate::addr2::PhysicalAddress;
+//! # Memory Page Table Entry Bitflags
+
+use crate::addresses::PhysicalAddress;
 use bitfield_struct::bitfield;
 
 /// Represents a single 64-bit x86-64 page table entry in its raw bitfield form.
@@ -35,7 +37,7 @@ use bitfield_struct::bitfield;
 /// | 7         | `PS`              | Large page flag |
 /// | 8         | `G`               | Global (leaf only) |
 /// | 9–11      | OS avail low      | Reserved for OS use |
-/// | 12–51     | `addr`            | Physical frame bits [51:12] |
+/// | 12–51     | `addr`            | Physical frame bits `51:12` |
 /// | 52–58     | OS avail high     | Reserved for OS use |
 /// | 59–62     | `PKU` / OS use    | Protection key or OS use |
 /// | 63        | `NX`              | Execute disable |
@@ -49,7 +51,7 @@ use bitfield_struct::bitfield;
 ///
 /// ### Example
 /// ```rust
-/// # use kernel_vmem::addr2::PhysicalAddress;
+/// # use kernel_vmem::addresses::PhysicalAddress;
 /// # use kernel_vmem::PageEntryBits;
 /// let mut e = PageEntryBits::new();
 /// e.set_present(true);

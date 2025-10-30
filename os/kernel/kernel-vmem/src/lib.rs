@@ -4,9 +4,9 @@
 //!
 //! ## What you get
 //! - An [`address space`](address_space) describing a `PML4` root page table.
-//! - Tiny [`PhysAddr`]/[`VirtAddr`] newtypes (u64) to avoid mixing address kinds.
-//! - A [`PageSize`] enum for 4 KiB / 2 MiB / 1 GiB mappings.
-//! - x86-64 page-table [`MemoryPageFlags`] with practical explanations.
+//! - Tiny [`PhysicalAddress`]/[`VirtualAddress`](addresses::VirtualAddress) newtypes (u64) to avoid mixing address kinds.
+//! - A [`PageSize`](addresses::PageSize) enum for 4 KiB / 2 MiB / 1 GiB mappings.
+//! - x86-64 page-table [`PageEntryBits`] with practical explanations.
 //! - A 4 KiB-aligned [`PageTable`] wrapper and index helpers.
 //! - A tiny allocator/mapper interface ([`FrameAlloc`], [`PhysMapper`]).
 //!
@@ -43,7 +43,7 @@
 //! ### Leaf vs. non-leaf entries
 //!
 //! - A **leaf entry** directly maps physical memory — it contains the physical base address
-//!   and the permission bits ([`PRESENT`](PageTableEntry::present), [`WRITABLE`](PageTableEntry::writable), [`USER`](PageTableEntry::user), [`GLOBAL`](PageTableEntry::global), [`NX`](PageTableEntry::nx), etc.).
+//!   and the permission bits ([`PRESENT`](PageEntryBits::present), [`WRITABLE`](PageEntryBits::writable), [`USER`](PageEntryBits::user_access), [`GLOBAL`](PageEntryBits::global_translation), [`NX`](PageEntryBits::no_execute), etc.).
 //!   - A **PTE** is always a leaf (maps 4 KiB).
 //!   - A **PDE** with `PS=1` is a leaf (maps 2 MiB).
 //!   - A **PDPTE** with `PS=1` is a leaf (maps 1 GiB).
@@ -70,17 +70,88 @@
 #![cfg_attr(not(test), no_std)]
 #![allow(unsafe_code, clippy::inline_always)]
 
-pub mod addr2;
 pub mod address_space;
+pub mod addresses;
 mod page_entry_bits;
-pub mod table2;
+pub mod page_table;
 
 pub use crate::address_space::AddressSpace;
 pub use crate::page_entry_bits::PageEntryBits;
 
-use crate::addr2::PhysicalAddress;
+use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K};
+use crate::page_table::pd::PageDirectory;
+use crate::page_table::pdpt::PageDirectoryPointerTable;
+use crate::page_table::pml4::PageMapLevel4;
+use crate::page_table::pt::PageTable;
 /// Re-export constants as info module.
 pub use kernel_info::memory as info;
+
+/// Minimal allocator that hands out **4 KiB** page-table frames.
+pub trait FrameAlloc {
+    /// Allocate a zeroed 4 KiB page suitable for a page-table.
+    fn alloc_4k(&mut self) -> Option<PhysicalPage<Size4K>>;
+}
+
+/// Mapper capable of temporarily viewing physical frames as typed tables.
+pub trait PhysMapper {
+    /// Map a 4 KiB physical frame and get a **mutable** reference to type `T`.
+    ///
+    /// The implementation must ensure that the returned reference aliases the
+    /// mapped frame, and that writes reach memory.
+    unsafe fn phys_to_mut<T>(&self, at: PhysicalAddress) -> &mut T;
+
+    /// Borrow the [`PageMapLevel4`] (PML4) located in the given 4 KiB
+    /// physical frame.
+    ///
+    /// # Arguments
+    /// * `page` - The `page` parameter identifies the physical frame whose contents
+    ///     are interpreted as a PML4 table. The frame must contain either a
+    ///     valid or zero-initialized PML4.
+    #[inline]
+    fn pml4_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageMapLevel4 {
+        // SAFETY: 4 KiB alignment guaranteed by `PhysicalPage<Size4K>`.
+        unsafe { self.phys_to_mut::<PageMapLevel4>(page.base()) }
+    }
+
+    /// Borrow a [`PageDirectoryPointerTable`] (PDPT) located in the given 4 KiB
+    /// physical frame.
+    ///
+    /// # Arguments
+    /// * `page` - The `page` parameter identifies the physical frame whose contents
+    ///     are interpreted as a PDP table. The frame must contain either a
+    ///     valid or zero-initialized PDPT.
+    #[inline]
+    fn pdpt_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageDirectoryPointerTable {
+        // SAFETY: 4 KiB alignment guaranteed by `PhysicalPage<Size4K>`.
+        unsafe { self.phys_to_mut::<PageDirectoryPointerTable>(page.base()) }
+    }
+
+    /// Borrow a [`PageDirectory`] (PD) located in the given 4 KiB
+    /// physical frame.
+    ///
+    /// # Arguments
+    /// * `page` - The `page` parameter identifies the physical frame whose contents
+    ///     are interpreted as a PD table. The frame must contain either a
+    ///     valid or zero-initialized PD.
+    #[inline]
+    fn pd_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageDirectory {
+        // SAFETY: 4 KiB alignment guaranteed by `PhysicalPage<Size4K>`.
+        unsafe { self.phys_to_mut::<PageDirectory>(page.base()) }
+    }
+
+    /// Borrow a [`PageTable`] (PT) located in the given 4 KiB
+    /// physical frame.
+    ///
+    /// # Arguments
+    /// * `page` - The `page` parameter identifies the physical frame whose contents
+    ///     are interpreted as a PT. The frame must contain either a
+    ///     valid or zero-initialized PT.
+    #[inline]
+    fn pt_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageTable {
+        // SAFETY: 4 KiB alignment guaranteed by `PhysicalPage<Size4K>`.
+        unsafe { self.phys_to_mut::<PageTable>(page.base()) }
+    }
+}
 
 /// Reads the current value of the **CR3 register** (the page table base register)
 /// and returns the physical address of the top-level page table (PML4).
@@ -100,7 +171,7 @@ pub use kernel_info::memory as info;
 ///   hierarchy used for address translation.
 ///
 /// # Returns
-/// The 4 KiB-aligned [`PhysAddr`] of the current PML4 table.
+/// The 4 KiB-aligned [`PhysicalAddress`] of the current PML4 table.
 ///
 /// # Example
 /// ```no_run
@@ -119,6 +190,10 @@ pub unsafe fn read_cr3_phys() -> PhysicalAddress {
         core::arch::asm!("mov {}, cr3", out(reg) cr3, options(nomem, nostack, preserves_flags));
     }
 
-    // CR3 holds PML4 physical base with low bits as flags
-    PhysicalAddress::from(cr3 & 0x000f_ffff_ffff_f000)
+    // In 4- and 5-level paging, CR3[51:12] is the base. Upper bits should be zero.
+    debug_assert_eq!(cr3 >> 52, 0, "CR3 has nonzero high bits: {cr3:#018x}");
+
+    // Clear PCID / low bits by turning it into a 4K page base and back to an address.
+    let page = PhysicalAddress::from(cr3).page::<Size4K>(); // drop low 12 bits
+    PhysicalAddress::from(page)
 }

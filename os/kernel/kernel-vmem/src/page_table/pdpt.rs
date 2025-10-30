@@ -22,7 +22,7 @@
 //! - Raw constructors perform no validation; use with care.
 
 use crate::PageEntryBits;
-use crate::addr2::{PhysicalPage, Size1G, Size4K, VirtualAddress};
+use crate::addresses::{PhysicalPage, Size1G, Size4K, VirtualAddress};
 
 /// Index into the PDPT (derived from virtual-address bits `[38:30]`).
 ///
@@ -40,20 +40,22 @@ pub struct L3Index(u16);
 /// - If `PS=1`, the entry is a 1 GiB leaf mapping.
 ///
 /// Other permission/cache/present bits live inside [`PageEntryBits`].
+#[doc(alias = "PDPTE")]
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct PdptEntry(PageEntryBits);
 
 /// Decoded PDPT entry kind.
 ///
-/// - [`NextPageDirectory`]: non-leaf; `PS=0`; holds the 4 KiB-aligned PD base.
-/// - [`Leaf1GiB`]: leaf; `PS=1`; holds the 1 GiB-aligned large-page base.
+/// - [`NextPageDirectory`](PdptEntryKind::NextPageDirectory): non-leaf; `PS=0`; holds the 4 KiB-aligned PD base.
+/// - [`Leaf1GiB`](PdptEntryKind::Leaf1GiB): leaf; `PS=1`; holds the 1 GiB-aligned large-page base.
 pub enum PdptEntryKind {
     NextPageDirectory(PhysicalPage<Size4K>, PageEntryBits),
     Leaf1GiB(PhysicalPage<Size1G>, PageEntryBits),
 }
 
 /// The PDPT (L3) table: 512 entries, 4 KiB aligned.
+#[doc(alias = "PDPT")]
 #[repr(C, align(4096))]
 pub struct PageDirectoryPointerTable {
     entries: [PdptEntry; 512],
@@ -220,7 +222,7 @@ impl PageDirectoryPointerTable {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::addr2::PhysicalAddress;
+    use crate::addresses::PhysicalAddress;
 
     #[test]
     fn pdpt_table_vs_1g() {

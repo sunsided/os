@@ -40,7 +40,7 @@
 //! ## Typical Usage
 //!
 //! ```rust
-//! # use kernel_vmem::addr2::*;
+//! # use kernel_vmem::addresses::*;
 //! // Create a virtual address
 //! let va = VirtualAddress::new(0xFFFF_FFFF_8000_1234);
 //!
@@ -353,7 +353,7 @@ impl<S: PageSize> From<MemoryAddress> for MemoryAddressOffset<S> {
 ///
 /// ### Examples
 /// ```rust
-/// # use kernel_vmem::addr2::*;
+/// # use kernel_vmem::addresses::*;
 /// let va = VirtualAddress::new(0xFFFF_FFFF_8000_1234);
 /// let (vp, off) = va.split::<Size4K>();
 /// assert_eq!(vp.base().as_u64() & (Size4K::SIZE - 1), 0);
@@ -419,7 +419,7 @@ impl fmt::Debug for VirtualAddress {
 ///
 /// ### Examples
 /// ```rust
-/// # use kernel_vmem::addr2::*;
+/// # use kernel_vmem::addresses::*;
 /// let pa = PhysicalAddress::new(0x0000_0010_2000_0042);
 /// let (pp, off) = pa.split::<Size4K>();
 /// assert_eq!(pp.base().as_u64() & (Size4K::SIZE - 1), 0);
@@ -482,7 +482,7 @@ impl fmt::Debug for PhysicalAddress {
 ///
 /// ### Examples
 /// ```rust
-/// # use kernel_vmem::addr2::*;
+/// # use kernel_vmem::addresses::*;
 /// let va = VirtualAddress::new(0xFFFF_FFFF_8000_1234);
 /// let vp = va.page::<Size4K>();
 /// assert_eq!(vp.base().as_u64() & (Size4K::SIZE - 1), 0);
@@ -540,7 +540,7 @@ impl<S: PageSize> fmt::Debug for VirtualPage<S> {
 ///
 /// ### Examples
 /// ```rust
-/// # use kernel_vmem::addr2::*;
+/// # use kernel_vmem::addresses::*;
 /// let pa = PhysicalAddress::new(0x0000_0008_1234_5678);
 /// let pp = pa.page::<Size2M>();
 /// assert_eq!(pp.base().as_u64() & (Size2M::SIZE - 1), 0);
@@ -602,6 +602,15 @@ impl From<MemoryAddress> for u64 {
     }
 }
 
+impl<S> From<MemoryPage<S>> for MemoryAddress
+where
+    S: PageSize,
+{
+    fn from(value: MemoryPage<S>) -> Self {
+        Self(value.value)
+    }
+}
+
 impl From<u64> for VirtualAddress {
     #[inline]
     fn from(v: u64) -> Self {
@@ -609,10 +618,28 @@ impl From<u64> for VirtualAddress {
     }
 }
 
+impl<S> From<VirtualPage<S>> for VirtualAddress
+where
+    S: PageSize,
+{
+    fn from(value: VirtualPage<S>) -> Self {
+        value.base()
+    }
+}
+
 impl From<u64> for PhysicalAddress {
     #[inline]
     fn from(v: u64) -> Self {
         Self::new(v)
+    }
+}
+
+impl<S> From<PhysicalPage<S>> for PhysicalAddress
+where
+    S: PageSize,
+{
+    fn from(value: PhysicalPage<S>) -> Self {
+        value.base()
     }
 }
 
