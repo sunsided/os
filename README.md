@@ -1,5 +1,9 @@
 # Rusty OS
 
+A toy x86-64 operating system written in Rust.
+
+![A screenshot of the "OS" running](docs/screenshot.png)
+
 ## Table of Contents
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
