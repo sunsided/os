@@ -1,10 +1,15 @@
 # Rusty OS
 
+A toy x86-64 operating system written in Rust, using UEFI to boot and load a kernel image.
+
+![A screenshot of the "OS" running](docs/screenshot.png)
+
 ## Table of Contents
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
+  - [Features](#features)
   - [Building the Project](#building-the-project)
     - [Quick Start](#quick-start)
     - [Rust targets](#rust-targets)
@@ -13,6 +18,20 @@
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## Features
+
+* [x] UEFI bootloader
+* [x] Kernel image loading
+* [x] Basic memory management
+* [ ] Basic I/O
+* [ ] Basic process management
+* [ ] Basic file system
+* [ ] Basic shell
+* [ ] Basic networking
+* [x] Basic UEFI GOP framebuffer
+* [ ] Basic graphics
+* [ ] Basic audio
 
 ## Building the Project
 
