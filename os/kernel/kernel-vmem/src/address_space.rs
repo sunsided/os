@@ -6,22 +6,20 @@
 //!
 //! ## Highlights
 //!
-//! - `AddressSpace::ensure_chain` to allocate/link missing intermediate tables
-//!   down to the level implied by the target page size.
-//! - `AddressSpace::map_one` to install one mapping (4 KiB / 2 MiB / 1 GiB).
-//! - `AddressSpace::unmap_one` to clear a single 4 KiB PTE.
-//! - `AddressSpace::query` to translate a VA to PA (handles huge pages).
-//! - `AddressSpace::activate` to load CR3 with this space’s root.
+//! - [`AddressSpace::map_one`] to install one mapping (4 KiB / 2 MiB / 1 GiB).
+//! - [`AddressSpace::unmap_one`] to clear a single 4 KiB PTE.
+//! - [`AddressSpace::query`] to translate a VA to PA (handles huge pages).
+//! - [`AddressSpace::activate`] to load CR3 with this space’s root.
 //!
 //! ## Design
 //!
 //! - Non-leaf entries are created with caller-provided **non-leaf flags**
 //!   (typically: present + writable, US as needed). Leaf flags come from the
 //!   mapping call. We never silently set US/GLOBAL/NX; the caller decides.
-//! - Uses `PhysicalPage<Size4K>` for page-table frames, and `VirtualAddress` /
-//!   `PhysicalAddress` for endpoints. Alignment is asserted via typed helpers.
+//! - Uses [`PhysicalPage<Size4K>`] for page-table frames, and [`VirtualAddress`] /
+//!   [`PhysicalAddress`] for endpoints. Alignment is asserted via typed helpers.
 //! - Keeps `unsafe` confined to mapping a physical frame to a typed table
-//!   through the `PhysMapper`.
+//!   through the [`PhysMapper`].
 //!
 //! ## Safety
 //!

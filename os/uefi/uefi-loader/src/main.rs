@@ -12,15 +12,16 @@ mod memory;
 mod rsdp;
 mod tracing;
 mod uefi_mmap;
+mod vmem;
 
 use crate::elf::parser::ElfHeader;
-use crate::elf::vmem::create_kernel_pagetables;
 use crate::file_system::load_file;
 use crate::framebuffer::get_framebuffer;
 use crate::memory::alloc_trampoline_stack;
 use crate::rsdp::find_rsdp_addr;
 use crate::tracing::trace_boot_info;
 use crate::uefi_mmap::exit_boot_services;
+use crate::vmem::create_kernel_pagetables;
 use alloc::boxed::Box;
 use kernel_info::boot::{KernelBootInfo, MemoryMapInfo};
 use kernel_qemu::qemu_trace;

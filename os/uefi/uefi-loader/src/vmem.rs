@@ -98,21 +98,11 @@ pub fn create_kernel_pagetables(
 
             // Leaf flags from ELF PF_*:
             // start with present + global; add writable if PF_W; add NX if !PF_X
-            let mut leaf_flags = PageEntryBits::new()
+            let leaf_flags = PageEntryBits::new()
                 .with_present(true)
-                .with_global_translation(true);
-            if (m.flags & PF_W) != 0 {
-                leaf_flags.set_writable(true);
-            }
-            if (m.flags & PF_X) == 0 {
-                leaf_flags.set_no_execute(true);
-            }
-            // If using bitfield_struct-style setters instead, build with:
-            // let leaf_flags = PageEntryBits::new()
-            //     .with_present(true)
-            //     .with_global(true)
-            //     .with_writable((m.flags & PF_W) != 0)
-            //     .with_nx((m.flags & PF_X) == 0);
+                .with_global_translation(true)
+                .with_writable((m.flags & PF_W) != 0)
+                .with_no_execute((m.flags & PF_X) == 0);
 
             // Try 2 MiB leaf where legal
             let remaining = end_u64 - cur_va.as_u64();
