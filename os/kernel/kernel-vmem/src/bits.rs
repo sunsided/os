@@ -152,7 +152,7 @@ impl VirtualMemoryPageBits {
             protection_key: e.protection_key(),
             os_available_low: e.os_available_low() & 0b111,
             os_available_high: e.os_available_high() & 0x7F,
-            phys: e.physical_address(),
+            phys: e.physical_page().base(),
             pat_bit2: e.pat_large(),
         }
     }
@@ -194,7 +194,7 @@ impl VirtualMemoryPageBits {
             protection_key: e.protection_key(),
             os_available_low: e.os_available_low() & 0b111,
             os_available_high: e.os_available_high() & 0x7F,
-            phys: e.physical_address(),
+            phys: e.physical_page().base(),
             pat_bit2: e.pat_large(),
         }
     }
@@ -215,7 +215,7 @@ impl VirtualMemoryPageBits {
             protection_key: e.protection_key(),
             os_available_low: e.os_available_low() & 0b111,
             os_available_high: e.os_available_high() & 0x7F,
-            phys: e.physical_address(),
+            phys: e.physical_page().base(),
             pat_bit2: e.pat_small(),
         }
     }
@@ -259,7 +259,7 @@ impl VirtualMemoryPageBits {
         e.set_os_available_low(self.os_available_low & 0b111);
         e.set_os_available_high(self.os_available_high & 0x7F);
         e.set_protection_key(self.protection_key & 0x0F);
-        e.set_physical_address(self.phys);
+        e.set_physical_page(self.phys);
         e
     }
 
@@ -281,7 +281,7 @@ impl VirtualMemoryPageBits {
         e.set_os_available_high(self.os_available_high & 0x7F);
         e.set_protection_key(self.protection_key & 0x0F);
         e.set_pat_large(self.pat_bit2);
-        e.set_physical_address(self.phys);
+        e.set_physical_page(self.phys.page());
         // sets PS=1 internally in setter
         e
     }
@@ -301,7 +301,7 @@ impl VirtualMemoryPageBits {
         e.set_os_available_low(self.os_available_low & 0b111);
         e.set_os_available_high(self.os_available_high & 0x7F);
         e.set_protection_key(self.protection_key & 0x0F);
-        e.set_physical_address(self.phys);
+        e.set_physical_page(self.phys);
         e
     }
 
@@ -323,7 +323,7 @@ impl VirtualMemoryPageBits {
         e.set_os_available_high(self.os_available_high & 0x7F);
         e.set_protection_key(self.protection_key & 0x0F);
         e.set_pat_large(self.pat_bit2);
-        e.set_physical_address(self.phys);
+        e.set_physical_page(self.phys.page());
         // sets PS=1 internally in setter
         e
     }
@@ -346,7 +346,7 @@ impl VirtualMemoryPageBits {
         e.set_os_available_high(self.os_available_high & 0x7F);
         e.set_protection_key(self.protection_key & 0x0F);
         e.set_pat_small(self.pat_bit2);
-        e.set_physical_address(self.phys);
+        e.set_physical_page(self.phys.page());
         e
     }
 }

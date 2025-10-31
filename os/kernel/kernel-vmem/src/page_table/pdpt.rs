@@ -151,7 +151,7 @@ pub struct Pdpte1G {
 impl Pdpte {
     /// Set the Page Directory base (4 KiB-aligned).
     #[inline]
-    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
+    pub const fn set_physical_page(&mut self, phys: PhysicalAddress) {
         debug_assert!(phys.is_aligned_to(0x1000));
         self.set_phys_addr_51_12(phys.as_u64() >> 12);
     }
@@ -181,17 +181,16 @@ impl Pdpte1G {
     /// Set the 1 GiB page base (must be 1 GiB-aligned).
     #[inline]
     #[allow(clippy::cast_possible_truncation)]
-    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
-        debug_assert!(phys.is_aligned_to(1 << 30));
-        self.set_phys_addr_51_30((phys.as_u64() >> 30) as u32);
+    pub const fn set_physical_page(&mut self, phys: PhysicalPage<Size1G>) {
+        self.set_phys_addr_51_30((phys.base().as_u64() >> 30) as u32);
         self.set_page_size(true);
     }
 
     /// Get the 1 GiB page base.
     #[inline]
     #[must_use]
-    pub const fn physical_address(self) -> PhysicalAddress {
-        PhysicalAddress::new((self.phys_addr_51_30() as u64) << 30)
+    pub const fn physical_page(self) -> PhysicalPage<Size1G> {
+        PhysicalPage::from_addr(PhysicalAddress::new((self.phys_addr_51_30() as u64) << 30))
     }
 
     /// Leaf PDPTE with common kernel RW flags.
@@ -350,8 +349,8 @@ impl PdptEntry {
                 PdptEntryKind::NextPageDirectory(PhysicalPage::<Size4K>::from_addr(base), entry)
             }
             L3View::Leaf1G(entry) => {
-                let base = entry.physical_address();
-                PdptEntryKind::Leaf1GiB(PhysicalPage::<Size1G>::from_addr(base), entry)
+                let page = entry.physical_page();
+                PdptEntryKind::Leaf1GiB(page, entry)
             }
         })
     }
@@ -364,7 +363,7 @@ impl PdptEntry {
     #[must_use]
     pub const fn make_next(pd_page: PhysicalPage<Size4K>, mut flags: Pdpte) -> Self {
         flags.set_present(true);
-        flags.set_physical_address(pd_page.base());
+        flags.set_physical_page(pd_page.base());
         Self::new_entry(flags)
     }
 
@@ -376,7 +375,7 @@ impl PdptEntry {
     #[must_use]
     pub const fn make_1g(page: PhysicalPage<Size1G>, mut flags: Pdpte1G) -> Self {
         flags.set_present(true);
-        flags.set_physical_address(page.base());
+        flags.set_physical_page(page);
         Self::new_leaf(flags)
     }
 }

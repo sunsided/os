@@ -103,7 +103,7 @@ pub struct Pde {
 impl Pde {
     /// Set the Page Table base (4 KiB-aligned).
     #[inline]
-    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
+    pub const fn set_physical_page(&mut self, phys: PhysicalAddress) {
         debug_assert!(phys.is_aligned_to(0x1000));
         self.set_phys_addr_51_12(phys.as_u64() >> 12);
     }
@@ -193,17 +193,16 @@ impl Pde2M {
     /// Set the 2 MiB page base (must be 2 MiB-aligned).
     #[inline]
     #[allow(clippy::cast_possible_truncation)]
-    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
-        debug_assert!(phys.is_aligned_to(1 << 21));
-        self.set_phys_addr_51_21((phys.as_u64() >> 21) as u32);
+    pub const fn set_physical_page(&mut self, phys: PhysicalPage<Size2M>) {
+        self.set_phys_addr_51_21((phys.base().as_u64() >> 21) as u32);
         self.set_page_size(true);
     }
 
     /// Get the 2 MiB page base.
     #[inline]
     #[must_use]
-    pub const fn physical_address(self) -> PhysicalAddress {
-        PhysicalAddress::new((self.phys_addr_51_21() as u64) << 21)
+    pub const fn physical_page(self) -> PhysicalPage<Size2M> {
+        PhysicalPage::from_addr(PhysicalAddress::new((self.phys_addr_51_21() as u64) << 21))
     }
 
     /// Leaf PDE with common kernel RW flags.
@@ -360,8 +359,8 @@ impl PdEntry {
                 PdEntryKind::NextPageTable(PhysicalPage::<Size4K>::from_addr(base), entry)
             }
             L2View::Leaf2M(entry) => {
-                let base = entry.physical_address();
-                PdEntryKind::Leaf2MiB(PhysicalPage::<Size2M>::from_addr(base), entry)
+                let base = entry.physical_page();
+                PdEntryKind::Leaf2MiB(base, entry)
             }
         })
     }
@@ -374,7 +373,7 @@ impl PdEntry {
     #[must_use]
     pub const fn make_next(pt_page: PhysicalPage<Size4K>, mut flags: Pde) -> Self {
         flags.set_present(true);
-        flags.set_physical_address(pt_page.base());
+        flags.set_physical_page(pt_page.base());
         Self::new_entry(flags)
     }
 
@@ -386,7 +385,7 @@ impl PdEntry {
     #[must_use]
     pub const fn make_2m(page: PhysicalPage<Size2M>, mut flags: Pde2M) -> Self {
         flags.set_present(true);
-        flags.set_physical_address(page.base());
+        flags.set_physical_page(page);
         flags.set_page_size(true);
         Self::new_leaf(flags)
     }

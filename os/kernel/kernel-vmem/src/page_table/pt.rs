@@ -117,16 +117,15 @@ impl L1Index {
 impl PtEntry4k {
     /// Set the 4 KiB page base (4 KiB-aligned).
     #[inline]
-    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
-        debug_assert!(phys.is_aligned_to(0x1000));
-        self.set_phys_addr_51_12(phys.as_u64() >> 12);
+    pub const fn set_physical_page(&mut self, phys: PhysicalPage<Size4K>) {
+        self.set_phys_addr_51_12(phys.base().as_u64() >> 12);
     }
 
     /// Get the 4 KiB page base.
     #[inline]
     #[must_use]
-    pub const fn physical_address(self) -> PhysicalAddress {
-        PhysicalAddress::new(self.phys_addr_51_12() << 12)
+    pub const fn physical_page(self) -> PhysicalPage<Size4K> {
+        PhysicalPage::from_addr(PhysicalAddress::new(self.phys_addr_51_12() << 12))
     }
 
     /// 4 KiB **user RO+NX** mapping (read-only, no execute).
@@ -156,7 +155,7 @@ impl PtEntry4k {
         if !self.present() {
             return None;
         }
-        Some((PhysicalPage::from_addr(self.physical_address()), self))
+        Some((self.physical_page(), self))
     }
 
     /// Create a 4 KiB leaf PTE (`PS=0`).
@@ -167,7 +166,7 @@ impl PtEntry4k {
     #[must_use]
     pub const fn make_4k(page: PhysicalPage<Size4K>, mut flags: Self) -> Self {
         flags.set_present(true);
-        flags.set_physical_address(page.base());
+        flags.set_physical_page(page);
         flags
     }
 }
