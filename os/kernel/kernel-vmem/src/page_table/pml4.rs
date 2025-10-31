@@ -114,22 +114,6 @@ pub struct Pml4Entry {
     pub no_execute: bool,
 }
 
-impl Pml4Entry {
-    /// Set the PDPT base address (must be 4 KiB-aligned).
-    #[inline]
-    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
-        debug_assert!(phys.is_aligned_to(0x1000));
-        self.set_phys_addr_51_12(phys.as_u64() >> 12);
-    }
-
-    /// Get the PDPT base address (4 KiB-aligned).
-    #[inline]
-    #[must_use]
-    pub const fn physical_address(self) -> PhysicalAddress {
-        PhysicalAddress::new(self.phys_addr_51_12() << 12)
-    }
-}
-
 /// Index into the PML4 table (derived from virtual-address bits `[47:39]`).
 ///
 /// This newtype prevents accidental mixing with other indices and allows
@@ -198,7 +182,7 @@ impl Pml4Entry {
         if !self.present() {
             return None;
         }
-        Some(PhysicalPage::from_addr(self.physical_address()))
+        Some(self.physical_address())
     }
 
     /// Build a PML4 entry that points to the given PDPT page and applies the provided flags.
@@ -210,7 +194,7 @@ impl Pml4Entry {
     #[must_use]
     pub const fn make(next_pdpt_page: PhysicalPage<Size4K>, mut flags: Pml4Entry) -> Self {
         flags.set_present(true);
-        flags.set_physical_address(next_pdpt_page.base());
+        flags.set_physical_address(next_pdpt_page);
         flags
     }
 
@@ -228,6 +212,19 @@ impl Pml4Entry {
     #[must_use]
     pub fn from_raw(v: u64) -> Self {
         Pml4Entry::from(v)
+    }
+
+    /// Set the PDPT base address (must be 4 KiB-aligned).
+    #[inline]
+    pub const fn set_physical_address(&mut self, phys: PhysicalPage<Size4K>) {
+        self.set_phys_addr_51_12(phys.base().as_u64() >> 12);
+    }
+
+    /// Get the PDPT base address (4 KiB-aligned).
+    #[inline]
+    #[must_use]
+    pub const fn physical_address(self) -> PhysicalPage<Size4K> {
+        PhysicalPage::from_addr(PhysicalAddress::new(self.phys_addr_51_12() << 12))
     }
 }
 

@@ -110,7 +110,7 @@ impl VirtualMemoryPageBits {
             protection_key: e.protection_key(),
             os_available_low: e.os_available_low() & 0b111,
             os_available_high: e.os_available_high() & 0x7F,
-            phys: e.physical_address(),
+            phys: e.physical_address().base(),
             pat_bit2: false, // not applicable for non-leaf
         }
     }
@@ -240,7 +240,7 @@ impl VirtualMemoryPageBits {
         e.set_os_available_low(self.os_available_low & 0b111);
         e.set_os_available_high(self.os_available_high & 0x7F);
         e.set_protection_key(self.protection_key & 0x0F);
-        e.set_physical_address(self.phys);
+        e.set_physical_address(self.phys.page());
         e
     }
 
