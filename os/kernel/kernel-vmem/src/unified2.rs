@@ -350,3 +350,84 @@ impl UnifiedEntry {
         e
     }
 }
+
+impl From<Pml4e> for UnifiedEntry {
+    #[inline]
+    fn from(e: Pml4e) -> Self {
+        Self::from_pml4e(&e)
+    }
+}
+
+impl From<Pdpte> for UnifiedEntry {
+    #[inline]
+    fn from(e: Pdpte) -> Self {
+        Self::from_pdpte(&e)
+    }
+}
+
+impl From<Pdpte1G> for UnifiedEntry {
+    #[inline]
+    fn from(e: Pdpte1G) -> Self {
+        Self::from_pdpte_1g(&e)
+    }
+}
+
+impl From<Pde> for UnifiedEntry {
+    #[inline]
+    fn from(e: Pde) -> Self {
+        Self::from_pde(&e)
+    }
+}
+
+impl From<Pde2M> for UnifiedEntry {
+    #[inline]
+    fn from(e: Pde2M) -> Self {
+        Self::from_pde_2m(&e)
+    }
+}
+
+impl From<Pte4K> for UnifiedEntry {
+    #[inline]
+    fn from(e: Pte4K) -> Self {
+        Self::from_pte_4k(&e)
+    }
+}
+
+impl From<UnifiedEntry> for Pml4e {
+    #[inline]
+    fn from(e: UnifiedEntry) -> Self {
+        e.to_pml4e()
+    }
+}
+
+impl From<UnifiedEntry> for Pdpte {
+    #[inline]
+    fn from(e: UnifiedEntry) -> Self {
+        e.to_pdpte()
+    }
+}
+
+impl From<UnifiedEntry> for Pdpte1G {
+    #[inline]
+    fn from(e: UnifiedEntry) -> Self {
+        e.to_pdpte_1g()
+    }
+}
+
+impl From<UnifiedEntry> for Pde {
+    fn from(e: UnifiedEntry) -> Self {
+        e.to_pde()
+    }
+}
+
+impl From<UnifiedEntry> for Pde2M {
+    fn from(e: UnifiedEntry) -> Self {
+        e.to_pde_2m()
+    }
+}
+
+impl From<UnifiedEntry> for Pte4K {
+    fn from(e: UnifiedEntry) -> Self {
+        e.to_pte_4k()
+    }
+}
