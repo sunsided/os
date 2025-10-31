@@ -107,6 +107,7 @@ impl Pml4e {
 
     /// Get the PDPT base address (4 KiB-aligned).
     #[inline]
+    #[must_use]
     pub const fn physical_address(self) -> PhysicalAddress {
         PhysicalAddress::new(self.phys_addr_51_12() << 12)
     }
@@ -171,6 +172,7 @@ impl Pdpte {
 
     /// Get the Page Directory base (4 KiB-aligned).
     #[inline]
+    #[must_use]
     pub const fn physical_address(self) -> PhysicalAddress {
         PhysicalAddress::new(self.phys_addr_51_12() << 12)
     }
@@ -248,6 +250,7 @@ impl Pdpte1G {
 
     /// Get the 1 GiB page base.
     #[inline]
+    #[must_use]
     pub const fn physical_address(self) -> PhysicalAddress {
         PhysicalAddress::new((self.phys_addr_51_30() as u64) << 30)
     }
@@ -315,6 +318,7 @@ impl Pde {
 
     /// Get the Page Table base.
     #[inline]
+    #[must_use]
     pub const fn physical_address(self) -> PhysicalAddress {
         PhysicalAddress::new(self.phys_addr_51_12() << 12)
     }
@@ -392,6 +396,7 @@ impl Pde2M {
 
     /// Get the 2 MiB page base.
     #[inline]
+    #[must_use]
     pub const fn physical_address(self) -> PhysicalAddress {
         PhysicalAddress::new((self.phys_addr_51_21() as u64) << 21)
     }
@@ -457,6 +462,7 @@ impl Pte4K {
 
     /// Get the 4 KiB page base.
     #[inline]
+    #[must_use]
     pub const fn physical_address(self) -> PhysicalAddress {
         PhysicalAddress::new(self.phys_addr_51_12() << 12)
     }
@@ -481,6 +487,13 @@ pub union PdpteUnion {
     entry: Pdpte,
     /// Leaf form: 1 GiB mapping (PS=1).
     leaf_1g: Pdpte1G,
+}
+
+impl Default for PdpteUnion {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PdpteUnion {
@@ -525,7 +538,16 @@ pub union PdeUnion {
     leaf_2m: Pde2M,
 }
 
+impl Default for PdeUnion {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PdeUnion {
+    #[inline]
+    #[must_use]
     pub const fn new() -> Self {
         Self { bits: 0 }
     }
@@ -542,6 +564,8 @@ impl PdeUnion {
         Self { leaf_2m: leaf }
     }
 
+    #[inline]
+    #[must_use]
     pub const fn present(self) -> bool {
         unsafe { self.bits & PRESENT_BIT != 0 }
     }
@@ -570,12 +594,14 @@ pub enum L2View<'a> {
 impl PdpteUnion {
     /// Construct union from raw `bits` (no validation).
     #[inline]
+    #[must_use]
     pub const fn from_bits(bits: u64) -> Self {
         Self { bits }
     }
 
     /// Extract raw `bits` back from the union.
     #[inline]
+    #[must_use]
     pub const fn into_bits(self) -> u64 {
         unsafe { self.bits }
     }
@@ -587,6 +613,7 @@ impl PdpteUnion {
     ///
     /// This function is safe: it returns a view consistent with the PS bit.
     #[inline]
+    #[must_use]
     pub const fn view(&self) -> L3View<'_> {
         unsafe {
             if (self.bits & PS_BIT) != 0 {
@@ -601,12 +628,14 @@ impl PdpteUnion {
 impl PdeUnion {
     /// Construct union from raw `bits` (no validation).
     #[inline]
+    #[must_use]
     pub const fn from_bits(bits: u64) -> Self {
         Self { bits }
     }
 
     /// Extract raw `bits` back from the union.
     #[inline]
+    #[must_use]
     pub const fn into_bits(self) -> u64 {
         unsafe { self.bits }
     }
@@ -616,6 +645,7 @@ impl PdeUnion {
     /// - If PS=1 → [`L2View::Leaf2M`]
     /// - If PS=0 → [`L2View::Entry`]
     #[inline]
+    #[must_use]
     pub const fn view(&self) -> L2View<'_> {
         unsafe {
             if (self.bits & PS_BIT) != 0 {
@@ -627,27 +657,10 @@ impl PdeUnion {
     }
 }
 
-/* ───────────────────────── Convenience constructors ─────────────────────── */
-
-impl Pml4e {
-    /// Convenience constructor for a typical **kernel RW, supervisor** entry.
-    ///
-    /// Sets: `present`, `writable`, clears `user`, `write_through`, `cache_disable`, `no_execute`.
-    #[inline]
-    pub const fn new_common_rw() -> Self {
-        Self::new()
-            .with_present(true)
-            .with_writable(true)
-            .with_user(false)
-            .with_write_through(false)
-            .with_cache_disable(false)
-            .with_no_execute(false)
-    }
-}
-
 impl Pdpte {
     /// Non-leaf PDPTE with common kernel RW flags.
     #[inline]
+    #[must_use]
     pub const fn new_common_rw() -> Self {
         Self::new()
             .with_present(true)
@@ -662,6 +675,7 @@ impl Pdpte {
 impl Pdpte1G {
     /// Leaf PDPTE with common kernel RW flags.
     #[inline]
+    #[must_use]
     pub const fn new_common_rw() -> Self {
         Self::new()
             .with_present(true)
@@ -677,6 +691,7 @@ impl Pdpte1G {
 impl Pde {
     /// Non-leaf PDE with common kernel RW flags.
     #[inline]
+    #[must_use]
     pub const fn new_common_rw() -> Self {
         Self::new()
             .with_present(true)
@@ -691,6 +706,7 @@ impl Pde {
 impl Pde2M {
     /// Leaf PDE with common kernel RW flags.
     #[inline]
+    #[must_use]
     pub const fn new_common_rw() -> Self {
         Self::new()
             .with_present(true)
@@ -700,29 +716,5 @@ impl Pde2M {
             .with_cache_disable(false)
             .with_no_execute(false)
             .with_page_size(true)
-    }
-}
-
-impl Pte4K {
-    /// 4 KiB **user RX** mapping (read+exec, no write).
-    #[inline]
-    pub const fn new_user_rx() -> Self {
-        Self::new()
-            .with_present(true)
-            .with_writable(false)
-            .with_user(true)
-            .with_write_through(false)
-            .with_cache_disable(false)
-            .with_no_execute(false)
-    }
-
-    /// 4 KiB **user RO+NX** mapping (read-only, no execute).
-    #[inline]
-    pub const fn new_user_ro_nx() -> Self {
-        Self::new()
-            .with_present(true)
-            .with_writable(false)
-            .with_user(true)
-            .with_no_execute(true)
     }
 }

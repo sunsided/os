@@ -8,9 +8,9 @@ use kernel_vmem::{
     addresses::{PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress},
 };
 
+use kernel_vmem::UnifiedEntry;
 use kernel_vmem::address_space::AddressSpaceMapOneError;
 use kernel_vmem::addresses::PageSize;
-use kernel_vmem::page_table::unified2::UnifiedEntry;
 use uefi::boot;
 use uefi::boot::{AllocateType, MemoryType};
 

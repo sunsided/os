@@ -16,8 +16,8 @@ use kernel_alloc::vmm::Vmm;
 use kernel_info::boot::{FramebufferInfo, KernelBootInfo};
 use kernel_info::memory::HHDM_BASE;
 use kernel_qemu::qemu_trace;
+use kernel_vmem::UnifiedEntry;
 use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
-use kernel_vmem::page_table::unified2::UnifiedEntry;
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {

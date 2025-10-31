@@ -16,7 +16,7 @@ use crate::page_table::pd::{L2Index, PdEntry, PdEntryKind};
 use crate::page_table::pdpt::{L3Index, PdptEntry, PdptEntryKind};
 use crate::page_table::pml4::{L4Index, Pml4Entry};
 use crate::page_table::pt::{L1Index, PtEntry};
-use crate::page_table::unified2::UnifiedEntry;
+use crate::unified2::UnifiedEntry;
 use crate::{AddressSpace, FrameAlloc, PhysMapper};
 
 /// # Page-size–directed mapping behavior

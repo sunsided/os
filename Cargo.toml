@@ -5,7 +5,7 @@ members = ["os/kernel/*", "os/uefi/*"]
 [workspace.package]
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.90.0"
+rust-version = "1.91.0"
 authors = ["Markus Mayer <widemeadows@gmail.com>"]
 repository = "https://github.com/sunsided/os"
 keywords = ["os", "firmware", "uefi", "rust"]

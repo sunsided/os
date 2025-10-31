@@ -13,9 +13,9 @@
 //! // Map, unmap, query...
 //! ```
 
+use kernel_vmem::UnifiedEntry;
 use kernel_vmem::address_space::AddressSpaceMapRegionError;
 use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
-use kernel_vmem::page_table::unified2::UnifiedEntry;
 use kernel_vmem::{AddressSpace, FrameAlloc, PhysMapper};
 
 /// Minimal kernel virtual memory manager.

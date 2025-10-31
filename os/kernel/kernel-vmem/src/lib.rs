@@ -72,17 +72,16 @@
 
 pub mod address_space;
 pub mod addresses;
-mod page_entry_bits;
 pub mod page_table;
+mod unified2;
 
 pub use crate::address_space::AddressSpace;
-pub use crate::page_entry_bits::PageEntryBits;
-
 use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K};
 use crate::page_table::pd::PageDirectory;
 use crate::page_table::pdpt::PageDirectoryPointerTable;
 use crate::page_table::pml4::PageMapLevel4;
 use crate::page_table::pt::PageTable;
+pub use crate::unified2::UnifiedEntry;
 /// Re-export constants as info module.
 pub use kernel_info::memory as info;
 
