@@ -20,6 +20,7 @@
 //! - Raw constructors don’t validate consistency; callers must ensure correctness.
 //! - TLB maintenance is the caller’s responsibility after mutating active mappings.
 
+use crate::VirtualMemoryPageBits;
 use crate::addresses::{PhysicalAddress, PhysicalPage, Size2M, Size4K, VirtualAddress};
 use crate::page_table::{PRESENT_BIT, PS_BIT};
 use bitfield_struct::bitfield;
@@ -103,16 +104,23 @@ pub struct Pde {
 impl Pde {
     /// Set the Page Table base (4 KiB-aligned).
     #[inline]
-    pub const fn set_physical_page(&mut self, phys: PhysicalAddress) {
-        debug_assert!(phys.is_aligned_to(0x1000));
-        self.set_phys_addr_51_12(phys.as_u64() >> 12);
+    #[must_use]
+    pub const fn with_physical_page(mut self, phys: PhysicalPage<Size4K>) -> Self {
+        self.set_physical_page(phys);
+        self
+    }
+
+    /// Set the Page Table base (4 KiB-aligned).
+    #[inline]
+    pub const fn set_physical_page(&mut self, phys: PhysicalPage<Size4K>) {
+        self.set_phys_addr_51_12(phys.base().as_u64() >> 12);
     }
 
     /// Get the Page Table base.
     #[inline]
     #[must_use]
-    pub const fn physical_address(self) -> PhysicalAddress {
-        PhysicalAddress::new(self.phys_addr_51_12() << 12)
+    pub const fn physical_address(self) -> PhysicalPage<Size4K> {
+        PhysicalPage::from_addr(PhysicalAddress::new(self.phys_addr_51_12() << 12))
     }
 
     /// Non-leaf PDE with common kernel RW flags.
@@ -151,45 +159,43 @@ pub struct Pde2M {
     pub cache_disable: bool,
     /// Accessed (bit 5).
     pub accessed: bool,
-
     /// **Dirty** (bit 6): set by CPU on first write to this 2 MiB page.
     pub dirty: bool,
-
     /// **Page Size** (bit 7): **must be 1** for 2 MiB leaf.
     #[bits(default = true)]
     pub(crate) page_size: bool,
-
     /// **Global** (bit 8): TLB entry not flushed on CR3 reload.
     pub global: bool,
-
     /// OS-available low (bits 9..11).
     #[bits(3)]
     pub os_available_low: u8,
-
     /// **PAT** (Page Attribute Table) selector for 2 MiB mappings (bit 12).
     pub pat_large: bool,
-
     /// Reserved (bits 13..20): must be 0.
     #[bits(8)]
     __res13_20: u8,
-
     /// Physical address bits **51:21** (2 MiB-aligned base).
     #[bits(31)]
     phys_addr_51_21: u32,
-
     /// OS-available high (bits 52..58).
     #[bits(7)]
     pub os_available_high: u8,
-
     /// Protection Key / OS use (59..62).
     #[bits(4)]
     pub protection_key: u8,
-
     /// No-Execute (bit 63).
     pub no_execute: bool,
 }
 
 impl Pde2M {
+    /// Set the 2 MiB page base (must be 2 MiB-aligned).
+    #[inline]
+    #[must_use]
+    pub const fn with_physical_page(mut self, phys: PhysicalPage<Size2M>) -> Self {
+        self.set_physical_page(phys);
+        self
+    }
+
     /// Set the 2 MiB page base (must be 2 MiB-aligned).
     #[inline]
     #[allow(clippy::cast_possible_truncation)]
@@ -356,7 +362,7 @@ impl PdEntry {
         Some(match self.view() {
             L2View::Entry(entry) => {
                 let base = entry.physical_address();
-                PdEntryKind::NextPageTable(PhysicalPage::<Size4K>::from_addr(base), entry)
+                PdEntryKind::NextPageTable(base, entry)
             }
             L2View::Leaf2M(entry) => {
                 let base = entry.physical_page();
@@ -369,25 +375,32 @@ impl PdEntry {
     ///
     /// Sets `present=1`, forces `PS=0`, and writes the PT base address.
     /// The PT base must be 4 KiB-aligned.
-    #[inline]
     #[must_use]
-    pub const fn make_next(pt_page: PhysicalPage<Size4K>, mut flags: Pde) -> Self {
-        flags.set_present(true);
-        flags.set_physical_page(pt_page.base());
-        Self::new_entry(flags)
+    pub const fn present_next_with(
+        leaf_flags: VirtualMemoryPageBits,
+        page: PhysicalPage<Size4K>,
+    ) -> Self {
+        Self::new_entry(
+            leaf_flags
+                .to_pde()
+                .with_present(true)
+                .with_physical_page(page),
+        )
     }
 
-    /// Create a 2 MiB leaf PDE (`PS=1`).
-    ///
-    /// Sets `present=1`, forces `PS=1`, and writes the large-page base address.
-    /// The base must be 2 MiB-aligned.
-    #[inline]
+    /// Create a new, present [`PtEntry4k`] with the specified flags, at the specified page.
     #[must_use]
-    pub const fn make_2m(page: PhysicalPage<Size2M>, mut flags: Pde2M) -> Self {
-        flags.set_present(true);
-        flags.set_physical_page(page);
-        flags.set_page_size(true);
-        Self::new_leaf(flags)
+    pub const fn present_leaf_with(
+        leaf_flags: VirtualMemoryPageBits,
+        page: PhysicalPage<Size2M>,
+    ) -> Self {
+        Self::new_leaf(
+            leaf_flags
+                .to_pde_2m()
+                .with_present(true)
+                .with_page_size(true)
+                .with_physical_page(page),
+        )
     }
 }
 
@@ -457,7 +470,7 @@ mod test {
     #[test]
     fn pd_table_vs_2m() {
         let pt = PhysicalPage::<Size4K>::from_addr(PhysicalAddress::new(0x3000_0000));
-        let e_tbl = PdEntry::make_next(pt, Pde::new_common_rw());
+        let e_tbl = PdEntry::present_next_with(Pde::new_common_rw().into(), pt);
         match e_tbl.kind().unwrap() {
             PdEntryKind::NextPageTable(p, f) => {
                 assert_eq!(p.base().as_u64(), 0x3000_0000);
@@ -467,7 +480,7 @@ mod test {
         }
 
         let m2 = PhysicalPage::<Size2M>::from_addr(PhysicalAddress::new(0x4000_0000));
-        let e_2m = PdEntry::make_2m(m2, Pde2M::new_common_rw());
+        let e_2m = PdEntry::present_leaf_with(Pde2M::new_common_rw().into(), m2);
         match e_2m.kind().unwrap() {
             PdEntryKind::Leaf2MiB(p, f) => {
                 assert_eq!(p.base().as_u64(), 0x4000_0000);

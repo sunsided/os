@@ -136,7 +136,7 @@ impl MapSize for Size1G {
         }
         let f = alloc.alloc_4k().ok_or(MapSizeEnsureChainError::OomPdpt)?;
         aspace.zero_pdpt(f);
-        pml4.set(i4, Pml4Entry::make(f, nonleaf_flags.to_pml4e()));
+        pml4.set(i4, Pml4Entry::present_with(nonleaf_flags, f));
         Ok(f)
     }
 
@@ -152,7 +152,7 @@ impl MapSize for Size1G {
         let pdpt = aspace.pdpt_mut(leaf_tbl_page);
         let idx = L3Index::from(va);
         let g1 = PhysicalPage::<Self>::from_addr(pa);
-        pdpt.set(idx, PdptEntry::make_1g(g1, leaf_flags.to_pdpte_1g()));
+        pdpt.set(idx, PdptEntry::present_leaf_with(leaf_flags, g1));
     }
 }
 
@@ -174,7 +174,7 @@ impl MapSize for Size2M {
         } else {
             let f = alloc.alloc_4k().ok_or(MapSizeEnsureChainError::OomPdpt)?;
             aspace.zero_pdpt(f);
-            pml4.set(i4, Pml4Entry::make(f, nonleaf_flags.to_pml4e()));
+            pml4.set(i4, Pml4Entry::present_with(nonleaf_flags, f));
             f
         };
 
@@ -186,7 +186,7 @@ impl MapSize for Size2M {
             Some(PdptEntryKind::Leaf1GiB(_, _)) | None => {
                 let f = alloc.alloc_4k().ok_or(MapSizeEnsureChainError::OomPd)?;
                 aspace.zero_pd(f);
-                pdpt.set(i3, PdptEntry::make_next(f, nonleaf_flags.to_pdpte()));
+                pdpt.set(i3, PdptEntry::present_next_with(nonleaf_flags, f));
                 f
             }
         })
@@ -203,7 +203,7 @@ impl MapSize for Size2M {
         let pd = aspace.pd_mut(leaf_tbl_page);
         let idx = L2Index::from(va);
         let m2 = PhysicalPage::<Self>::from_addr(pa);
-        pd.set(idx, PdEntry::make_2m(m2, leaf_flags.to_pde_2m()));
+        pd.set(idx, PdEntry::present_leaf_with(leaf_flags, m2));
     }
 }
 
@@ -226,7 +226,7 @@ impl MapSize for Size4K {
         } else {
             let f = alloc.alloc_4k().ok_or(MapSizeEnsureChainError::OomPdpt)?;
             aspace.zero_pdpt(f);
-            pml4.set(i4, Pml4Entry::make(f, nonleaf_flags.to_pml4e()));
+            pml4.set(i4, Pml4Entry::present_with(nonleaf_flags, f));
             f
         };
 
@@ -238,7 +238,7 @@ impl MapSize for Size4K {
             Some(PdptEntryKind::Leaf1GiB(_, _)) | None => {
                 let f = alloc.alloc_4k().ok_or(MapSizeEnsureChainError::OomPd)?;
                 aspace.zero_pd(f);
-                pdpt.set(i3, PdptEntry::make_next(f, nonleaf_flags.to_pdpte()));
+                pdpt.set(i3, PdptEntry::present_next_with(nonleaf_flags, f));
                 f
             }
         };
@@ -251,7 +251,7 @@ impl MapSize for Size4K {
             Some(PdEntryKind::Leaf2MiB(_, _)) | None => {
                 let f = alloc.alloc_4k().ok_or(MapSizeEnsureChainError::OomPt)?;
                 aspace.zero_pt(f);
-                pd.set(i2, PdEntry::make_next(f, nonleaf_flags.to_pde()));
+                pd.set(i2, PdEntry::present_next_with(nonleaf_flags, f));
                 f
             }
         })
@@ -268,6 +268,8 @@ impl MapSize for Size4K {
         let pt = aspace.pt_mut(leaf_tbl_page);
         let idx = L1Index::from(va);
         let k4 = PhysicalPage::<Self>::from_addr(pa);
-        pt.set(idx, PtEntry4k::make_4k(k4, leaf_flags.to_pte_4k()));
+
+        let entry = PtEntry4k::present_with(leaf_flags, k4);
+        pt.set(idx, entry);
     }
 }

@@ -21,6 +21,7 @@
 //! - Accessors avoid unsafe operations and prefer explicit types such as
 //!   [`PhysicalPage<Size4K>`] for next-level tables.
 
+use crate::VirtualMemoryPageBits;
 use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualAddress};
 use bitfield_struct::bitfield;
 
@@ -187,10 +188,22 @@ impl Pml4Entry {
     /// - This function sets `present=1` and the physical base to `next_pdpt_page.base()`.
     #[inline]
     #[must_use]
-    pub const fn make(next_pdpt_page: PhysicalPage<Size4K>, mut flags: Self) -> Self {
-        flags.set_present(true);
-        flags.set_physical_address(next_pdpt_page);
+    pub const fn present_with(
+        flags: VirtualMemoryPageBits,
+        next_pdpt_page: PhysicalPage<Size4K>,
+    ) -> Self {
         flags
+            .to_pml4e()
+            .with_present(true)
+            .with_physical_address(next_pdpt_page)
+    }
+
+    /// Set the PDPT base address (must be 4 KiB-aligned).
+    #[inline]
+    #[must_use]
+    pub const fn with_physical_address(mut self, phys: PhysicalPage<Size4K>) -> Self {
+        self.set_physical_address(phys);
+        self
     }
 
     /// Set the PDPT base address (must be 4 KiB-aligned).
@@ -252,7 +265,7 @@ mod tests {
     fn pml4_points_to_pdpt() {
         let pdpt_page = PhysicalPage::<Size4K>::from_addr(PhysicalAddress::new(0x1234_5000));
         let f = Pml4Entry::new().with_writable(true).with_user(false);
-        let e = Pml4Entry::make(pdpt_page, f);
+        let e = Pml4Entry::present_with(f.into(), pdpt_page);
         assert!(e.present());
         assert_eq!(e.next_table().unwrap().base().as_u64(), 0x1234_5000);
     }

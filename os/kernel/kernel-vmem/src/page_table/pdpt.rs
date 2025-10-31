@@ -21,6 +21,7 @@
 //! - Callers must handle TLB maintenance after changing active mappings.
 //! - Raw constructors perform no validation; use with care.
 
+use crate::VirtualMemoryPageBits;
 use crate::addresses::{PhysicalAddress, PhysicalPage, Size1G, Size4K, VirtualAddress};
 use crate::page_table::{PRESENT_BIT, PS_BIT};
 use bitfield_struct::bitfield;
@@ -151,16 +152,23 @@ pub struct Pdpte1G {
 impl Pdpte {
     /// Set the Page Directory base (4 KiB-aligned).
     #[inline]
-    pub const fn set_physical_page(&mut self, phys: PhysicalAddress) {
-        debug_assert!(phys.is_aligned_to(0x1000));
-        self.set_phys_addr_51_12(phys.as_u64() >> 12);
+    #[must_use]
+    pub const fn with_physical_page(mut self, phys: PhysicalPage<Size4K>) -> Self {
+        self.set_physical_page(phys);
+        self
+    }
+
+    /// Set the Page Directory base (4 KiB-aligned).
+    #[inline]
+    pub const fn set_physical_page(&mut self, phys: PhysicalPage<Size4K>) {
+        self.set_phys_addr_51_12(phys.base().as_u64() >> 12);
     }
 
     /// Get the Page Directory base (4 KiB-aligned).
     #[inline]
     #[must_use]
-    pub const fn physical_address(self) -> PhysicalAddress {
-        PhysicalAddress::new(self.phys_addr_51_12() << 12)
+    pub const fn physical_page(self) -> PhysicalPage<Size4K> {
+        PhysicalPage::from_addr(PhysicalAddress::new(self.phys_addr_51_12() << 12))
     }
 
     /// Non-leaf PDPTE with common kernel RW flags.
@@ -178,6 +186,14 @@ impl Pdpte {
 }
 
 impl Pdpte1G {
+    /// Set the 1 GiB page base (must be 1 GiB-aligned).
+    #[inline]
+    #[must_use]
+    pub const fn with_physical_page(mut self, phys: PhysicalPage<Size1G>) -> Self {
+        self.set_physical_page(phys);
+        self
+    }
+
     /// Set the 1 GiB page base (must be 1 GiB-aligned).
     #[inline]
     #[allow(clippy::cast_possible_truncation)]
@@ -345,8 +361,8 @@ impl PdptEntry {
 
         Some(match self.view() {
             L3View::Entry(entry) => {
-                let base = entry.physical_address();
-                PdptEntryKind::NextPageDirectory(PhysicalPage::<Size4K>::from_addr(base), entry)
+                let base = entry.physical_page();
+                PdptEntryKind::NextPageDirectory(base, entry)
             }
             L3View::Leaf1G(entry) => {
                 let page = entry.physical_page();
@@ -361,9 +377,11 @@ impl PdptEntry {
     /// The PD base must be 4 KiB-aligned.
     #[inline]
     #[must_use]
-    pub const fn make_next(pd_page: PhysicalPage<Size4K>, mut flags: Pdpte) -> Self {
-        flags.set_present(true);
-        flags.set_physical_page(pd_page.base());
+    pub const fn present_next_with(
+        flags: VirtualMemoryPageBits,
+        page: PhysicalPage<Size4K>,
+    ) -> Self {
+        let flags = flags.to_pdpte().with_present(true).with_physical_page(page);
         Self::new_entry(flags)
     }
 
@@ -373,9 +391,15 @@ impl PdptEntry {
     /// The page base must be 1 GiB-aligned.
     #[inline]
     #[must_use]
-    pub const fn make_1g(page: PhysicalPage<Size1G>, mut flags: Pdpte1G) -> Self {
-        flags.set_present(true);
-        flags.set_physical_page(page);
+    pub const fn present_leaf_with(
+        flags: VirtualMemoryPageBits,
+        page: PhysicalPage<Size1G>,
+    ) -> Self {
+        let flags = flags
+            .to_pdpte_1g()
+            .with_present(true)
+            .with_page_size(true)
+            .with_physical_page(page);
         Self::new_leaf(flags)
     }
 }
@@ -448,7 +472,7 @@ mod test {
     fn pdpt_table_vs_1g() {
         // next-level PD
         let pd = PhysicalPage::<Size4K>::from_addr(PhysicalAddress::new(0x2000_0000));
-        let e_tbl = PdptEntry::make_next(pd, Pdpte::new_common_rw());
+        let e_tbl = PdptEntry::present_next_with(Pdpte::new_common_rw().into(), pd);
         match e_tbl.kind().unwrap() {
             PdptEntryKind::NextPageDirectory(p, f) => {
                 assert_eq!(p.base().as_u64(), 0x2000_0000);
@@ -459,7 +483,7 @@ mod test {
 
         // 1 GiB leaf
         let g1 = PhysicalPage::<Size1G>::from_addr(PhysicalAddress::new(0x8000_0000));
-        let e_1g = PdptEntry::make_1g(g1, Pdpte1G::new_common_rw());
+        let e_1g = PdptEntry::present_leaf_with(Pdpte1G::new_common_rw().into(), g1);
         match e_1g.kind().unwrap() {
             PdptEntryKind::Leaf1GiB(p, f) => {
                 assert_eq!(p.base().as_u64(), 0x8000_0000);

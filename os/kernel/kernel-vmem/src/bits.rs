@@ -131,7 +131,7 @@ impl VirtualMemoryPageBits {
             protection_key: e.protection_key(),
             os_available_low: e.os_available_low() & 0b111,
             os_available_high: e.os_available_high() & 0x7F,
-            phys: e.physical_address(),
+            phys: e.physical_page().base(),
             pat_bit2: false,
         }
     }
@@ -173,7 +173,7 @@ impl VirtualMemoryPageBits {
             protection_key: e.protection_key(),
             os_available_low: e.os_available_low() & 0b111,
             os_available_high: e.os_available_high() & 0x7F,
-            phys: e.physical_address(),
+            phys: e.physical_address().base(),
             pat_bit2: false,
         }
     }
@@ -227,7 +227,7 @@ impl VirtualMemoryPageBits {
     /// - Requires `form == L4Entry`
     /// - Enforces 4 KiB alignment; ignores `dirty`, `global`, `pat_bit2`.
     #[must_use]
-    pub fn to_pml4e(&self) -> Pml4Entry {
+    pub const fn to_pml4e(&self) -> Pml4Entry {
         debug_assert!(self.phys.is_aligned_to(0x1000));
         let mut e = Pml4Entry::new();
         e.set_present(self.present);
@@ -246,7 +246,7 @@ impl VirtualMemoryPageBits {
 
     /// Encode into [`Pdpte`] (non-leaf).
     #[must_use]
-    pub fn to_pdpte(&self) -> Pdpte {
+    pub const fn to_pdpte(&self) -> Pdpte {
         debug_assert!(self.phys.is_aligned_to(0x1000));
         let mut e = Pdpte::new();
         e.set_present(self.present);
@@ -259,13 +259,13 @@ impl VirtualMemoryPageBits {
         e.set_os_available_low(self.os_available_low & 0b111);
         e.set_os_available_high(self.os_available_high & 0x7F);
         e.set_protection_key(self.protection_key & 0x0F);
-        e.set_physical_page(self.phys);
+        e.set_physical_page(self.phys.page());
         e
     }
 
     /// Encode into [`Pdpte1G`] (1 GiB leaf).
     #[must_use]
-    pub fn to_pdpte_1g(&self) -> Pdpte1G {
+    pub const fn to_pdpte_1g(&self) -> Pdpte1G {
         debug_assert!(self.phys.is_aligned_to(1 << 30));
         let mut e = Pdpte1G::new();
         e.set_present(self.present);
@@ -288,7 +288,7 @@ impl VirtualMemoryPageBits {
 
     /// Encode into [`Pde`] (non-leaf).
     #[must_use]
-    pub fn to_pde(&self) -> Pde {
+    pub const fn to_pde(&self) -> Pde {
         debug_assert!(self.phys.is_aligned_to(0x1000));
         let mut e = Pde::new();
         e.set_present(self.present);
@@ -301,13 +301,13 @@ impl VirtualMemoryPageBits {
         e.set_os_available_low(self.os_available_low & 0b111);
         e.set_os_available_high(self.os_available_high & 0x7F);
         e.set_protection_key(self.protection_key & 0x0F);
-        e.set_physical_page(self.phys);
+        e.set_physical_page(self.phys.page());
         e
     }
 
     /// Encode into [`Pde2M`] (2 MiB leaf).
     #[must_use]
-    pub fn to_pde_2m(&self) -> Pde2M {
+    pub const fn to_pde_2m(&self) -> Pde2M {
         debug_assert!(self.phys.is_aligned_to(1 << 21));
         let mut e = Pde2M::new();
         e.set_present(self.present);
@@ -330,7 +330,7 @@ impl VirtualMemoryPageBits {
 
     /// Encode into [`PtEntry4k`] (4 KiB leaf).
     #[must_use]
-    pub fn to_pte_4k(&self) -> PtEntry4k {
+    pub const fn to_pte_4k(&self) -> PtEntry4k {
         debug_assert!(self.phys.is_aligned_to(0x1000));
         let mut e = PtEntry4k::new();
         e.set_present(self.present);

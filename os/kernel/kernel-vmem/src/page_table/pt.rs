@@ -19,6 +19,7 @@
 //! - Raw constructors do not validate consistency; prefer typed helpers.
 //! - After modifying active mappings, the caller must perform any required TLB maintenance.
 
+use crate::VirtualMemoryPageBits;
 use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualAddress};
 use bitfield_struct::bitfield;
 
@@ -43,29 +44,22 @@ pub struct PtEntry4k {
     pub accessed: bool,
     /// Dirty (bit 6): set by CPU on first write.
     pub dirty: bool,
-
     /// **PAT** (bit 7) — **PAT selector bit 2** for 4 KiB mappings.
     pub pat_small: bool,
-
     /// Global (bit 8): TLB entry not flushed on CR3 reload.
     pub global: bool,
-
     /// OS-available low (bits 9..11).
     #[bits(3)]
     pub os_available_low: u8,
-
     /// Physical address bits **51:12** (4 KiB-aligned base).
     #[bits(40)]
     phys_addr_51_12: u64,
-
     /// OS-available high (bits 52..58).
     #[bits(7)]
     pub os_available_high: u8,
-
     /// Protection Key / OS use (59..62).
     #[bits(4)]
     pub protection_key: u8,
-
     /// No-Execute (bit 63).
     pub no_execute: bool,
 }
@@ -117,6 +111,14 @@ impl L1Index {
 impl PtEntry4k {
     /// Set the 4 KiB page base (4 KiB-aligned).
     #[inline]
+    #[must_use]
+    pub const fn with_physical_page(mut self, phys: PhysicalPage<Size4K>) -> Self {
+        self.set_physical_page(phys);
+        self
+    }
+
+    /// Set the 4 KiB page base (4 KiB-aligned).
+    #[inline]
     pub const fn set_physical_page(&mut self, phys: PhysicalPage<Size4K>) {
         self.set_phys_addr_51_12(phys.base().as_u64() >> 12);
     }
@@ -126,6 +128,18 @@ impl PtEntry4k {
     #[must_use]
     pub const fn physical_page(self) -> PhysicalPage<Size4K> {
         PhysicalPage::from_addr(PhysicalAddress::new(self.phys_addr_51_12() << 12))
+    }
+
+    /// Create a new, present [`PtEntry4k`] with the specified flags, at the specified page.
+    #[must_use]
+    pub const fn present_with(
+        leaf_flags: VirtualMemoryPageBits,
+        page: PhysicalPage<Size4K>,
+    ) -> Self {
+        leaf_flags
+            .to_pte_4k()
+            .with_present(true)
+            .with_physical_page(page)
     }
 
     /// 4 KiB **user RO+NX** mapping (read-only, no execute).
@@ -156,18 +170,6 @@ impl PtEntry4k {
             return None;
         }
         Some((self.physical_page(), self))
-    }
-
-    /// Create a 4 KiB leaf PTE (`PS=0`).
-    ///
-    /// Sets `present=1`, forces `PS=0`, and writes the page base address.
-    /// The base must be 4 KiB-aligned.
-    #[inline]
-    #[must_use]
-    pub const fn make_4k(page: PhysicalPage<Size4K>, mut flags: Self) -> Self {
-        flags.set_present(true);
-        flags.set_physical_page(page);
-        flags
     }
 }
 
@@ -223,7 +225,10 @@ mod test {
     #[test]
     fn pte_4k_leaf() {
         let k4 = PhysicalPage::<Size4K>::from_addr(PhysicalAddress::new(0x5555_0000));
-        let e = PtEntry4k::make_4k(k4, PtEntry4k::new_user_ro_nx());
+        let e = PtEntry4k::new_user_ro_nx()
+            .with_present(true)
+            .with_physical_page(k4);
+
         let (p, fl) = e.page_4k().unwrap();
         assert_eq!(p.base().as_u64(), 0x5555_0000);
         assert!(fl.no_execute());
