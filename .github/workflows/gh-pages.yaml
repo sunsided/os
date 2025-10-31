@@ -1,0 +1,42 @@
+name: Deploy Rust Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'os/**'
+      - '.github/workflows/gh-pages.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Build Rust Documentation
+        # run: cargo doc --workspace --document-private-items --no-deps
+        env:
+          RUSTDOCFLAGS: --enable-index-page -Zunstable-options
+        run: cargo +nightly doc --workspace --document-private-items --no-deps
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./target/doc
