@@ -34,11 +34,12 @@ use crate::address_space::map_size::MapSizeEnsureChainError;
 use crate::addresses::{
     PageSize, PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress,
 };
+use crate::bits::VirtualMemoryPageBits;
 use crate::page_table::pd::{L2Index, PageDirectory, PdEntry, PdEntryKind};
 use crate::page_table::pdpt::{L3Index, PageDirectoryPointerTable, PdptEntry, PdptEntryKind};
 use crate::page_table::pml4::{L4Index, PageMapLevel4, Pml4Entry};
-use crate::page_table::pt::{L1Index, PageTable, PtEntry};
-use crate::{FrameAlloc, PageEntryBits, PhysMapper, read_cr3_phys};
+use crate::page_table::pt::{L1Index, PageTable, PtEntry4k};
+use crate::{FrameAlloc, PhysMapper, read_cr3_phys};
 
 /// Handle to a single, concrete address space.
 pub struct AddressSpace<'m, M: PhysMapper> {
@@ -133,8 +134,8 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
         alloc: &mut A,
         va: VirtualAddress,
         pa: PhysicalAddress,
-        nonleaf_flags: PageEntryBits,
-        leaf_flags: PageEntryBits,
+        nonleaf_flags: VirtualMemoryPageBits,
+        leaf_flags: VirtualMemoryPageBits,
     ) -> Result<(), AddressSpaceMapOneError> {
         debug_assert_eq!(pa.offset::<S>().as_u64(), 0, "physical address not aligned");
 
@@ -151,7 +152,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
     pub fn unmap_one(&self, va: VirtualAddress) -> Result<(), &'static str> {
         match self.walk(va) {
             WalkResult::L1 { pt, i1, pte } => {
-                if !pte.is_present() {
+                if !pte.present() {
                     return Err("missing: pte");
                 }
                 pt.set_zero(i1);
@@ -177,8 +178,8 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
         virt_start: VirtualAddress,
         phys_start: PhysicalAddress,
         len: u64,
-        nonleaf_flags: PageEntryBits,
-        leaf_flags: PageEntryBits,
+        nonleaf_flags: VirtualMemoryPageBits,
+        leaf_flags: VirtualMemoryPageBits,
     ) -> Result<(), AddressSpaceMapRegionError> {
         let mut off = 0u64;
         while off < len {
@@ -240,7 +241,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
                     off += Size2M::SIZE;
                 }
                 WalkResult::L1 { pt, i1, pte } => {
-                    if pte.is_present() {
+                    if pte.present() {
                         pt.set_zero(i1);
                     }
                     off += Size4K::SIZE;
@@ -286,7 +287,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
                                     let pt = self.pt_mut(pt_page);
                                     let mut any_present = false;
                                     for i1 in 0..512 {
-                                        if pt.get(L1Index::new(i1)).is_present() {
+                                        if pt.get(L1Index::new(i1)).present() {
                                             any_present = true;
                                             break;
                                         }
@@ -458,7 +459,7 @@ enum WalkResult<'a> {
     L1 {
         pt: &'a mut PageTable,
         i1: L1Index,
-        pte: PtEntry,
+        pte: PtEntry4k,
     },
     /// Missing somewhere in the chain.
     Missing,

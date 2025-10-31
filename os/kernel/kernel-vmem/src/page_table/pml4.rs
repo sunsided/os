@@ -17,17 +17,98 @@
 //! ## Guarantees & Invariants
 //!
 //! - [`PageMapLevel4`] is 4 KiB-aligned and has exactly 512 entries.
-//! - [`Pml4Entry::make`] enforces `PS=0` for PML4Es.
+//! - [`Pml4Entry::present_with`] enforces `PS=0` for PML4Es.
 //! - Accessors avoid unsafe operations and prefer explicit types such as
 //!   [`PhysicalPage<Size4K>`] for next-level tables.
-//!
-//! ## Notation
-//!
-//! `present`, `large_page (PS)`, and addresses/flags are delegated to
-//! [`PageEntryBits`], which encapsulates bit-level manipulation.
 
-use crate::PageEntryBits;
-use crate::addresses::{PhysicalPage, Size4K, VirtualAddress};
+use crate::VirtualMemoryPageBits;
+use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualAddress};
+use bitfield_struct::bitfield;
+
+/// L4 **PML4E** — pointer to a **PDPT** (non-leaf; PS **must be 0**).
+///
+/// This entry never maps memory directly. Bits that are meaningful only on
+/// leaf entries (e.g., `dirty`, `global`) are ignored here.
+///
+/// - Physical address (bits **51:12**) is a 4 KiB-aligned PDPT.
+/// - `NX` participates in permission intersection across the walk.
+/// - `PKU` may be repurposed as OS-available when not supported.
+///
+/// Reference: AMD APM / Intel SDM paging structures (x86-64).
+#[doc(alias = "PML4E")]
+#[bitfield(u64)]
+pub struct Pml4Entry {
+    /// **Present** (bit 0): valid entry if set.
+    ///
+    /// When clear, the entry is not present and most other fields are ignored.
+    pub present: bool,
+
+    /// **Writable** (bit 1): write permission.
+    ///
+    /// Intersects with lower-level permissions; supervisor write protection,
+    /// SMEP/SMAP, CR0.WP, and U/S checks apply.
+    pub writable: bool,
+
+    /// **User/Supervisor** (bit 2): allow user-mode access if set.
+    ///
+    /// If clear, access is restricted to supervisor (ring 0).
+    pub user: bool,
+
+    /// **Page Write-Through** (PWT, bit 3): write-through caching policy.
+    ///
+    /// Effective only if caching isn’t disabled for the mapping.
+    pub write_through: bool,
+
+    /// **Page Cache Disable** (PCD, bit 4): disable caching if set.
+    ///
+    /// Strongly impacts performance; use for MMIO or compliance with device
+    /// requirements. Effective policy is the intersection across the walk.
+    pub cache_disable: bool,
+
+    /// **Accessed** (A, bit 5): set by CPU on first access via this entry.
+    ///
+    /// Software may clear to track usage; not a permission bit.
+    pub accessed: bool,
+
+    /// (bit 6): **ignored** for non-leaf entries at L4.
+    #[bits(1)]
+    __d_ignored: u8,
+
+    /// **Page Size** (bit 7): **must be 0** for PML4E (non-leaf).
+    #[bits(1)]
+    __ps_must_be_0: u8,
+
+    /// **Global** (bit 8): **ignored** for non-leaf entries.
+    #[bits(1)]
+    __g_ignored: u8,
+
+    /// **OS-available low** (bits 9..11): not interpreted by hardware.
+    #[bits(3)]
+    pub os_available_low: u8,
+
+    /// **Next-level table physical address** (bits 12..51).
+    ///
+    /// Stores the PDPT base (4 KiB-aligned). The low 12 bits are omitted.
+    #[bits(40)]
+    phys_addr_51_12: u64,
+
+    /// **OS-available high** (bits 52..58): not interpreted by hardware.
+    #[bits(7)]
+    pub os_available_high: u8,
+
+    /// **Protection Key / OS use** (bits 59..62).
+    ///
+    /// If PKU is supported and enabled, these bits select the protection key;
+    /// otherwise they may be used by the OS.
+    #[bits(4)]
+    pub protection_key: u8,
+
+    /// **No-Execute** (NX, bit 63 / XD on Intel).
+    ///
+    /// When set and EFER.NXE is enabled, instruction fetch is disallowed
+    /// through this entry (permission intersection applies).
+    pub no_execute: bool,
+}
 
 /// Index into the PML4 table (derived from virtual-address bits `[47:39]`).
 ///
@@ -36,18 +117,6 @@ use crate::addresses::{PhysicalPage, Size4K, VirtualAddress};
 #[repr(transparent)]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct L4Index(u16);
-
-/// A single PML4 entry (PML4E).
-///
-/// Semantics:
-/// - Points to a next-level L3 table (PDPT).
-/// - The `PS` (Page Size) bit **must be 0** at this level.
-/// - Presence and other permission/cache flags live in the inner
-///   [`PageEntryBits`].
-#[doc(alias = "PML4E")]
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct Pml4Entry(PageEntryBits);
 
 /// The top-level page map (PML4).
 ///
@@ -96,23 +165,7 @@ impl Pml4Entry {
     #[inline]
     #[must_use]
     pub const fn zero() -> Self {
-        Self(PageEntryBits::new())
-    }
-
-    /// Check whether the entry is marked present.
-    #[inline]
-    #[must_use]
-    pub const fn is_present(self) -> bool {
-        self.0.present()
-    }
-
-    /// Return the raw [`PageEntryBits`] for advanced inspection/masking.
-    ///
-    /// Prefer higher-level helpers where possible.
-    #[inline]
-    #[must_use]
-    pub const fn flags(self) -> PageEntryBits {
-        self.0
+        Self::new()
     }
 
     /// If present, return the physical page of the next-level PDPT.
@@ -122,10 +175,10 @@ impl Pml4Entry {
     #[inline]
     #[must_use]
     pub const fn next_table(self) -> Option<PhysicalPage<Size4K>> {
-        if !self.is_present() {
+        if !self.present() {
             return None;
         }
-        Some(PhysicalPage::from_addr(self.0.physical_address()))
+        Some(self.physical_address())
     }
 
     /// Build a PML4 entry that points to the given PDPT page and applies the provided flags.
@@ -135,27 +188,35 @@ impl Pml4Entry {
     /// - This function sets `present=1` and the physical base to `next_pdpt_page.base()`.
     #[inline]
     #[must_use]
-    pub fn make(next_pdpt_page: PhysicalPage<Size4K>, mut flags: PageEntryBits) -> Self {
-        debug_assert!(!flags.large_page(), "PML4E must have PS=0");
-        flags.set_present(true);
-        flags.set_physical_address(next_pdpt_page.base());
-        Self(flags)
+    pub const fn present_with(
+        flags: VirtualMemoryPageBits,
+        next_pdpt_page: PhysicalPage<Size4K>,
+    ) -> Self {
+        flags
+            .to_pml4e()
+            .with_present(true)
+            .with_physical_address(next_pdpt_page)
     }
 
-    /// Return the raw 64-bit value of the entry (flags + address).
+    /// Set the PDPT base address (must be 4 KiB-aligned).
     #[inline]
     #[must_use]
-    pub fn raw(self) -> u64 {
-        self.0.into()
+    pub const fn with_physical_address(mut self, phys: PhysicalPage<Size4K>) -> Self {
+        self.set_physical_address(phys);
+        self
     }
 
-    /// Construct an entry from a raw 64-bit value.
-    ///
-    /// No validation is performed here; callers must ensure `PS=0` for PML4Es.
+    /// Set the PDPT base address (must be 4 KiB-aligned).
+    #[inline]
+    pub const fn set_physical_address(&mut self, phys: PhysicalPage<Size4K>) {
+        self.set_phys_addr_51_12(phys.base().as_u64() >> 12);
+    }
+
+    /// Get the PDPT base address (4 KiB-aligned).
     #[inline]
     #[must_use]
-    pub fn from_raw(v: u64) -> Self {
-        Self(PageEntryBits::from(v))
+    pub const fn physical_address(self) -> PhysicalPage<Size4K> {
+        PhysicalPage::from_addr(PhysicalAddress::new(self.phys_addr_51_12() << 12))
     }
 }
 
@@ -203,12 +264,9 @@ mod tests {
     #[test]
     fn pml4_points_to_pdpt() {
         let pdpt_page = PhysicalPage::<Size4K>::from_addr(PhysicalAddress::new(0x1234_5000));
-        let mut f = PageEntryBits::new();
-        f.set_writable(true);
-        f.set_user_access(false);
-        let e = Pml4Entry::make(pdpt_page, f);
-        assert!(e.is_present());
-        assert!(!e.flags().large_page());
+        let f = Pml4Entry::new().with_writable(true).with_user(false);
+        let e = Pml4Entry::present_with(f.into(), pdpt_page);
+        assert!(e.present());
         assert_eq!(e.next_table().unwrap().base().as_u64(), 0x1234_5000);
     }
 }

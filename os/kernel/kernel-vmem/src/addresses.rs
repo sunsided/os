@@ -119,7 +119,7 @@ impl PageSize for Size1G {
 
 /// Principal raw memory address ([virtual](VirtualAddress) or [physical](PhysicalAddress)).
 #[repr(transparent)]
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct MemoryAddress(u64);
 
 impl MemoryAddress {
@@ -379,7 +379,7 @@ impl<S: PageSize> From<MemoryAddress> for MemoryAddressOffset<S> {
 /// assert_eq!(vp.join(off).as_u64(), va.as_u64());
 /// ```
 #[repr(transparent)]
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct VirtualAddress(MemoryAddress);
 
 impl VirtualAddress {
@@ -464,7 +464,7 @@ impl fmt::Display for VirtualAddress {
 /// assert_eq!(pp.join(off).as_u64(), pa.as_u64());
 /// ```
 #[repr(transparent)]
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct PhysicalAddress(MemoryAddress);
 
 impl PhysicalAddress {
@@ -508,6 +508,12 @@ impl PhysicalAddress {
     #[must_use]
     pub const fn split<S: PageSize>(self) -> (PhysicalPage<S>, MemoryAddressOffset<S>) {
         (self.page::<S>(), self.offset::<S>())
+    }
+
+    /// True if `self` is aligned to `align` (power-of-two).
+    #[inline]
+    pub(crate) const fn is_aligned_to(self, align: u64) -> bool {
+        (self.as_u64() & (align - 1)) == 0
     }
 }
 

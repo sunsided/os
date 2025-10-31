@@ -16,7 +16,7 @@ use kernel_alloc::vmm::Vmm;
 use kernel_info::boot::{FramebufferInfo, KernelBootInfo};
 use kernel_info::memory::HHDM_BASE;
 use kernel_qemu::qemu_trace;
-use kernel_vmem::PageEntryBits;
+use kernel_vmem::VirtualMemoryPageBits;
 use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
 
 #[panic_handler]
@@ -140,9 +140,10 @@ fn remap_boot_memory(bi: &KernelBootInfo) -> FramebufferInfo {
     let fb_pa = bi.fb.framebuffer_ptr;
     let fb_len = bi.fb.framebuffer_size;
     let va_base = HHDM_BASE + VGA_LIKE_OFFSET;
-    let fb_flags = PageEntryBits::default()
+    let fb_flags = VirtualMemoryPageBits::default()
         .with_writable(true)
-        .with_global_translation(true)
+        .with_write_combining()
+        .with_global(true)
         .with_no_execute(true);
 
     vmm.map_region(

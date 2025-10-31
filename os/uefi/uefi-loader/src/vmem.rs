@@ -4,10 +4,11 @@ use crate::elf::loader::LoadedSegMap;
 use kernel_info::memory::{HHDM_BASE /*KERNEL_BASE,*/ /*PHYS_LOAD*/};
 
 use kernel_vmem::{
-    AddressSpace, FrameAlloc, PageEntryBits, PhysMapper,
+    AddressSpace, FrameAlloc, PhysMapper,
     addresses::{PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress},
 };
 
+use kernel_vmem::VirtualMemoryPageBits;
 use kernel_vmem::address_space::AddressSpaceMapOneError;
 use kernel_vmem::addresses::PageSize;
 use uefi::boot;
@@ -78,7 +79,9 @@ pub fn create_kernel_pagetables(
 
     // Common flags
     // Non-leaf: present + writable (no NX on non-leaves)
-    let nonleaf_flags: PageEntryBits = PageEntryBits::new().with_present(true).with_writable(true);
+    let nonleaf_flags = VirtualMemoryPageBits::default()
+        .with_present(true)
+        .with_writable(true);
 
     // Map each PT_LOAD segment
     for m in kernel_maps {
@@ -97,9 +100,9 @@ pub fn create_kernel_pagetables(
 
             // Leaf flags from ELF PF_*:
             // start with present + global; add writable if PF_W; add NX if !PF_X
-            let leaf_flags = PageEntryBits::new()
+            let leaf_flags = VirtualMemoryPageBits::default()
                 .with_present(true)
-                .with_global_translation(true)
+                .with_global(true)
                 .with_writable(m.flags.write())
                 .with_no_execute(!m.flags.execute());
 
@@ -135,10 +138,10 @@ pub fn create_kernel_pagetables(
     {
         let hhdm_va = VirtualAddress::new(HHDM_BASE);
         let zero_pa = PhysicalAddress::new(0);
-        let leaf = PageEntryBits::new()
+        let leaf = VirtualMemoryPageBits::default()
             .with_present(true)
             .with_writable(true)
-            .with_global_translation(true)
+            .with_global(true)
             .with_no_execute(true);
         aspace.map_one::<_, Size1G>(&mut alloc, hhdm_va, zero_pa, nonleaf_flags, leaf)?;
     }
@@ -148,10 +151,10 @@ pub fn create_kernel_pagetables(
     {
         let va0 = VirtualAddress::new(0);
         let pa0 = PhysicalAddress::new(0);
-        let leaf = PageEntryBits::new()
+        let leaf = VirtualMemoryPageBits::default()
             .with_present(true)
             .with_writable(true)
-            .with_global_translation(true);
+            .with_global(true);
         aspace.map_one::<_, Size2M>(&mut alloc, va0, pa0, nonleaf_flags, leaf)?;
     }
 
@@ -165,10 +168,10 @@ pub fn create_kernel_pagetables(
                 .ok_or(KernelPageTableError::TrampolineStackRangeOverflow)?,
             Size4K::SIZE,
         );
-        let leaf = PageEntryBits::new()
+        let leaf = VirtualMemoryPageBits::default()
             .with_present(true)
             .with_writable(true)
-            .with_global_translation(true)
+            .with_global(true)
             .with_no_execute(true);
 
         let mut pa = start;
@@ -190,9 +193,9 @@ pub fn create_kernel_pagetables(
                 .ok_or(KernelPageTableError::TrampolineCodeRangeOverflow)?,
             Size4K::SIZE,
         );
-        let leaf = PageEntryBits::new()
+        let leaf = VirtualMemoryPageBits::default()
             .with_present(true)
-            .with_global_translation(true)
+            .with_global(true)
             .with_no_execute(false) // executable (no NX)
             .with_writable(false);
 
@@ -208,10 +211,10 @@ pub fn create_kernel_pagetables(
     // Identity map just the BootInfo pointer page (4 KiB, NX)
     {
         let bi_page = boot_info_ptr_va.page::<Size4K>().base();
-        let leaf = PageEntryBits::new()
+        let leaf = VirtualMemoryPageBits::default()
             .with_present(true)
             .with_writable(true)
-            .with_global_translation(true)
+            .with_global(true)
             .with_no_execute(true);
         aspace.map_one::<_, Size4K>(
             &mut alloc,

@@ -11,6 +11,16 @@ use crate::page_table::pdpt::L3Index;
 use crate::page_table::pml4::L4Index;
 use crate::page_table::pt::L1Index;
 
+/// Hardware **Present** bit position shared across levels (bit 0).
+const PRESENT_BIT: u64 = 1 << 0;
+
+/// Hardware **Page Size** (PS) bit position shared across levels (bit 7).
+///
+/// - In non-leaf entries: PS **must be 0**.
+/// - In large leaf entries (L3 1 GiB / L2 2 MiB): PS **must be 1**.
+/// - In L1 4 KiB PTEs: bit 7 is **PAT** (not PS).
+const PS_BIT: u64 = 1 << 7;
+
 #[inline]
 #[must_use]
 pub const fn split_indices(va: VirtualAddress) -> (L4Index, L3Index, L2Index, L1Index) {
