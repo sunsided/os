@@ -38,85 +38,20 @@ pub enum L3View<'a> {
 /// **L3 PDPTE union** — overlays non-leaf [`Pdpte`] and leaf [`Pdpte1G`]
 /// on the same 64-bit storage.
 ///
-/// Use [`PdpteUnion::view`] / [`PdpteUnion::view_mut`] to obtain a **typed**
+/// Use [`PdptEntry::view`] / [`PdptEntry::view_mut`] to obtain a **typed**
 /// reference. These methods inspect the **PS** bit to decide which variant is
 /// active and return a safe borrowed view.
 ///
 /// Storing/retrieving raw bits is possible via `from_bits`/`into_bits`.
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union PdpteUnion {
+pub union PdptEntry {
     /// Raw 64-bit storage of the entry.
     bits: u64,
     /// Non-leaf form: next-level Page Directory (PS=0).
     entry: Pdpte,
     /// Leaf form: 1 GiB mapping (PS=1).
     leaf_1g: Pdpte1G,
-}
-
-impl Default for PdpteUnion {
-    #[inline]
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl PdpteUnion {
-    #[inline]
-    #[must_use]
-    pub const fn new() -> Self {
-        Self { bits: 0 }
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn new_entry(entry: Pdpte) -> Self {
-        Self { entry }
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn new_leaf(leaf: Pdpte1G) -> Self {
-        Self { leaf_1g: leaf }
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn present(self) -> bool {
-        unsafe { self.bits & PRESENT_BIT != 0 }
-    }
-
-    /// Construct union from raw `bits` (no validation).
-    #[inline]
-    #[must_use]
-    pub const fn from_bits(bits: u64) -> Self {
-        Self { bits }
-    }
-
-    /// Extract raw `bits` back from the union.
-    #[inline]
-    #[must_use]
-    pub const fn into_bits(self) -> u64 {
-        unsafe { self.bits }
-    }
-
-    /// **Typed read-only view** chosen by the **PS** bit.
-    ///
-    /// - If PS=1 → [`L3View::Leaf1G`]
-    /// - If PS=0 → [`L3View::Entry`]
-    ///
-    /// This function is safe: it returns a view consistent with the PS bit.
-    #[inline]
-    #[must_use]
-    pub const fn view(&self) -> L3View<'_> {
-        unsafe {
-            if (self.bits & PS_BIT) != 0 {
-                L3View::Leaf1G(&self.leaf_1g)
-            } else {
-                L3View::Entry(&self.entry)
-            }
-        }
-    }
 }
 
 /// L3 **PDPTE** — pointer to a **Page Directory** (non-leaf; PS **= 0**).
@@ -295,19 +230,6 @@ impl Pdpte1G {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct L3Index(u16);
 
-/// A single PDPT entry (PDPTE).
-///
-/// Semantics:
-///
-/// - If `PS=0`, the entry points to a Page Directory (PD).
-/// - If `PS=1`, the entry is a 1 GiB leaf mapping.
-///
-/// Other permission/cache/present bits live inside [`PageEntryBits`].
-#[doc(alias = "PDPTE")]
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct PdptEntry(PdpteUnion);
-
 /// Decoded PDPT entry kind.
 ///
 /// - [`NextPageDirectory`](PdptEntryKind::NextPageDirectory): non-leaf; `PS=0`; holds the 4 KiB-aligned PD base.
@@ -353,26 +275,75 @@ impl L3Index {
     }
 }
 
+impl Default for PdptEntry {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PdptEntry {
+    #[inline]
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { bits: 0 }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn new_entry(entry: Pdpte) -> Self {
+        Self { entry }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn new_leaf(leaf: Pdpte1G) -> Self {
+        Self { leaf_1g: leaf }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn present(self) -> bool {
+        unsafe { self.bits & PRESENT_BIT != 0 }
+    }
+
+    /// Construct union from raw `bits` (no validation).
+    #[inline]
+    #[must_use]
+    pub const fn from_bits(bits: u64) -> Self {
+        Self { bits }
+    }
+
+    /// Extract raw `bits` back from the union.
+    #[inline]
+    #[must_use]
+    pub const fn into_bits(self) -> u64 {
+        unsafe { self.bits }
+    }
+
+    /// **Typed read-only view** chosen by the **PS** bit.
+    ///
+    /// - If PS=1 → [`L3View::Leaf1G`]
+    /// - If PS=0 → [`L3View::Entry`]
+    ///
+    /// This function is safe: it returns a view consistent with the PS bit.
+    #[inline]
+    #[must_use]
+    pub const fn view(&self) -> L3View<'_> {
+        unsafe {
+            if (self.bits & PS_BIT) != 0 {
+                L3View::Leaf1G(&self.leaf_1g)
+            } else {
+                L3View::Entry(&self.entry)
+            }
+        }
+    }
+
     /// Create a zero (non-present) entry.
     #[inline]
     #[must_use]
     pub const fn zero() -> Self {
-        Self(PdpteUnion::new())
-    }
-
-    /// Return `true` if the entry is marked present.
-    #[inline]
-    #[must_use]
-    pub const fn is_present(self) -> bool {
-        self.0.present()
-    }
-
-    /// Expose the underlying bitfield for advanced inspection/masking.
-    #[inline]
-    #[must_use]
-    pub const fn view(&self) -> L3View<'_> {
-        self.0.view()
+        Self::new()
     }
 
     /// Decode the entry into its semantic kind, or `None` if not present.
@@ -382,7 +353,7 @@ impl PdptEntry {
     #[inline]
     #[must_use]
     pub const fn kind(self) -> Option<PdptEntryKind> {
-        if !self.is_present() {
+        if !self.present() {
             return None;
         }
 
@@ -407,7 +378,7 @@ impl PdptEntry {
     pub const fn make_next(pd_page: PhysicalPage<Size4K>, mut flags: Pdpte) -> Self {
         flags.set_present(true);
         flags.set_physical_address(pd_page.base());
-        Self(PdpteUnion::new_entry(flags))
+        Self::new_entry(flags)
     }
 
     /// Create a 1 GiB leaf PDPTE (`PS=1`).
@@ -419,14 +390,14 @@ impl PdptEntry {
     pub const fn make_1g(page: PhysicalPage<Size1G>, mut flags: Pdpte1G) -> Self {
         flags.set_present(true);
         flags.set_physical_address(page.base());
-        Self(PdpteUnion::new_leaf(flags))
+        Self::new_leaf(flags)
     }
 
     /// Return the raw 64-bit value (flags + address).
     #[inline]
     #[must_use]
     pub const fn raw(self) -> u64 {
-        self.0.into_bits()
+        self.into_bits()
     }
 
     /// Construct from a raw 64-bit value.
@@ -435,7 +406,7 @@ impl PdptEntry {
     #[inline]
     #[must_use]
     pub const fn from_raw(v: u64) -> Self {
-        Self(PdpteUnion::from_bits(v))
+        Self::from_bits(v)
     }
 }
 

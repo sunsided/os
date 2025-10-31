@@ -16,7 +16,7 @@ use crate::bits::VirtualMemoryPageBits;
 use crate::page_table::pd::{L2Index, PdEntry, PdEntryKind};
 use crate::page_table::pdpt::{L3Index, PdptEntry, PdptEntryKind};
 use crate::page_table::pml4::{L4Index, Pml4Entry};
-use crate::page_table::pt::{L1Index, PtEntry};
+use crate::page_table::pt::{L1Index, PtEntry4k};
 use crate::{AddressSpace, FrameAlloc, PhysMapper};
 
 /// # Page-size–directed mapping behavior
@@ -268,6 +268,6 @@ impl MapSize for Size4K {
         let pt = aspace.pt_mut(leaf_tbl_page);
         let idx = L1Index::from(va);
         let k4 = PhysicalPage::<Self>::from_addr(pa);
-        pt.set(idx, PtEntry::make_4k(k4, leaf_flags.to_pte_4k()));
+        pt.set(idx, PtEntry4k::make_4k(k4, leaf_flags.to_pte_4k()));
     }
 }

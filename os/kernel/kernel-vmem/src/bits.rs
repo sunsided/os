@@ -2,7 +2,7 @@ use crate::addresses::PhysicalAddress;
 use crate::page_table::pd::{Pde, Pde2M};
 use crate::page_table::pdpt::{Pdpte, Pdpte1G};
 use crate::page_table::pml4::Pml4Entry;
-use crate::page_table::pt::Pte4K;
+use crate::page_table::pt::PtEntry4k;
 use getset::WithSetters;
 
 /// Unified, ergonomic view over x86-64 paging entries (all levels / forms).
@@ -199,9 +199,9 @@ impl VirtualMemoryPageBits {
         }
     }
 
-    /// Populate from an L1 [`Pte4K`] (4 KiB leaf).
+    /// Populate from an L1 [`PtEntry4k`] (4 KiB leaf).
     #[must_use]
-    pub const fn from_pte_4k(e: &Pte4K) -> Self {
+    pub const fn from_pte_4k(e: &PtEntry4k) -> Self {
         Self {
             present: e.present(),
             writable: e.writable(),
@@ -330,9 +330,9 @@ impl VirtualMemoryPageBits {
 
     /// Encode into [`Pte4K`] (4 KiB leaf).
     #[must_use]
-    pub fn to_pte_4k(&self) -> Pte4K {
+    pub fn to_pte_4k(&self) -> PtEntry4k {
         debug_assert!(self.phys.is_aligned_to(0x1000));
-        let mut e = Pte4K::new();
+        let mut e = PtEntry4k::new();
         e.set_present(self.present);
         e.set_writable(self.writable);
         e.set_user(self.user);
@@ -386,9 +386,9 @@ impl From<Pde2M> for VirtualMemoryPageBits {
     }
 }
 
-impl From<Pte4K> for VirtualMemoryPageBits {
+impl From<PtEntry4k> for VirtualMemoryPageBits {
     #[inline]
-    fn from(e: Pte4K) -> Self {
+    fn from(e: PtEntry4k) -> Self {
         Self::from_pte_4k(&e)
     }
 }
@@ -426,7 +426,7 @@ impl From<VirtualMemoryPageBits> for Pde2M {
     }
 }
 
-impl From<VirtualMemoryPageBits> for Pte4K {
+impl From<VirtualMemoryPageBits> for PtEntry4k {
     fn from(e: VirtualMemoryPageBits) -> Self {
         e.to_pte_4k()
     }
