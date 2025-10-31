@@ -39,8 +39,9 @@ use bitfield_struct::bitfield;
 /// - `PKU` may be repurposed as OS-available when not supported.
 ///
 /// Reference: AMD APM / Intel SDM paging structures (x86-64).
+#[doc(alias = "PML4E")]
 #[bitfield(u64)]
-pub struct Pml4e {
+pub struct Pml4Entry {
     /// **Present** (bit 0): valid entry if set.
     ///
     /// When clear, the entry is not present and most other fields are ignored.
@@ -113,7 +114,7 @@ pub struct Pml4e {
     pub no_execute: bool,
 }
 
-impl Pml4e {
+impl Pml4Entry {
     /// Set the PDPT base address (must be 4 KiB-aligned).
     #[inline]
     pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
@@ -136,18 +137,6 @@ impl Pml4e {
 #[repr(transparent)]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct L4Index(u16);
-
-/// A single PML4 entry (PML4E).
-///
-/// Semantics:
-/// - Points to a next-level L3 table (PDPT).
-/// - The `PS` (Page Size) bit **must be 0** at this level.
-/// - Presence and other permission/cache flags live in the inner
-///   [`PageEntryBits`].
-#[doc(alias = "PML4E")]
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct Pml4Entry(Pml4e); // TODO: remove extra wrapper
 
 /// The top-level page map (PML4).
 ///
@@ -196,23 +185,7 @@ impl Pml4Entry {
     #[inline]
     #[must_use]
     pub const fn zero() -> Self {
-        Self(Pml4e::new())
-    }
-
-    /// Check whether the entry is marked present.
-    #[inline]
-    #[must_use]
-    pub const fn is_present(self) -> bool {
-        self.0.present()
-    }
-
-    /// Return the raw [`PageEntryBits`] for advanced inspection/masking.
-    ///
-    /// Prefer higher-level helpers where possible.
-    #[inline]
-    #[must_use]
-    pub const fn flags(self) -> Pml4e {
-        self.0
+        Pml4Entry::new()
     }
 
     /// If present, return the physical page of the next-level PDPT.
@@ -222,10 +195,10 @@ impl Pml4Entry {
     #[inline]
     #[must_use]
     pub const fn next_table(self) -> Option<PhysicalPage<Size4K>> {
-        if !self.is_present() {
+        if !self.present() {
             return None;
         }
-        Some(PhysicalPage::from_addr(self.0.physical_address()))
+        Some(PhysicalPage::from_addr(self.physical_address()))
     }
 
     /// Build a PML4 entry that points to the given PDPT page and applies the provided flags.
@@ -235,10 +208,10 @@ impl Pml4Entry {
     /// - This function sets `present=1` and the physical base to `next_pdpt_page.base()`.
     #[inline]
     #[must_use]
-    pub const fn make(next_pdpt_page: PhysicalPage<Size4K>, mut flags: Pml4e) -> Self {
+    pub const fn make(next_pdpt_page: PhysicalPage<Size4K>, mut flags: Pml4Entry) -> Self {
         flags.set_present(true);
         flags.set_physical_address(next_pdpt_page.base());
-        Self(flags)
+        flags
     }
 
     /// Return the raw 64-bit value of the entry (flags + address).
@@ -254,7 +227,7 @@ impl Pml4Entry {
     #[inline]
     #[must_use]
     pub fn from_raw(v: u64) -> Self {
-        Self(Pml4e::from(v))
+        Pml4Entry::from(v)
     }
 }
 
@@ -302,9 +275,9 @@ mod tests {
     #[test]
     fn pml4_points_to_pdpt() {
         let pdpt_page = PhysicalPage::<Size4K>::from_addr(PhysicalAddress::new(0x1234_5000));
-        let f = Pml4e::new().with_writable(true).with_user(false);
+        let f = Pml4Entry::new().with_writable(true).with_user(false);
         let e = Pml4Entry::make(pdpt_page, f);
-        assert!(e.is_present());
+        assert!(e.present());
         assert_eq!(e.next_table().unwrap().base().as_u64(), 0x1234_5000);
     }
 }

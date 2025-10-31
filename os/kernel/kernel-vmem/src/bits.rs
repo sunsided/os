@@ -1,7 +1,7 @@
 use crate::addresses::PhysicalAddress;
 use crate::page_table::pd::{Pde, Pde2M};
 use crate::page_table::pdpt::{Pdpte, Pdpte1G};
-use crate::page_table::pml4::Pml4e;
+use crate::page_table::pml4::Pml4Entry;
 use crate::page_table::pt::Pte4K;
 use getset::WithSetters;
 
@@ -10,7 +10,7 @@ use getset::WithSetters;
 /// This type deliberately does **not** use bit-packing. Instead, it models the
 /// *semantic superset* of fields across:
 ///
-/// - L4: [`Pml4e`] (non-leaf only)
+/// - L4: [`Pml4Entry`] (non-leaf only)
 /// - L3: [`Pdpte`] (non-leaf) / [`Pdpte1G`] (1 GiB leaf)
 /// - L2: [`Pde`] (non-leaf) / [`Pde2M`]  (2 MiB leaf)
 /// - L1: [`Pte4K`]  (4 KiB leaf)
@@ -94,9 +94,9 @@ impl VirtualMemoryPageBits {
             .with_pat_bit2(true)
     }
 
-    /// Populate from an L4 [`Pml4e`] (non-leaf).
+    /// Populate from an L4 [`Pml4Entry`] (non-leaf).
     #[must_use]
-    pub const fn from_pml4e(e: &Pml4e) -> Self {
+    pub const fn from_pml4e(e: &Pml4Entry) -> Self {
         Self {
             present: e.present(),
             writable: e.writable(),
@@ -222,14 +222,14 @@ impl VirtualMemoryPageBits {
 }
 
 impl VirtualMemoryPageBits {
-    /// Encode into [`Pml4e`] (non-leaf).
+    /// Encode into [`Pml4Entry`] (non-leaf).
     ///
     /// - Requires `form == L4Entry`
     /// - Enforces 4 KiB alignment; ignores `dirty`, `global`, `pat_bit2`.
     #[must_use]
-    pub fn to_pml4e(&self) -> Pml4e {
+    pub fn to_pml4e(&self) -> Pml4Entry {
         debug_assert!(self.phys.is_aligned_to(0x1000));
-        let mut e = Pml4e::new();
+        let mut e = Pml4Entry::new();
         e.set_present(self.present);
         e.set_writable(self.writable);
         e.set_user(self.user);
@@ -351,9 +351,9 @@ impl VirtualMemoryPageBits {
     }
 }
 
-impl From<Pml4e> for VirtualMemoryPageBits {
+impl From<Pml4Entry> for VirtualMemoryPageBits {
     #[inline]
-    fn from(e: Pml4e) -> Self {
+    fn from(e: Pml4Entry) -> Self {
         Self::from_pml4e(&e)
     }
 }
@@ -393,7 +393,7 @@ impl From<Pte4K> for VirtualMemoryPageBits {
     }
 }
 
-impl From<VirtualMemoryPageBits> for Pml4e {
+impl From<VirtualMemoryPageBits> for Pml4Entry {
     #[inline]
     fn from(e: VirtualMemoryPageBits) -> Self {
         e.to_pml4e()
