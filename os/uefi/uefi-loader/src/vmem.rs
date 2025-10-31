@@ -43,7 +43,9 @@ impl FrameAlloc for BsFrameAlloc {
 }
 
 /// Loader mapper: treat low physical memory frames as directly accessible.
-/// Safety: valid only in the UEFI loader context where those frames are mapped.
+///
+/// # Safety
+/// Valid only in the UEFI loader context where those frames are mapped.
 struct LoaderPhysMapper;
 
 impl PhysMapper for LoaderPhysMapper {
