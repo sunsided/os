@@ -28,11 +28,11 @@ use bitfield_struct::bitfield;
 /// **Borrowed view** into an L3 PDPTE.
 ///
 /// Returned by [`PdpteUnion::view`].
-pub enum L3View<'a> {
+pub enum L3View {
     /// Non-leaf PDPTE view (PS=0).
-    Entry(&'a Pdpte),
+    Entry(Pdpte),
     /// 1 GiB leaf PDPTE view (PS=1).
-    Leaf1G(&'a Pdpte1G),
+    Leaf1G(Pdpte1G),
 }
 
 /// **L3 PDPTE union** — overlays non-leaf [`Pdpte`] and leaf [`Pdpte1G`]
@@ -82,15 +82,62 @@ pub struct Pdpte {
     /// Global (bit 8): **ignored** in non-leaf.
     #[bits(1)]
     __g_ignored: u8,
-
     /// OS-available low (bits 9..11).
     #[bits(3)]
     pub os_available_low: u8,
-
     /// Next-level table physical address (bits 12..51, 4 KiB-aligned).
     #[bits(40)]
     phys_addr_51_12: u64,
+    /// OS-available high (bits 52..58).
+    #[bits(7)]
+    pub os_available_high: u8,
+    /// Protection Key / OS use (59..62).
+    #[bits(4)]
+    pub protection_key: u8,
+    /// No-Execute (bit 63).
+    pub no_execute: bool,
+}
 
+/// L3 **PDPTE (1 GiB leaf)** — maps a single 1 GiB page (`PS = 1`).
+///
+/// - **PAT** (Page Attribute Table) selector lives at bit **12** in this form.
+/// - Physical address uses bits **51:30** and must be **1 GiB aligned**.
+/// - `Dirty` is set by CPU on first write; `Global` keeps TLB entries across
+///   CR3 reload unless explicitly invalidated.
+///
+/// This is a terminal mapping (leaf).
+#[bitfield(u64)]
+pub struct Pdpte1G {
+    /// Present (bit 0).
+    pub present: bool,
+    /// Writable (bit 1).
+    pub writable: bool,
+    /// User (bit 2).
+    pub user: bool,
+    /// Write-Through (bit 3).
+    pub write_through: bool,
+    /// Cache Disable (bit 4).
+    pub cache_disable: bool,
+    /// Accessed (bit 5).
+    pub accessed: bool,
+    /// **Dirty** (bit 6): set by CPU on first write to this 1 GiB page.
+    pub dirty: bool,
+    /// **Page Size** (bit 7): **must be 1** for 1 GiB leaf.
+    #[bits(default = true)]
+    page_size: bool,
+    /// **Global** (bit 8): TLB entry not flushed on CR3 reload.
+    pub global: bool,
+    /// OS-available low (bits 9..11).
+    #[bits(3)]
+    pub os_available_low: u8,
+    /// **PAT** (Page Attribute Table) selector for 1 GiB mappings (bit 12).
+    pub pat_large: bool,
+    /// Reserved (bits 13..29): must be 0.
+    #[bits(17)]
+    __res_13_29: u32,
+    /// Physical address bits **51:30** (1 GiB-aligned base).
+    #[bits(22)]
+    phys_addr_51_30: u32,
     /// OS-available high (bits 52..58).
     #[bits(7)]
     pub os_available_high: u8,
@@ -128,66 +175,6 @@ impl Pdpte {
             .with_cache_disable(false)
             .with_no_execute(false)
     }
-}
-
-/// L3 **PDPTE (1 GiB leaf)** — maps a single 1 GiB page (`PS = 1`).
-///
-/// - **PAT** (Page Attribute Table) selector lives at bit **12** in this form.
-/// - Physical address uses bits **51:30** and must be **1 GiB aligned**.
-/// - `Dirty` is set by CPU on first write; `Global` keeps TLB entries across
-///   CR3 reload unless explicitly invalidated.
-///
-/// This is a terminal mapping (leaf).
-#[bitfield(u64)]
-pub struct Pdpte1G {
-    /// Present (bit 0).
-    pub present: bool,
-    /// Writable (bit 1).
-    pub writable: bool,
-    /// User (bit 2).
-    pub user: bool,
-    /// Write-Through (bit 3).
-    pub write_through: bool,
-    /// Cache Disable (bit 4).
-    pub cache_disable: bool,
-    /// Accessed (bit 5).
-    pub accessed: bool,
-
-    /// **Dirty** (bit 6): set by CPU on first write to this 1 GiB page.
-    pub dirty: bool,
-
-    /// **Page Size** (bit 7): **must be 1** for 1 GiB leaf.
-    #[bits(default = true)]
-    page_size: bool,
-
-    /// **Global** (bit 8): TLB entry not flushed on CR3 reload.
-    pub global: bool,
-
-    /// OS-available low (bits 9..11).
-    #[bits(3)]
-    pub os_available_low: u8,
-
-    /// **PAT** (Page Attribute Table) selector for 1 GiB mappings (bit 12).
-    pub pat_large: bool,
-
-    /// Reserved (bits 13..29): must be 0.
-    #[bits(17)]
-    __res_13_29: u32,
-
-    /// Physical address bits **51:30** (1 GiB-aligned base).
-    #[bits(22)]
-    phys_addr_51_30: u32,
-
-    /// OS-available high (bits 52..58).
-    #[bits(7)]
-    pub os_available_high: u8,
-
-    /// Protection Key / OS use (59..62).
-    #[bits(4)]
-    pub protection_key: u8,
-
-    /// No-Execute (bit 63).
-    pub no_execute: bool,
 }
 
 impl Pdpte1G {
@@ -329,12 +316,12 @@ impl PdptEntry {
     /// This function is safe: it returns a view consistent with the PS bit.
     #[inline]
     #[must_use]
-    pub const fn view(&self) -> L3View<'_> {
+    pub const fn view(self) -> L3View {
         unsafe {
             if (self.bits & PS_BIT) != 0 {
-                L3View::Leaf1G(&self.leaf_1g)
+                L3View::Leaf1G(self.leaf_1g)
             } else {
-                L3View::Entry(&self.entry)
+                L3View::Entry(self.entry)
             }
         }
     }
@@ -360,11 +347,11 @@ impl PdptEntry {
         Some(match self.view() {
             L3View::Entry(entry) => {
                 let base = entry.physical_address();
-                PdptEntryKind::NextPageDirectory(PhysicalPage::<Size4K>::from_addr(base), *entry)
+                PdptEntryKind::NextPageDirectory(PhysicalPage::<Size4K>::from_addr(base), entry)
             }
             L3View::Leaf1G(entry) => {
                 let base = entry.physical_address();
-                PdptEntryKind::Leaf1GiB(PhysicalPage::<Size1G>::from_addr(base), *entry)
+                PdptEntryKind::Leaf1GiB(PhysicalPage::<Size1G>::from_addr(base), entry)
             }
         })
     }
