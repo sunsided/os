@@ -1,8 +1,19 @@
 # Developer Diary
 
+## 2025-10-31
+
+... and touching the Virtual Memory again, this time to add PAT (Page Attribute Table) bits
+again. The idea was to enable write-combining for the framebuffer to squeeze out some performance,
+and to do so, I decided to reimplement the individual page table entries as specifically typed structs
+and unions, depending on their variant (useful, because leaves and entries can have different layouts,
+especially across the layers). I added a unified view on top of that to manage bits logically rather
+than by position. Not sure if in the end this made things faster or if the performance increase
+in the framebuffer fill is just due to the optimization of the loop itself, but at least it
+_feels_ faster ... or better.
+
 ## 2025-10-30
 
-Rewriting the virtual memory to explicitly size-typed pages has been quite a journey; strangely
+Rewriting the virtual memory to explicitly size-typed pages has been quite a journey; strangely,
 everything worked out right away when firing up the emulator. I'm still not happy with the UEFI
 side of things, especially around the ELF loader and the initial page table setup, but I'm more than
 happy with the kernel-vmem libray now.
@@ -20,9 +31,9 @@ always have their lower bits zeroed because they are page-aligned: The 4 KiB pag
 12 bits set to zero because the pages are 4 KiB aligned, and 4096 is `0b1000000000000`. By the same logic,
 2 MiB and 1 GiB pages are zeroed out on the lower 21 and 30 bits respectively.
 The actual physical address is determined by offset into the page, and that offset has to either be tracked
-kernel-side or simply align with the physical offset. Since the kernel is the one deciding which addressses
-to hand out there shouldn't be any issue: It just picks any arbitrary virtual base, a feasible ("allocated")
-physical base and then ensures that the VA offset (i.e., lower bits) concide with the PA offset
+kernel-side or simply align with the physical offset. Since the kernel is the one deciding which addresses
+to hand out, there shouldn't be any issue: It just picks any arbitrary virtual base, a feasible ("allocated")
+physical base and then ensures that the VA offset (i.e., lower bits) coincides with the PA offset
 (i.e., lower bits). The virtual memory mapper only sees pages and has no concept about the offsets whatsoever;
 this is all done in "user code", which in this case is the kernel.
 
