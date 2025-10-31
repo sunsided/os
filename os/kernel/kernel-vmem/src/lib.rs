@@ -103,7 +103,10 @@ pub trait PhysMapper {
     /// mapped frame, and that writes reach memory.
     #[allow(clippy::mut_from_ref)]
     unsafe fn phys_to_mut<T>(&self, at: PhysicalAddress) -> &mut T;
+}
 
+/// Mapper capable of temporarily viewing physical frames as typed tables.
+pub trait PhysMapperExt: PhysMapper {
     /// Borrow the [`PageMapLevel4`] (PML4) located in the given 4 KiB
     /// physical frame.
     ///
@@ -208,6 +211,8 @@ pub trait PhysMapper {
         self.set_pt(page, PageTable::zeroed());
     }
 }
+
+impl<T> PhysMapperExt for T where T: PhysMapper {}
 
 /// Reads the current value of the **CR3 register** (the page table base register)
 /// and returns the physical address of the top-level page table (PML4).

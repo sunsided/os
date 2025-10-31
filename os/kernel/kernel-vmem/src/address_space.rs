@@ -39,7 +39,7 @@ use crate::page_table::pd::{L2Index, PageDirectory, PdEntry, PdEntryKind};
 use crate::page_table::pdpt::{L3Index, PageDirectoryPointerTable, PdptEntry, PdptEntryKind};
 use crate::page_table::pml4::{L4Index, PageMapLevel4, Pml4Entry};
 use crate::page_table::pt::{L1Index, PageTable, PtEntry4k};
-use crate::{FrameAlloc, PhysMapper, read_cr3_phys};
+use crate::{FrameAlloc, PhysMapper, PhysMapperExt, read_cr3_phys};
 
 /// Handle to a single, concrete address space.
 pub struct AddressSpace<'m, M: PhysMapper> {

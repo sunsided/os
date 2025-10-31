@@ -4,7 +4,7 @@ use crate::elf::loader::LoadedSegMap;
 use kernel_info::memory::{HHDM_BASE /*KERNEL_BASE,*/ /*PHYS_LOAD*/};
 
 use kernel_vmem::{
-    AddressSpace, FrameAlloc, PhysMapper,
+    AddressSpace, FrameAlloc, PhysMapper, PhysMapperExt,
     addresses::{PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress},
 };
 
