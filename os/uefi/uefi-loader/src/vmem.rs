@@ -8,7 +8,7 @@ use kernel_vmem::{
     addresses::{PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress},
 };
 
-use kernel_vmem::UnifiedEntry;
+use kernel_vmem::VirtualMemoryPageBits;
 use kernel_vmem::address_space::AddressSpaceMapOneError;
 use kernel_vmem::addresses::PageSize;
 use uefi::boot;
@@ -79,7 +79,7 @@ pub fn create_kernel_pagetables(
 
     // Common flags
     // Non-leaf: present + writable (no NX on non-leaves)
-    let nonleaf_flags = UnifiedEntry::default()
+    let nonleaf_flags = VirtualMemoryPageBits::default()
         .with_present(true)
         .with_writable(true);
 
@@ -100,7 +100,7 @@ pub fn create_kernel_pagetables(
 
             // Leaf flags from ELF PF_*:
             // start with present + global; add writable if PF_W; add NX if !PF_X
-            let leaf_flags = UnifiedEntry::default()
+            let leaf_flags = VirtualMemoryPageBits::default()
                 .with_present(true)
                 .with_global(true)
                 .with_writable(m.flags.write())
@@ -138,7 +138,7 @@ pub fn create_kernel_pagetables(
     {
         let hhdm_va = VirtualAddress::new(HHDM_BASE);
         let zero_pa = PhysicalAddress::new(0);
-        let leaf = UnifiedEntry::default()
+        let leaf = VirtualMemoryPageBits::default()
             .with_present(true)
             .with_writable(true)
             .with_global(true)
@@ -151,7 +151,7 @@ pub fn create_kernel_pagetables(
     {
         let va0 = VirtualAddress::new(0);
         let pa0 = PhysicalAddress::new(0);
-        let leaf = UnifiedEntry::default()
+        let leaf = VirtualMemoryPageBits::default()
             .with_present(true)
             .with_writable(true)
             .with_global(true);
@@ -168,7 +168,7 @@ pub fn create_kernel_pagetables(
                 .ok_or(KernelPageTableError::TrampolineStackRangeOverflow)?,
             Size4K::SIZE,
         );
-        let leaf = UnifiedEntry::default()
+        let leaf = VirtualMemoryPageBits::default()
             .with_present(true)
             .with_writable(true)
             .with_global(true)
@@ -193,7 +193,7 @@ pub fn create_kernel_pagetables(
                 .ok_or(KernelPageTableError::TrampolineCodeRangeOverflow)?,
             Size4K::SIZE,
         );
-        let leaf = UnifiedEntry::default()
+        let leaf = VirtualMemoryPageBits::default()
             .with_present(true)
             .with_global(true)
             .with_no_execute(false) // executable (no NX)
@@ -211,7 +211,7 @@ pub fn create_kernel_pagetables(
     // Identity map just the BootInfo pointer page (4 KiB, NX)
     {
         let bi_page = boot_info_ptr_va.page::<Size4K>().base();
-        let leaf = UnifiedEntry::default()
+        let leaf = VirtualMemoryPageBits::default()
             .with_present(true)
             .with_writable(true)
             .with_global(true)

@@ -21,7 +21,7 @@ use getset::WithSetters;
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, WithSetters)]
 #[getset(set_with = "pub")]
 #[allow(clippy::struct_excessive_bools)]
-pub struct UnifiedEntry {
+pub struct VirtualMemoryPageBits {
     /// **Present** (P): valid entry if `true`.
     pub present: bool,
 
@@ -84,7 +84,7 @@ pub struct UnifiedEntry {
     pub pat_bit2: bool,
 }
 
-impl UnifiedEntry {
+impl VirtualMemoryPageBits {
     /// Enable write-combining (WC) via PAT registers.
     #[inline]
     #[must_use]
@@ -221,7 +221,7 @@ impl UnifiedEntry {
     }
 }
 
-impl UnifiedEntry {
+impl VirtualMemoryPageBits {
     /// Encode into [`Pml4e`] (non-leaf).
     ///
     /// - Requires `form == L4Entry`
@@ -351,83 +351,83 @@ impl UnifiedEntry {
     }
 }
 
-impl From<Pml4e> for UnifiedEntry {
+impl From<Pml4e> for VirtualMemoryPageBits {
     #[inline]
     fn from(e: Pml4e) -> Self {
         Self::from_pml4e(&e)
     }
 }
 
-impl From<Pdpte> for UnifiedEntry {
+impl From<Pdpte> for VirtualMemoryPageBits {
     #[inline]
     fn from(e: Pdpte) -> Self {
         Self::from_pdpte(&e)
     }
 }
 
-impl From<Pdpte1G> for UnifiedEntry {
+impl From<Pdpte1G> for VirtualMemoryPageBits {
     #[inline]
     fn from(e: Pdpte1G) -> Self {
         Self::from_pdpte_1g(&e)
     }
 }
 
-impl From<Pde> for UnifiedEntry {
+impl From<Pde> for VirtualMemoryPageBits {
     #[inline]
     fn from(e: Pde) -> Self {
         Self::from_pde(&e)
     }
 }
 
-impl From<Pde2M> for UnifiedEntry {
+impl From<Pde2M> for VirtualMemoryPageBits {
     #[inline]
     fn from(e: Pde2M) -> Self {
         Self::from_pde_2m(&e)
     }
 }
 
-impl From<Pte4K> for UnifiedEntry {
+impl From<Pte4K> for VirtualMemoryPageBits {
     #[inline]
     fn from(e: Pte4K) -> Self {
         Self::from_pte_4k(&e)
     }
 }
 
-impl From<UnifiedEntry> for Pml4e {
+impl From<VirtualMemoryPageBits> for Pml4e {
     #[inline]
-    fn from(e: UnifiedEntry) -> Self {
+    fn from(e: VirtualMemoryPageBits) -> Self {
         e.to_pml4e()
     }
 }
 
-impl From<UnifiedEntry> for Pdpte {
+impl From<VirtualMemoryPageBits> for Pdpte {
     #[inline]
-    fn from(e: UnifiedEntry) -> Self {
+    fn from(e: VirtualMemoryPageBits) -> Self {
         e.to_pdpte()
     }
 }
 
-impl From<UnifiedEntry> for Pdpte1G {
+impl From<VirtualMemoryPageBits> for Pdpte1G {
     #[inline]
-    fn from(e: UnifiedEntry) -> Self {
+    fn from(e: VirtualMemoryPageBits) -> Self {
         e.to_pdpte_1g()
     }
 }
 
-impl From<UnifiedEntry> for Pde {
-    fn from(e: UnifiedEntry) -> Self {
+impl From<VirtualMemoryPageBits> for Pde {
+    fn from(e: VirtualMemoryPageBits) -> Self {
         e.to_pde()
     }
 }
 
-impl From<UnifiedEntry> for Pde2M {
-    fn from(e: UnifiedEntry) -> Self {
+impl From<VirtualMemoryPageBits> for Pde2M {
+    fn from(e: VirtualMemoryPageBits) -> Self {
         e.to_pde_2m()
     }
 }
 
-impl From<UnifiedEntry> for Pte4K {
-    fn from(e: UnifiedEntry) -> Self {
+impl From<VirtualMemoryPageBits> for Pte4K {
+    fn from(e: VirtualMemoryPageBits) -> Self {
         e.to_pte_4k()
     }
 }

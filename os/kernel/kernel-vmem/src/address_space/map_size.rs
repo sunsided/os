@@ -12,11 +12,11 @@
 use crate::addresses::{
     PageSize, PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress,
 };
+use crate::bits::VirtualMemoryPageBits;
 use crate::page_table::pd::{L2Index, PdEntry, PdEntryKind};
 use crate::page_table::pdpt::{L3Index, PdptEntry, PdptEntryKind};
 use crate::page_table::pml4::{L4Index, Pml4Entry};
 use crate::page_table::pt::{L1Index, PtEntry};
-use crate::unified2::UnifiedEntry;
 use crate::{AddressSpace, FrameAlloc, PhysMapper};
 
 /// # Page-size–directed mapping behavior
@@ -85,7 +85,7 @@ pub trait MapSize: PageSize {
         aspace: &AddressSpace<M>,
         alloc: &mut A,
         va: VirtualAddress,
-        nonleaf_flags: UnifiedEntry,
+        nonleaf_flags: VirtualMemoryPageBits,
     ) -> Result<PhysicalPage<Size4K>, MapSizeEnsureChainError>;
 
     /// Install the **leaf** entry for `va → pa` in the `leaf_tbl_page`
@@ -102,7 +102,7 @@ pub trait MapSize: PageSize {
         leaf_tbl_page: PhysicalPage<Size4K>,
         va: VirtualAddress,
         pa: PhysicalAddress,
-        leaf_flags: UnifiedEntry,
+        leaf_flags: VirtualMemoryPageBits,
     );
 }
 
@@ -124,7 +124,7 @@ impl MapSize for Size1G {
         aspace: &AddressSpace<M>,
         alloc: &mut A,
         va: VirtualAddress,
-        nonleaf_flags: UnifiedEntry,
+        nonleaf_flags: VirtualMemoryPageBits,
     ) -> Result<PhysicalPage<Size4K>, MapSizeEnsureChainError> {
         let i4 = L4Index::from(va);
 
@@ -145,7 +145,7 @@ impl MapSize for Size1G {
         leaf_tbl_page: PhysicalPage<Size4K>,
         va: VirtualAddress,
         pa: PhysicalAddress,
-        leaf_flags: UnifiedEntry,
+        leaf_flags: VirtualMemoryPageBits,
     ) {
         // require 1 GiB alignment in debug
         debug_assert_eq!(pa.offset::<Self>().as_u64(), 0);
@@ -161,7 +161,7 @@ impl MapSize for Size2M {
         aspace: &AddressSpace<M>,
         alloc: &mut A,
         va: VirtualAddress,
-        nonleaf_flags: UnifiedEntry,
+        nonleaf_flags: VirtualMemoryPageBits,
     ) -> Result<PhysicalPage<Size4K>, MapSizeEnsureChainError> {
         let i4 = L4Index::from(va);
         let i3 = L3Index::from(va);
@@ -197,7 +197,7 @@ impl MapSize for Size2M {
         leaf_tbl_page: PhysicalPage<Size4K>,
         va: VirtualAddress,
         pa: PhysicalAddress,
-        leaf_flags: UnifiedEntry,
+        leaf_flags: VirtualMemoryPageBits,
     ) {
         debug_assert_eq!(pa.offset::<Self>().as_u64(), 0);
         let pd = aspace.pd_mut(leaf_tbl_page);
@@ -212,7 +212,7 @@ impl MapSize for Size4K {
         aspace: &AddressSpace<M>,
         alloc: &mut A,
         va: VirtualAddress,
-        nonleaf_flags: UnifiedEntry,
+        nonleaf_flags: VirtualMemoryPageBits,
     ) -> Result<PhysicalPage<Size4K>, MapSizeEnsureChainError> {
         let i4 = L4Index::from(va);
         let i3 = L3Index::from(va);
@@ -262,7 +262,7 @@ impl MapSize for Size4K {
         leaf_tbl_page: PhysicalPage<Size4K>,
         va: VirtualAddress,
         pa: PhysicalAddress,
-        leaf_flags: UnifiedEntry,
+        leaf_flags: VirtualMemoryPageBits,
     ) {
         debug_assert_eq!(pa.offset::<Self>().as_u64(), 0);
         let pt = aspace.pt_mut(leaf_tbl_page);

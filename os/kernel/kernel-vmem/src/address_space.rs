@@ -34,11 +34,11 @@ use crate::address_space::map_size::MapSizeEnsureChainError;
 use crate::addresses::{
     PageSize, PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress,
 };
+use crate::bits::VirtualMemoryPageBits;
 use crate::page_table::pd::{L2Index, PageDirectory, PdEntry, PdEntryKind};
 use crate::page_table::pdpt::{L3Index, PageDirectoryPointerTable, PdptEntry, PdptEntryKind};
 use crate::page_table::pml4::{L4Index, PageMapLevel4, Pml4Entry};
 use crate::page_table::pt::{L1Index, PageTable, PtEntry};
-use crate::unified2::UnifiedEntry;
 use crate::{FrameAlloc, PhysMapper, read_cr3_phys};
 
 /// Handle to a single, concrete address space.
@@ -134,8 +134,8 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
         alloc: &mut A,
         va: VirtualAddress,
         pa: PhysicalAddress,
-        nonleaf_flags: UnifiedEntry,
-        leaf_flags: UnifiedEntry,
+        nonleaf_flags: VirtualMemoryPageBits,
+        leaf_flags: VirtualMemoryPageBits,
     ) -> Result<(), AddressSpaceMapOneError> {
         debug_assert_eq!(pa.offset::<S>().as_u64(), 0, "physical address not aligned");
 
@@ -178,8 +178,8 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
         virt_start: VirtualAddress,
         phys_start: PhysicalAddress,
         len: u64,
-        nonleaf_flags: UnifiedEntry,
-        leaf_flags: UnifiedEntry,
+        nonleaf_flags: VirtualMemoryPageBits,
+        leaf_flags: VirtualMemoryPageBits,
     ) -> Result<(), AddressSpaceMapRegionError> {
         let mut off = 0u64;
         while off < len {

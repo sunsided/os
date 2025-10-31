@@ -13,7 +13,7 @@
 //! // Map, unmap, query...
 //! ```
 
-use kernel_vmem::UnifiedEntry;
+use kernel_vmem::VirtualMemoryPageBits;
 use kernel_vmem::address_space::AddressSpaceMapRegionError;
 use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
 use kernel_vmem::{AddressSpace, FrameAlloc, PhysMapper};
@@ -40,8 +40,8 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
         va: VirtualAddress,
         pa: PhysicalAddress,
         len: u64,
-        nonleaf: UnifiedEntry,
-        leaf: UnifiedEntry,
+        nonleaf: VirtualMemoryPageBits,
+        leaf: VirtualMemoryPageBits,
     ) -> Result<(), AddressSpaceMapRegionError> {
         self.aspace
             .map_region(self.alloc, va, pa, len, nonleaf, leaf)
