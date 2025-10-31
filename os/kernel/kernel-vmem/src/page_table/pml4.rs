@@ -26,8 +26,108 @@
 //! `present`, `large_page (PS)`, and addresses/flags are delegated to
 //! [`PageEntryBits`], which encapsulates bit-level manipulation.
 
-use crate::addresses::{PhysicalPage, Size4K, VirtualAddress};
-use crate::page_table::bits2::Pml4e;
+use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualAddress};
+use bitfield_struct::bitfield;
+
+/// L4 **PML4E** — pointer to a **PDPT** (non-leaf; PS **must be 0**).
+///
+/// This entry never maps memory directly. Bits that are meaningful only on
+/// leaf entries (e.g., `dirty`, `global`) are ignored here.
+///
+/// - Physical address (bits **51:12**) is a 4 KiB-aligned PDPT.
+/// - `NX` participates in permission intersection across the walk.
+/// - `PKU` may be repurposed as OS-available when not supported.
+///
+/// Reference: AMD APM / Intel SDM paging structures (x86-64).
+#[bitfield(u64)]
+pub struct Pml4e {
+    /// **Present** (bit 0): valid entry if set.
+    ///
+    /// When clear, the entry is not present and most other fields are ignored.
+    pub present: bool,
+
+    /// **Writable** (bit 1): write permission.
+    ///
+    /// Intersects with lower-level permissions; supervisor write protection,
+    /// SMEP/SMAP, CR0.WP, and U/S checks apply.
+    pub writable: bool,
+
+    /// **User/Supervisor** (bit 2): allow user-mode access if set.
+    ///
+    /// If clear, access is restricted to supervisor (ring 0).
+    pub user: bool,
+
+    /// **Page Write-Through** (PWT, bit 3): write-through caching policy.
+    ///
+    /// Effective only if caching isn’t disabled for the mapping.
+    pub write_through: bool,
+
+    /// **Page Cache Disable** (PCD, bit 4): disable caching if set.
+    ///
+    /// Strongly impacts performance; use for MMIO or compliance with device
+    /// requirements. Effective policy is the intersection across the walk.
+    pub cache_disable: bool,
+
+    /// **Accessed** (A, bit 5): set by CPU on first access via this entry.
+    ///
+    /// Software may clear to track usage; not a permission bit.
+    pub accessed: bool,
+
+    /// (bit 6): **ignored** for non-leaf entries at L4.
+    #[bits(1)]
+    __d_ignored: u8,
+
+    /// **Page Size** (bit 7): **must be 0** for PML4E (non-leaf).
+    #[bits(1)]
+    __ps_must_be_0: u8,
+
+    /// **Global** (bit 8): **ignored** for non-leaf entries.
+    #[bits(1)]
+    __g_ignored: u8,
+
+    /// **OS-available low** (bits 9..11): not interpreted by hardware.
+    #[bits(3)]
+    pub os_available_low: u8,
+
+    /// **Next-level table physical address** (bits 12..51).
+    ///
+    /// Stores the PDPT base (4 KiB-aligned). The low 12 bits are omitted.
+    #[bits(40)]
+    phys_addr_51_12: u64,
+
+    /// **OS-available high** (bits 52..58): not interpreted by hardware.
+    #[bits(7)]
+    pub os_available_high: u8,
+
+    /// **Protection Key / OS use** (bits 59..62).
+    ///
+    /// If PKU is supported and enabled, these bits select the protection key;
+    /// otherwise they may be used by the OS.
+    #[bits(4)]
+    pub protection_key: u8,
+
+    /// **No-Execute** (NX, bit 63 / XD on Intel).
+    ///
+    /// When set and EFER.NXE is enabled, instruction fetch is disallowed
+    /// through this entry (permission intersection applies).
+    pub no_execute: bool,
+}
+
+impl Pml4e {
+    /// Set the PDPT base address (must be 4 KiB-aligned).
+    #[inline]
+    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
+        debug_assert!(phys.is_aligned_to(0x1000));
+        self.set_phys_addr_51_12(phys.as_u64() >> 12);
+    }
+
+    /// Get the PDPT base address (4 KiB-aligned).
+    #[inline]
+    #[must_use]
+    pub const fn physical_address(self) -> PhysicalAddress {
+        PhysicalAddress::new(self.phys_addr_51_12() << 12)
+    }
+}
 
 /// Index into the PML4 table (derived from virtual-address bits `[47:39]`).
 ///
@@ -47,7 +147,7 @@ pub struct L4Index(u16);
 #[doc(alias = "PML4E")]
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct Pml4Entry(Pml4e);
+pub struct Pml4Entry(Pml4e); // TODO: remove extra wrapper
 
 /// The top-level page map (PML4).
 ///

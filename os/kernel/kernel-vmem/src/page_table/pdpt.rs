@@ -21,8 +21,271 @@
 //! - Callers must handle TLB maintenance after changing active mappings.
 //! - Raw constructors perform no validation; use with care.
 
-use crate::addresses::{PhysicalPage, Size1G, Size4K, VirtualAddress};
-use crate::page_table::bits2::{L3View, Pdpte, Pdpte1G, PdpteUnion};
+use crate::addresses::{PhysicalAddress, PhysicalPage, Size1G, Size4K, VirtualAddress};
+use crate::page_table::{PRESENT_BIT, PS_BIT};
+use bitfield_struct::bitfield;
+
+/// **Borrowed view** into an L3 PDPTE.
+///
+/// Returned by [`PdpteUnion::view`].
+pub enum L3View<'a> {
+    /// Non-leaf PDPTE view (PS=0).
+    Entry(&'a Pdpte),
+    /// 1 GiB leaf PDPTE view (PS=1).
+    Leaf1G(&'a Pdpte1G),
+}
+
+/// **L3 PDPTE union** — overlays non-leaf [`Pdpte`] and leaf [`Pdpte1G`]
+/// on the same 64-bit storage.
+///
+/// Use [`PdpteUnion::view`] / [`PdpteUnion::view_mut`] to obtain a **typed**
+/// reference. These methods inspect the **PS** bit to decide which variant is
+/// active and return a safe borrowed view.
+///
+/// Storing/retrieving raw bits is possible via `from_bits`/`into_bits`.
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub union PdpteUnion {
+    /// Raw 64-bit storage of the entry.
+    bits: u64,
+    /// Non-leaf form: next-level Page Directory (PS=0).
+    entry: Pdpte,
+    /// Leaf form: 1 GiB mapping (PS=1).
+    leaf_1g: Pdpte1G,
+}
+
+impl Default for PdpteUnion {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PdpteUnion {
+    #[inline]
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { bits: 0 }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn new_entry(entry: Pdpte) -> Self {
+        Self { entry }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn new_leaf(leaf: Pdpte1G) -> Self {
+        Self { leaf_1g: leaf }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn present(self) -> bool {
+        unsafe { self.bits & PRESENT_BIT != 0 }
+    }
+
+    /// Construct union from raw `bits` (no validation).
+    #[inline]
+    #[must_use]
+    pub const fn from_bits(bits: u64) -> Self {
+        Self { bits }
+    }
+
+    /// Extract raw `bits` back from the union.
+    #[inline]
+    #[must_use]
+    pub const fn into_bits(self) -> u64 {
+        unsafe { self.bits }
+    }
+
+    /// **Typed read-only view** chosen by the **PS** bit.
+    ///
+    /// - If PS=1 → [`L3View::Leaf1G`]
+    /// - If PS=0 → [`L3View::Entry`]
+    ///
+    /// This function is safe: it returns a view consistent with the PS bit.
+    #[inline]
+    #[must_use]
+    pub const fn view(&self) -> L3View<'_> {
+        unsafe {
+            if (self.bits & PS_BIT) != 0 {
+                L3View::Leaf1G(&self.leaf_1g)
+            } else {
+                L3View::Entry(&self.entry)
+            }
+        }
+    }
+}
+
+/// L3 **PDPTE** — pointer to a **Page Directory** (non-leaf; PS **= 0**).
+///
+/// - Physical address (bits **51:12**) is a 4 KiB-aligned PD.
+/// - Leaf-only fields (Dirty/Global) are ignored.
+/// - Setting PS here would mean a 1 GiB leaf; use [`Pdpte1G`] for that.
+#[bitfield(u64)]
+pub struct Pdpte {
+    /// Present (bit 0): valid entry if set.
+    pub present: bool,
+    /// Writable (bit 1): write permission.
+    pub writable: bool,
+    /// User (bit 2): user-mode access if set.
+    pub user: bool,
+    /// Write-Through (bit 3).
+    pub write_through: bool,
+    /// Cache Disable (bit 4).
+    pub cache_disable: bool,
+    /// Accessed (bit 5).
+    pub accessed: bool,
+    /// Dirty (bit 6): **ignored** in non-leaf form.
+    #[bits(1)]
+    __d_ignored: u8,
+    /// PS (bit 7): **must be 0** in non-leaf.
+    #[bits(1)]
+    __ps_must_be_0: u8,
+    /// Global (bit 8): **ignored** in non-leaf.
+    #[bits(1)]
+    __g_ignored: u8,
+
+    /// OS-available low (bits 9..11).
+    #[bits(3)]
+    pub os_available_low: u8,
+
+    /// Next-level table physical address (bits 12..51, 4 KiB-aligned).
+    #[bits(40)]
+    phys_addr_51_12: u64,
+
+    /// OS-available high (bits 52..58).
+    #[bits(7)]
+    pub os_available_high: u8,
+    /// Protection Key / OS use (59..62).
+    #[bits(4)]
+    pub protection_key: u8,
+    /// No-Execute (bit 63).
+    pub no_execute: bool,
+}
+
+impl Pdpte {
+    /// Set the Page Directory base (4 KiB-aligned).
+    #[inline]
+    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
+        debug_assert!(phys.is_aligned_to(0x1000));
+        self.set_phys_addr_51_12(phys.as_u64() >> 12);
+    }
+
+    /// Get the Page Directory base (4 KiB-aligned).
+    #[inline]
+    #[must_use]
+    pub const fn physical_address(self) -> PhysicalAddress {
+        PhysicalAddress::new(self.phys_addr_51_12() << 12)
+    }
+
+    /// Non-leaf PDPTE with common kernel RW flags.
+    #[inline]
+    #[must_use]
+    pub const fn new_common_rw() -> Self {
+        Self::new()
+            .with_present(true)
+            .with_writable(true)
+            .with_user(false)
+            .with_write_through(false)
+            .with_cache_disable(false)
+            .with_no_execute(false)
+    }
+}
+
+/// L3 **PDPTE (1 GiB leaf)** — maps a single 1 GiB page (`PS = 1`).
+///
+/// - **PAT** (Page Attribute Table) selector lives at bit **12** in this form.
+/// - Physical address uses bits **51:30** and must be **1 GiB aligned**.
+/// - `Dirty` is set by CPU on first write; `Global` keeps TLB entries across
+///   CR3 reload unless explicitly invalidated.
+///
+/// This is a terminal mapping (leaf).
+#[bitfield(u64)]
+pub struct Pdpte1G {
+    /// Present (bit 0).
+    pub present: bool,
+    /// Writable (bit 1).
+    pub writable: bool,
+    /// User (bit 2).
+    pub user: bool,
+    /// Write-Through (bit 3).
+    pub write_through: bool,
+    /// Cache Disable (bit 4).
+    pub cache_disable: bool,
+    /// Accessed (bit 5).
+    pub accessed: bool,
+
+    /// **Dirty** (bit 6): set by CPU on first write to this 1 GiB page.
+    pub dirty: bool,
+
+    /// **Page Size** (bit 7): **must be 1** for 1 GiB leaf.
+    #[bits(default = true)]
+    page_size: bool,
+
+    /// **Global** (bit 8): TLB entry not flushed on CR3 reload.
+    pub global: bool,
+
+    /// OS-available low (bits 9..11).
+    #[bits(3)]
+    pub os_available_low: u8,
+
+    /// **PAT** (Page Attribute Table) selector for 1 GiB mappings (bit 12).
+    pub pat_large: bool,
+
+    /// Reserved (bits 13..29): must be 0.
+    #[bits(17)]
+    __res_13_29: u32,
+
+    /// Physical address bits **51:30** (1 GiB-aligned base).
+    #[bits(22)]
+    phys_addr_51_30: u32,
+
+    /// OS-available high (bits 52..58).
+    #[bits(7)]
+    pub os_available_high: u8,
+
+    /// Protection Key / OS use (59..62).
+    #[bits(4)]
+    pub protection_key: u8,
+
+    /// No-Execute (bit 63).
+    pub no_execute: bool,
+}
+
+impl Pdpte1G {
+    /// Set the 1 GiB page base (must be 1 GiB-aligned).
+    #[inline]
+    #[allow(clippy::cast_possible_truncation)]
+    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
+        debug_assert!(phys.is_aligned_to(1 << 30));
+        self.set_phys_addr_51_30((phys.as_u64() >> 30) as u32);
+        self.set_page_size(true);
+    }
+
+    /// Get the 1 GiB page base.
+    #[inline]
+    #[must_use]
+    pub const fn physical_address(self) -> PhysicalAddress {
+        PhysicalAddress::new((self.phys_addr_51_30() as u64) << 30)
+    }
+
+    /// Leaf PDPTE with common kernel RW flags.
+    #[inline]
+    #[must_use]
+    pub const fn new_common_rw() -> Self {
+        Self::new()
+            .with_present(true)
+            .with_writable(true)
+            .with_user(false)
+            .with_write_through(false)
+            .with_cache_disable(false)
+            .with_no_execute(false)
+            .with_page_size(true)
+    }
+}
 
 /// Index into the PDPT (derived from virtual-address bits `[38:30]`).
 ///

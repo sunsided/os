@@ -1,6 +1,5 @@
 //! # Memory Page Table
 
-pub mod bits2;
 pub mod pd;
 pub mod pdpt;
 pub mod pml4;
@@ -11,6 +10,16 @@ use crate::page_table::pd::L2Index;
 use crate::page_table::pdpt::L3Index;
 use crate::page_table::pml4::L4Index;
 use crate::page_table::pt::L1Index;
+
+/// Hardware **Present** bit position shared across levels (bit 0).
+const PRESENT_BIT: u64 = 1 << 0;
+
+/// Hardware **Page Size** (PS) bit position shared across levels (bit 7).
+///
+/// - In non-leaf entries: PS **must be 0**.
+/// - In large leaf entries (L3 1 GiB / L2 2 MiB): PS **must be 1**.
+/// - In L1 4 KiB PTEs: bit 7 is **PAT** (not PS).
+const PS_BIT: u64 = 1 << 7;
 
 #[inline]
 #[must_use]

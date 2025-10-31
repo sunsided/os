@@ -1,5 +1,8 @@
 use crate::addresses::PhysicalAddress;
-use crate::page_table::bits2::{Pde, Pde2M, Pdpte, Pdpte1G, Pml4e, Pte4K};
+use crate::page_table::pd::{Pde, Pde2M};
+use crate::page_table::pdpt::{Pdpte, Pdpte1G};
+use crate::page_table::pml4::Pml4e;
+use crate::page_table::pt::Pte4K;
 use getset::WithSetters;
 
 /// Unified, ergonomic view over x86-64 paging entries (all levels / forms).

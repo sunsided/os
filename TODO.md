@@ -6,6 +6,14 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 - Line [151](./os/kernel/kernel-vmem/src/address_space.rs#L151): Refactor to error type
 
+## [os/kernel/kernel-vmem/src/page_table/pml4.rs](./os/kernel/kernel-vmem/src/page_table/pml4.rs)
+
+- Line [150](./os/kernel/kernel-vmem/src/page_table/pml4.rs#L150): remove extra wrapper
+
+## [os/kernel/kernel-vmem/src/page_table/pt.rs](./os/kernel/kernel-vmem/src/page_table/pt.rs)
+
+- Line [119](./os/kernel/kernel-vmem/src/page_table/pt.rs#L119): Remove extra wrapper
+
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
 - Line [33](./os/uefi/uefi-loader/src/main.rs#L33): Add proper documentation.

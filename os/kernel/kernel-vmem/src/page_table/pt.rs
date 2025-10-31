@@ -19,8 +19,83 @@
 //! - Raw constructors do not validate consistency; prefer typed helpers.
 //! - After modifying active mappings, the caller must perform any required TLB maintenance.
 
-use crate::addresses::{PhysicalPage, Size4K, VirtualAddress};
-use crate::page_table::bits2::Pte4K;
+use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualAddress};
+use bitfield_struct::bitfield;
+
+/// L1 **PTE (4 KiB leaf)** — maps a single 4 KiB page (bit 7 is **PAT**).
+///
+/// - Physical address uses bits **51:12** and must be **4 KiB aligned**.
+/// - The three PAT selector bits are **PWT (bit 3)**, **PCD (bit 4)**,
+///   and **PAT (bit 7)**.
+#[bitfield(u64)]
+pub struct Pte4K {
+    /// Present (bit 0).
+    pub present: bool,
+    /// Writable (bit 1).
+    pub writable: bool,
+    /// User (bit 2).
+    pub user: bool,
+    /// Write-Through (bit 3) — **PAT selector bit 0**.
+    pub write_through: bool,
+    /// Cache Disable (bit 4) — **PAT selector bit 1**.
+    pub cache_disable: bool,
+    /// Accessed (bit 5).
+    pub accessed: bool,
+    /// Dirty (bit 6): set by CPU on first write.
+    pub dirty: bool,
+
+    /// **PAT** (bit 7) — **PAT selector bit 2** for 4 KiB mappings.
+    pub pat_small: bool,
+
+    /// Global (bit 8): TLB entry not flushed on CR3 reload.
+    pub global: bool,
+
+    /// OS-available low (bits 9..11).
+    #[bits(3)]
+    pub os_available_low: u8,
+
+    /// Physical address bits **51:12** (4 KiB-aligned base).
+    #[bits(40)]
+    phys_addr_51_12: u64,
+
+    /// OS-available high (bits 52..58).
+    #[bits(7)]
+    pub os_available_high: u8,
+
+    /// Protection Key / OS use (59..62).
+    #[bits(4)]
+    pub protection_key: u8,
+
+    /// No-Execute (bit 63).
+    pub no_execute: bool,
+}
+
+impl Pte4K {
+    /// Set the 4 KiB page base (4 KiB-aligned).
+    #[inline]
+    pub const fn set_physical_address(&mut self, phys: PhysicalAddress) {
+        debug_assert!(phys.is_aligned_to(0x1000));
+        self.set_phys_addr_51_12(phys.as_u64() >> 12);
+    }
+
+    /// Get the 4 KiB page base.
+    #[inline]
+    #[must_use]
+    pub const fn physical_address(self) -> PhysicalAddress {
+        PhysicalAddress::new(self.phys_addr_51_12() << 12)
+    }
+
+    /// 4 KiB **user RO+NX** mapping (read-only, no execute).
+    #[inline]
+    #[must_use]
+    pub const fn new_user_ro_nx() -> Self {
+        Self::new()
+            .with_present(true)
+            .with_writable(false)
+            .with_user(true)
+            .with_no_execute(true)
+    }
+}
 
 /// Index into the Page Table (derived from VA bits `[20:12]`).
 ///
@@ -41,7 +116,7 @@ pub struct L1Index(u16);
 #[doc(alias = "PTE")]
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct PtEntry(Pte4K);
+pub struct PtEntry(Pte4K); // TODO: Remove extra wrapper
 
 /// The Page Table (L1): 512 entries, 4 KiB-aligned.
 #[doc(alias = "PT")]
