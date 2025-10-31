@@ -142,6 +142,7 @@ fn remap_boot_memory(bi: &KernelBootInfo) -> FramebufferInfo {
     let va_base = HHDM_BASE + VGA_LIKE_OFFSET;
     let fb_flags = UnifiedEntry::default()
         .with_writable(true)
+        .with_write_combining()
         .with_global(true)
         .with_no_execute(true);
 

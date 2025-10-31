@@ -82,6 +82,15 @@ pub struct UnifiedEntry {
 }
 
 impl UnifiedEntry {
+    /// Enable write-combining (WC) via PAT registers.
+    #[inline]
+    #[must_use]
+    pub fn with_write_combining(self) -> Self {
+        self.with_write_through(false)
+            .with_cache_disable(true)
+            .with_pat_bit2(true)
+    }
+
     /// Populate from an L4 [`Pml4e`] (non-leaf).
     #[must_use]
     pub const fn from_pml4e(e: &Pml4e) -> Self {
