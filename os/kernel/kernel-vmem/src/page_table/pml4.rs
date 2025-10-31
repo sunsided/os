@@ -20,11 +20,6 @@
 //! - [`Pml4Entry::make`] enforces `PS=0` for PML4Es.
 //! - Accessors avoid unsafe operations and prefer explicit types such as
 //!   [`PhysicalPage<Size4K>`] for next-level tables.
-//!
-//! ## Notation
-//!
-//! `present`, `large_page (PS)`, and addresses/flags are delegated to
-//! [`PageEntryBits`], which encapsulates bit-level manipulation.
 
 use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualAddress};
 use bitfield_struct::bitfield;
@@ -169,7 +164,7 @@ impl Pml4Entry {
     #[inline]
     #[must_use]
     pub const fn zero() -> Self {
-        Pml4Entry::new()
+        Self::new()
     }
 
     /// If present, return the physical page of the next-level PDPT.
@@ -192,26 +187,10 @@ impl Pml4Entry {
     /// - This function sets `present=1` and the physical base to `next_pdpt_page.base()`.
     #[inline]
     #[must_use]
-    pub const fn make(next_pdpt_page: PhysicalPage<Size4K>, mut flags: Pml4Entry) -> Self {
+    pub const fn make(next_pdpt_page: PhysicalPage<Size4K>, mut flags: Self) -> Self {
         flags.set_present(true);
         flags.set_physical_address(next_pdpt_page);
         flags
-    }
-
-    /// Return the raw 64-bit value of the entry (flags + address).
-    #[inline]
-    #[must_use]
-    pub fn raw(self) -> u64 {
-        self.0.into()
-    }
-
-    /// Construct an entry from a raw 64-bit value.
-    ///
-    /// No validation is performed here; callers must ensure `PS=0` for PML4Es.
-    #[inline]
-    #[must_use]
-    pub fn from_raw(v: u64) -> Self {
-        Pml4Entry::from(v)
     }
 
     /// Set the PDPT base address (must be 4 KiB-aligned).

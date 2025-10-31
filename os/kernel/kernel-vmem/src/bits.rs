@@ -13,7 +13,7 @@ use getset::WithSetters;
 /// - L4: [`Pml4Entry`] (non-leaf only)
 /// - L3: [`Pdpte`] (non-leaf) / [`Pdpte1G`] (1 GiB leaf)
 /// - L2: [`Pde`] (non-leaf) / [`Pde2M`]  (2 MiB leaf)
-/// - L1: [`Pte4K`]  (4 KiB leaf)
+/// - L1: [`PtEntry4k`]  (4 KiB leaf)
 ///
 /// Use the provided `from_*` and `to_*` helpers to map between this view and
 /// the actual bitfield entries. Alignment and level-specific constraints are
@@ -328,7 +328,7 @@ impl VirtualMemoryPageBits {
         e
     }
 
-    /// Encode into [`Pte4K`] (4 KiB leaf).
+    /// Encode into [`PtEntry4k`] (4 KiB leaf).
     #[must_use]
     pub fn to_pte_4k(&self) -> PtEntry4k {
         debug_assert!(self.phys.is_aligned_to(0x1000));

@@ -6,7 +6,7 @@
 //! - An [`address space`](address_space) describing a `PML4` root page table.
 //! - Tiny [`PhysicalAddress`]/[`VirtualAddress`](addresses::VirtualAddress) newtypes (u64) to avoid mixing address kinds.
 //! - A [`PageSize`](addresses::PageSize) enum for 4 KiB / 2 MiB / 1 GiB mappings.
-//! - x86-64 page-table [`PageEntryBits`] with practical explanations.
+//! - x86-64 page-table [`VirtualMemoryPageBits`] with practical explanations.
 //! - A 4 KiB-aligned [`PageTable`] wrapper and index helpers.
 //! - A tiny allocator/mapper interface ([`FrameAlloc`], [`PhysMapper`]).
 //!
@@ -43,7 +43,7 @@
 //! ### Leaf vs. non-leaf entries
 //!
 //! - A **leaf entry** directly maps physical memory — it contains the physical base address
-//!   and the permission bits ([`PRESENT`](PageEntryBits::present), [`WRITABLE`](PageEntryBits::writable), [`USER`](PageEntryBits::user_access), [`GLOBAL`](PageEntryBits::global_translation), [`NX`](PageEntryBits::no_execute), etc.).
+//!   and the permission bits ([`PRESENT`](VirtualMemoryPageBits::with_present), [`WRITABLE`](VirtualMemoryPageBits::with_writable), [`USER`](VirtualMemoryPageBits::with_user), [`GLOBAL`](VirtualMemoryPageBits::with_global), [`NX`](VirtualMemoryPageBits::with_no_execute), etc.).
 //!   - A **PTE** is always a leaf (maps 4 KiB).
 //!   - A **PDE** with `PS=1` is a leaf (maps 2 MiB).
 //!   - A **PDPTE** with `PS=1` is a leaf (maps 1 GiB).

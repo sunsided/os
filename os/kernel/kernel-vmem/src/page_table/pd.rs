@@ -26,91 +26,28 @@ use bitfield_struct::bitfield;
 
 /// **Borrowed view** into an L2 PDE.
 ///
-/// Returned by [`PdeUnion::view`].
-pub enum L2View<'a> {
+/// Returned by [`PdEntry::view`].
+pub enum L2View {
     /// Non-leaf PDE view (PS=0).
-    Entry(&'a Pde),
+    Entry(Pde),
     /// 2 MiB leaf PDE view (PS=1).
-    Leaf2M(&'a Pde2M),
+    Leaf2M(Pde2M),
 }
 
 /// **L2 PDE union** — overlays non-leaf [`Pde`] and leaf [`Pde2M`]
 /// on the same 64-bit storage.
 ///
-/// Prefer [`PdeUnion::view`] / [`PdeUnion::view_mut`] for safe typed access.
+/// Prefer [`PdEntry::view`] for safe typed access.
 /// These check the **PS** bit and hand you the correct variant.
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union PdeUnion {
+pub union PdEntry {
     /// Raw 64-bit storage of the entry.
     bits: u64,
     /// Non-leaf form: next-level Page Table (PS=0).
     entry: Pde,
     /// Leaf form: 2 MiB mapping (PS=1).
     leaf_2m: Pde2M,
-}
-
-impl Default for PdeUnion {
-    #[inline]
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl PdeUnion {
-    #[inline]
-    #[must_use]
-    pub const fn new() -> Self {
-        Self { bits: 0 }
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn new_entry(entry: Pde) -> Self {
-        Self { entry }
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn new_leaf(leaf: Pde2M) -> Self {
-        Self { leaf_2m: leaf }
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn present(self) -> bool {
-        unsafe { self.bits & PRESENT_BIT != 0 }
-    }
-
-    /// Construct union from raw `bits` (no validation).
-    #[inline]
-    #[must_use]
-    pub const fn from_bits(bits: u64) -> Self {
-        Self { bits }
-    }
-
-    /// Extract raw `bits` back from the union.
-    #[inline]
-    #[must_use]
-    pub const fn into_bits(self) -> u64 {
-        unsafe { self.bits }
-    }
-
-    /// **Typed read-only view** chosen by the **PS** bit.
-    ///
-    /// - If PS=1 → [`L2View::Leaf2M`]
-    /// - If PS=0 → [`L2View::Entry`]
-    #[inline]
-    #[must_use]
-    pub const fn view(&self) -> L2View<'_> {
-        unsafe {
-            if (self.bits & PS_BIT) != 0 {
-                L2View::Leaf2M(&self.leaf_2m)
-            } else {
-                L2View::Entry(&self.entry)
-            }
-        }
-    }
 }
 
 /// L2 **PDE** — pointer to a **Page Table** (non-leaf; PS **= 0**).
@@ -292,19 +229,6 @@ impl Pde2M {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct L2Index(u16);
 
-/// A single Page Directory entry (PDE).
-///
-/// Semantics:
-///
-/// - If `PS=0`, points to a Page Table (PT).
-/// - If `PS=1`, encodes a 2 MiB leaf mapping.
-///
-/// All permission/cache/present bits are contained in the inner [`PageEntryBits`].
-#[doc(alias = "PDE")]
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct PdEntry(PdeUnion);
-
 /// Decoded PDE kind.
 ///
 /// - [`NextPageTable`](PdEntryKind::NextPageTable): non-leaf (`PS=0`), contains the 4 KiB-aligned PT base.
@@ -350,26 +274,73 @@ impl L2Index {
     }
 }
 
+impl Default for PdEntry {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PdEntry {
+    #[inline]
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { bits: 0 }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn new_entry(entry: Pde) -> Self {
+        Self { entry }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn new_leaf(leaf: Pde2M) -> Self {
+        Self { leaf_2m: leaf }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn present(self) -> bool {
+        unsafe { self.bits & PRESENT_BIT != 0 }
+    }
+
+    /// Construct union from raw `bits` (no validation).
+    #[inline]
+    #[must_use]
+    pub const fn from_bits(bits: u64) -> Self {
+        Self { bits }
+    }
+
+    /// Extract raw `bits` back from the union.
+    #[inline]
+    #[must_use]
+    pub const fn into_bits(self) -> u64 {
+        unsafe { self.bits }
+    }
+
+    /// **Typed read-only view** chosen by the **PS** bit.
+    ///
+    /// - If PS=1 → [`L2View::Leaf2M`]
+    /// - If PS=0 → [`L2View::Entry`]
+    #[inline]
+    #[must_use]
+    pub const fn view(self) -> L2View {
+        unsafe {
+            if (self.bits & PS_BIT) != 0 {
+                L2View::Leaf2M(self.leaf_2m)
+            } else {
+                L2View::Entry(self.entry)
+            }
+        }
+    }
+
     /// Create a zero (non-present) entry.
     #[inline]
     #[must_use]
     pub const fn zero() -> Self {
-        Self(PdeUnion::new())
-    }
-
-    /// Return `true` if the entry is marked present.
-    #[inline]
-    #[must_use]
-    pub const fn is_present(self) -> bool {
-        self.0.present()
-    }
-
-    /// Expose the underlying bitfield for advanced inspection/masking.
-    #[inline]
-    #[must_use]
-    pub const fn view(&self) -> L2View<'_> {
-        self.0.view()
+        Self::new()
     }
 
     /// Decode the entry into its semantic kind, or `None` if not present.
@@ -379,18 +350,18 @@ impl PdEntry {
     #[inline]
     #[must_use]
     pub const fn kind(self) -> Option<PdEntryKind> {
-        if !self.is_present() {
+        if !self.present() {
             return None;
         }
 
         Some(match self.view() {
             L2View::Entry(entry) => {
                 let base = entry.physical_address();
-                PdEntryKind::NextPageTable(PhysicalPage::<Size4K>::from_addr(base), *entry)
+                PdEntryKind::NextPageTable(PhysicalPage::<Size4K>::from_addr(base), entry)
             }
             L2View::Leaf2M(entry) => {
                 let base = entry.physical_address();
-                PdEntryKind::Leaf2MiB(PhysicalPage::<Size2M>::from_addr(base), *entry)
+                PdEntryKind::Leaf2MiB(PhysicalPage::<Size2M>::from_addr(base), entry)
             }
         })
     }
@@ -404,7 +375,7 @@ impl PdEntry {
     pub const fn make_next(pt_page: PhysicalPage<Size4K>, mut flags: Pde) -> Self {
         flags.set_present(true);
         flags.set_physical_address(pt_page.base());
-        Self(PdeUnion::new_entry(flags))
+        Self::new_entry(flags)
     }
 
     /// Create a 2 MiB leaf PDE (`PS=1`).
@@ -417,23 +388,21 @@ impl PdEntry {
         flags.set_present(true);
         flags.set_physical_address(page.base());
         flags.set_page_size(true);
-        Self(PdeUnion::new_leaf(flags))
+        Self::new_leaf(flags)
     }
+}
 
-    /// Return the raw 64-bit value (flags + address).
+impl From<Pde> for PdEntry {
     #[inline]
-    #[must_use]
-    pub const fn raw(self) -> u64 {
-        self.0.into_bits()
+    fn from(e: Pde) -> Self {
+        Self::new_entry(e)
     }
+}
 
-    /// Construct from a raw 64-bit value.
-    ///
-    /// No validation is performed; callers must ensure a consistent `PS`/kind.
+impl From<Pde2M> for PdEntry {
     #[inline]
-    #[must_use]
-    pub const fn from_raw(v: u64) -> Self {
-        Self(PdeUnion::from_bits(v))
+    fn from(e: Pde2M) -> Self {
+        Self::new_leaf(e)
     }
 }
 

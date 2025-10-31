@@ -27,7 +27,7 @@ use bitfield_struct::bitfield;
 
 /// **Borrowed view** into an L3 PDPTE.
 ///
-/// Returned by [`PdpteUnion::view`].
+/// Returned by [`PdptEntry::view`].
 pub enum L3View {
     /// Non-leaf PDPTE view (PS=0).
     Entry(Pdpte),
@@ -38,7 +38,7 @@ pub enum L3View {
 /// **L3 PDPTE union** — overlays non-leaf [`Pdpte`] and leaf [`Pdpte1G`]
 /// on the same 64-bit storage.
 ///
-/// Use [`PdptEntry::view`] / [`PdptEntry::view_mut`] to obtain a **typed**
+/// Use [`PdptEntry::view`] to obtain a **typed**
 /// reference. These methods inspect the **PS** bit to decide which variant is
 /// active and return a safe borrowed view.
 ///
@@ -379,21 +379,19 @@ impl PdptEntry {
         flags.set_physical_address(page.base());
         Self::new_leaf(flags)
     }
+}
 
-    /// Return the raw 64-bit value (flags + address).
+impl From<Pdpte> for PdptEntry {
     #[inline]
-    #[must_use]
-    pub const fn raw(self) -> u64 {
-        self.into_bits()
+    fn from(e: Pdpte) -> Self {
+        Self::new_entry(e)
     }
+}
 
-    /// Construct from a raw 64-bit value.
-    ///
-    /// No validation is performed; callers must ensure a consistent `PS`/kind.
+impl From<Pdpte1G> for PdptEntry {
     #[inline]
-    #[must_use]
-    pub const fn from_raw(v: u64) -> Self {
-        Self::from_bits(v)
+    fn from(e: Pdpte1G) -> Self {
+        Self::new_leaf(e)
     }
 }
 
