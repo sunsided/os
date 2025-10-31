@@ -16,7 +16,7 @@
 //! ## Invariants & Notes
 //!
 //! - [`PageDirectory`] is 4 KiB-aligned and contains exactly 512 entries.
-//! - [`PdEntry::make_next`] forces `PS=0`; [`PdEntry::make_2m`] forces `PS=1`.
+//! - [`PdEntry::present_next_with`] forces `PS=0`; [`PdEntry::present_leaf_with`] forces `PS=1`.
 //! - Raw constructors don’t validate consistency; callers must ensure correctness.
 //! - TLB maintenance is the caller’s responsibility after mutating active mappings.
 
@@ -388,7 +388,7 @@ impl PdEntry {
         )
     }
 
-    /// Create a new, present [`PtEntry4k`] with the specified flags, at the specified page.
+    /// Create a new, present [`PdEntry`] with the specified flags, at the specified page.
     #[must_use]
     pub const fn present_leaf_with(
         leaf_flags: VirtualMemoryPageBits,

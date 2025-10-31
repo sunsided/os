@@ -17,7 +17,7 @@
 //! ## Guarantees & Invariants
 //!
 //! - [`PageMapLevel4`] is 4 KiB-aligned and has exactly 512 entries.
-//! - [`Pml4Entry::make`] enforces `PS=0` for PML4Es.
+//! - [`Pml4Entry::present_with`] enforces `PS=0` for PML4Es.
 //! - Accessors avoid unsafe operations and prefer explicit types such as
 //!   [`PhysicalPage<Size4K>`] for next-level tables.
 

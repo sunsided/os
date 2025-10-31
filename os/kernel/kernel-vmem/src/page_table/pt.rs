@@ -15,7 +15,7 @@
 //! ## Invariants & Notes
 //!
 //! - [`PageTable`] is 4 KiB-aligned and contains exactly 512 entries.
-//! - [`PtEntry4k::make_4k`] forces `PS=0` and `present=1`.
+//! - [`PtEntry4k::present_with`] forces `PS=0` and `present=1`.
 //! - Raw constructors do not validate consistency; prefer typed helpers.
 //! - After modifying active mappings, the caller must perform any required TLB maintenance.
 

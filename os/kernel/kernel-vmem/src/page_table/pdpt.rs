@@ -17,7 +17,7 @@
 //! ## Invariants & Safety Notes
 //!
 //! - [`PageDirectoryPointerTable`] is 4 KiB-aligned and contains exactly 512 entries.
-//! - [`PdptEntry::make_next`] enforces `PS=0`; [`PdptEntry::make_1g`] enforces `PS=1`.
+//! - [`PdptEntry::present_next_with`] enforces `PS=0`; [`PdptEntry::present_leaf_with`] enforces `PS=1`.
 //! - Callers must handle TLB maintenance after changing active mappings.
 //! - Raw constructors perform no validation; use with care.
 
