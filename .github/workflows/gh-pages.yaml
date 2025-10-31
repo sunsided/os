@@ -33,10 +33,9 @@ jobs:
           RUSTDOCFLAGS: --enable-index-page -Zunstable-options
         run: cargo +nightly doc --workspace --document-private-items --no-deps
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: ./target/doc
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/doc
+          force_orphan: true
