@@ -1,0 +1,194 @@
+version: '3'
+
+# Load environment from these files if present (later wins).
+dotenv: [ '.env.local', '.env' ]
+
+# Global variables with sensible defaults; override via env or CLI:
+#   task run:qemu:nographic ARGS='-d int' OVMF_DIR=/custom/path
+vars:
+  OVMF_DIR: '{{ .OVMF_DIR | default "/usr/share/OVMF" }}'
+  OVMF_CODE_FILE: '{{ .OVMF_CODE_FILE | default "OVMF_CODE_4M.fd" }}'
+  OVMF_VARS_FILE: '{{ .OVMF_VARS_FILE | default "OVMF_VARS_4M.fd" }}'
+  BUILD_LOCAL_DIR: '{{ .BUILD_LOCAL_DIR | default "qemu" }}'
+  ESP_LOCAL_DIR: '{{ .ESP_LOCAL_DIR | default (printf "%s/esp" .BUILD_LOCAL_DIR) }}'
+  UEFI_IMAGE_FILE: '{{ .UEFI_IMAGE_FILE | default "uefi.img" }}'
+  # Where your .efi lives; tweak as needed
+  UEFI_LOADER: '{{ .UEFI_LOADER | default "target/x86_64-unknown-uefi/debug/uefi-loader.efi" }}'
+  KERNEL_BIN: '{{ .KERNEL_BIN | default "target/x86_64-unknown-none/debug/kernel" }}'
+  # Derived paths
+  OVMF_CODE_PATH: '{{ .OVMF_CODE_PATH | default (printf "%s/%s" .OVMF_DIR .OVMF_CODE_FILE) }}'
+  OVMF_VARS_PATH: '{{ .OVMF_VARS_PATH | default (printf "%s/%s" .OVMF_DIR .OVMF_VARS_FILE) }}'
+  OVMF_LOCAL_VARS_PATH: '{{ .OVMF_LOCAL_VARS_PATH | default (printf "%s/%s" .BUILD_LOCAL_DIR .OVMF_VARS_FILE) }}'
+
+# Default task when you run just `task`
+tasks:
+  default:
+    desc: Show common tasks
+    cmds:
+      - task -l
+
+  # ───────────────────────────── Environment setup ─────────────────────────────
+  setup:
+    desc: Install required Rust targets and verify toolchain setup
+    cmds:
+      - |
+        required_targets=(
+          "x86_64-unknown-none"
+          "x86_64-unknown-uefi"
+        )
+        for target in "${required_targets[@]}"; do
+          if rustup target list --installed | grep -q "$target"; then
+            echo "✓ $target already installed"
+          else
+            echo "→ Installing $target..."
+            rustup target add "$target"
+          fi
+        done
+      - rustup component add rust-src || true
+      - cargo install --locked cargo-sort
+      - echo "Rust setup complete."
+      - pre-commit install
+    preconditions:
+      - sh: command -v rustup
+        msg: "rustup not found — please install Rust via rustup.rs"
+      - sh: command -v pre-commit
+        msg: "pre-commit not found — please install"
+
+  # ───────────────────────────── Rust hygiene ─────────────────────────────
+  fmt:
+    desc: Format all workspace crates
+    cmds:
+      - cargo fmt --all
+
+  clippy:
+    desc: Lint all workspace crates (deny warnings)
+    cmds:
+      - cargo clippy --workspace --all-targets -- -D warnings
+
+  docs:
+    desc: Build workspace docs (no-deps) into target/doc
+    cmds:
+      - cargo doc --workspace --no-deps
+
+  docs:open:
+    desc: Build workspace docs (no-deps) into target/doc
+    cmds:
+      - cargo doc --workspace --no-deps --open
+
+  test:
+    desc: Run full test suite (doc + libs)
+    deps: [ test:docs, test:libs ]
+
+  test:docs:
+    desc: Run documentation tests only
+    cmds:
+      - cargo test --doc
+
+  test:libs:
+    desc: Run library tests (all targets)
+    cmds:
+      - cargo test --all-features --lib --target x86_64-unknown-linux-gnu
+
+  clean:
+    desc: Clean cargo and build artifacts
+    cmds:
+      - cargo clean
+      - rm -rf '{{.BUILD_LOCAL_DIR}}'
+
+  # ─────────────────────── Build kernel & UEFI artifacts ───────────────────────
+  build:
+    desc: Build UEFI loader and kernel
+    deps:
+      - build:uefi
+      - build:kernel
+
+  build:kernel:
+    desc: Build kernel (release, no std target)
+    dir: os/kernel/kernel
+    sources:
+      - Cargo.toml
+      - Cargo.lock
+      - os/kernel/**
+      - os/utils/**
+    cmds:
+      - cargo build --bin kernel --target x86_64-unknown-none
+      - readelf -l '../../../{{.KERNEL_BIN}}'
+    generates:
+      - '{{.KERNEL_BIN}}'
+
+  build:uefi:
+    desc: Build UEFI loader (release)
+    dir: os/uefi/uefi-loader
+    sources:
+      - Cargo.toml
+      - Cargo.lock
+      - os/uefi/**
+      - os/utils/**
+    cmds:
+      - cargo build --bin uefi-loader --target x86_64-unknown-uefi
+    generates:
+      - '{{.UEFI_LOADER}}'
+
+  # ─────────────────────────── Packaging (ESP image) ───────────────────────────
+  package:
+    desc: Prepare QEMU/OVMF runnable layout in {{.BUILD_LOCAL_DIR}} (ESP + vars)
+    deps:
+      - build
+    cmds:
+      - mkdir -p '{{.ESP_LOCAL_DIR}}/EFI/Boot'
+      - cp '{{.UEFI_LOADER}}' '{{.ESP_LOCAL_DIR}}/EFI/Boot/BootX64.efi'
+      - cp '{{.KERNEL_BIN}}' '{{.ESP_LOCAL_DIR}}/EFI/Boot/kernel.elf'
+      # Keep a writable copy of OVMF_VARS next to the build tree
+      - mkdir -p '{{.BUILD_LOCAL_DIR}}'
+      - |
+        if [ ! -f '{{.OVMF_LOCAL_VARS_PATH}}' ]; then
+          cp '{{.OVMF_VARS_PATH}}' '{{.OVMF_LOCAL_VARS_PATH}}'
+        fi
+    sources:
+      - '{{.UEFI_LOADER}}'
+      - '{{.KERNEL_BIN}}'
+      - '{{.OVMF_VARS_PATH}}'
+    generates:
+      - '{{.OVMF_LOCAL_VARS_PATH}}'
+      - '{{.ESP_LOCAL_DIR}}/EFI/Boot/BootX64.efi'
+      - '{{.ESP_LOCAL_DIR}}/EFI/Boot/kernel.elf'
+
+  # ───────────────────────────── OVMF helpers ─────────────────────────────
+  find:ovmf:
+    desc: Try common OVMF locations and print the first that works
+    cmds:
+      - |
+        for d in "{{.OVMF_DIR}}" /usr/share/OVMF /usr/share/edk2/ovmf /usr/share/edk2/x64 /usr/share/edk2-ovmf; do
+          if [ -r "$d/OVMF_CODE.fd" ] || [ -r "$d/OVMF_CODE_4M.fd" ]; then
+            echo "$d"; exit 0;
+          fi
+        done
+        echo "No OVMF directory found." >&2; exit 1
+
+  # ────────────────────────────── QEMU runners ──────────────────────────────
+  qemu:
+    desc: Run with QEMU+OVMF + stdio serial + a display window
+    deps: [ package ]
+    env:
+      QEMU: '{{ .QEMU | default "qemu-system-x86_64" }}'
+    cmds:
+      - |
+        $QEMU \
+          -machine q35 \
+          -m 256 \
+          -drive if=pflash,format=raw,readonly=on,file='{{.OVMF_CODE_PATH}}' \
+          -drive if=pflash,format=raw,file='{{.OVMF_LOCAL_VARS_PATH}}' \
+          -drive format=raw,file='fat:rw:{{.ESP_LOCAL_DIR}}' \
+          -net none \
+          -s \
+          -debugcon file:debug.log -global isa-debugcon.iobase=0x402 \
+          -monitor stdio \
+          -no-reboot -no-shutdown -d cpu_reset \
+          {{.ARGS | default ""}}
+    preconditions:
+      - sh: 'test -r "{{.OVMF_CODE_PATH}}"'
+        msg: "OVMF code not found at {{.OVMF_CODE_PATH}} (override OVMF_DIR/OVMF_CODE_FILE)"
+      - sh: 'test -r "{{.OVMF_LOCAL_VARS_PATH}}"'
+        msg: "OVMF vars not found or not copied (run package)"
+      - sh: 'test -d "{{.ESP_LOCAL_DIR}}"'
+        msg: "ESP dir missing (run package)"

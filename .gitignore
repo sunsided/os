@@ -1,3 +1,4 @@
+/.task
 /target
 /qemu
 *.log

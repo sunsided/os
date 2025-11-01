@@ -1,4 +1,4 @@
-//! # Kernel Entry Point
+//! # The main Kernel
 
 #![no_std]
 #![no_main]
@@ -6,6 +6,7 @@
 
 mod framebuffer;
 mod tracing;
+mod userland;
 
 use crate::framebuffer::{VGA_LIKE_OFFSET, fill_solid};
 use crate::tracing::trace_boot_info;
