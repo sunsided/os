@@ -1,0 +1,56 @@
+name: Build UEFI (os/uefi)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'os/uefi/**'
+      - 'os/kernel/kernel-info/**'
+      - 'os/kernel/kernel-qemu/**'
+      - 'os/kernel/kernel-vmem/**'
+      - '.github/workflows/build-uefi.yaml'
+  pull_request:
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'os/uefi/**'
+      - 'os/kernel/kernel-info/**'
+      - 'os/kernel/kernel-qemu/**'
+      - 'os/kernel/kernel-vmem/**'
+      - '.github/workflows/build-uefi.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+    working-directory: os/uefi/uefi-loader
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: x86_64-unknown-uefi
+
+      - name: Cache build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            os/uefi -> target
+
+      - name: Build (release)
+        run: cargo build --release --target x86_64-unknown-uefi
