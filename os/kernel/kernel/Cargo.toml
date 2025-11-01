@@ -18,6 +18,7 @@ qemu = ["kernel-qemu/enabled"]
 kernel-alloc = { path = "../kernel-alloc" }
 kernel-info = { path = "../kernel-info" }
 kernel-qemu = { path = "../../kernel/kernel-qemu", default-features = false }
+kernel-syscall = { path = "../kernel-syscall" }
 kernel-vmem = { path = "../../kernel/kernel-vmem" }
 
 [build-dependencies]

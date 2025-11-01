@@ -115,11 +115,11 @@ fn should_skip(attrs: &[syn::Attribute]) -> bool {
             if meta.path.is_ident("skip") {
                 if meta.input.is_empty() {
                     skip = true; // #[setters(skip)]
-                } else if let Ok(v) = meta.value()?.parse::<LitBool>() {
-                    if v.value {
-                        skip = true;
-                    } // #[setters(skip = true)]
-                }
+                } else if let Ok(v) = meta.value()?.parse::<LitBool>()
+                    && v.value
+                {
+                    skip = true;
+                } // #[setters(skip = true)]
             }
             Ok(())
         });

@@ -33,6 +33,7 @@ pub mod qemu_fmt {
         }
     }
 
+    // TODO: Model this as an actual sink for arbitrary port write
     pub struct QemuSink;
 
     impl Write for QemuSink {
@@ -73,6 +74,7 @@ pub mod qemu_fmt {
     }
 }
 
+// TODO: Model this as a regular trace macro optionally backed by the QWEMU sink
 #[macro_export]
 macro_rules! qemu_trace {
     ($($arg:tt)*) => {{

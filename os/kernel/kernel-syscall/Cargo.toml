@@ -1,6 +1,5 @@
 [package]
-name = "utils-accessors-derive"
-description = "Derive macro that generates set_/with_ setters for struct fields"
+name = "kernel-syscall"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,12 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 license.workspace = true
 
-[lib]
-proc-macro = true
-
 [dependencies]
-quote.workspace = true
-syn = { workspace = true, features = ["derive", "parsing", "printing", "proc-macro"] }
 
 [lints]
 workspace = true

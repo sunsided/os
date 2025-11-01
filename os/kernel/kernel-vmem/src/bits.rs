@@ -18,7 +18,7 @@ use utils_accessors_derive::Setters;
 /// Use the provided `from_*` and `to_*` helpers to map between this view and
 /// the actual bitfield entries. Alignment and level-specific constraints are
 /// validated in `to_*` conversions (debug assertions).
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Setters)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Setters)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct VirtualMemoryPageBits {
     /// **Present** (P): valid entry if `true`.
@@ -77,7 +77,121 @@ pub struct VirtualMemoryPageBits {
     pub pat_bit2: bool,
 }
 
+impl Default for VirtualMemoryPageBits {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VirtualMemoryPageBits {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            present: false,
+            writable: false,
+            user: false,
+            write_through: false,
+            cache_disable: false,
+            accessed: false,
+            dirty: false,
+            global: false,
+            no_execute: false,
+            protection_key: 0,
+            os_available_low: 0,
+            os_available_high: 0,
+            pat_bit2: false,
+        }
+    }
+
+    /// Build a **non-leaf (page-table) entry** for a user-accessible subtree
+    /// with **write-back (WB)** caching and **execution allowed** (NX = false).
+    ///
+    /// Use this for page tables that will eventually map code or mixed regions.
+    #[inline]
+    #[must_use]
+    pub const fn with_user_table_wb_exec_ok() -> Self {
+        Self::new()
+            .with_present(true)
+            .with_writable(true) // ignored for non-leaf; set conventionally
+            .with_user(true)
+            .with_write_through(false)
+            .with_cache_disable(false)
+            .with_accessed(false)
+            .with_dirty(false)
+            .with_global(false)
+            .with_no_execute(false)
+            .with_protection_key(0)
+            .with_os_available_low(0)
+            .with_os_available_high(0)
+            .with_pat_bit2(false)
+    }
+
+    /// Build a **non-leaf (page-table) entry** for a user-accessible subtree
+    /// with **write-back (WB)** caching but **non-executable (NX = true)**.
+    ///
+    /// Use this for data-only subtrees (e.g. stack or heap regions).
+    #[inline]
+    #[must_use]
+    pub const fn with_user_table_wb_noexec() -> Self {
+        Self::with_user_table_wb_exec_ok().with_no_execute(true)
+    }
+
+    /// Build a **user data leaf entry**:
+    /// writable, non-executable, write-back (WB) caching.
+    #[inline]
+    #[must_use]
+    pub const fn with_user_leaf_data_wb() -> Self {
+        Self::new()
+            .with_present(true)
+            .with_writable(true)
+            .with_user(true)
+            .with_write_through(false)
+            .with_cache_disable(false)
+            .with_accessed(false)
+            .with_dirty(false)
+            .with_global(false)
+            .with_no_execute(true) // data: NX
+            .with_protection_key(0)
+            .with_os_available_low(0)
+            .with_os_available_high(0)
+            .with_pat_bit2(false)
+    }
+
+    /// Build a **user code leaf entry**:
+    /// read-only, executable, write-back (WB) caching.
+    #[inline]
+    #[must_use]
+    pub const fn with_user_leaf_code_wb() -> Self {
+        Self::new()
+            .with_present(true)
+            .with_writable(false)
+            .with_user(true)
+            .with_write_through(false)
+            .with_cache_disable(false)
+            .with_accessed(false)
+            .with_dirty(false)
+            .with_global(false)
+            .with_no_execute(false) // code: exec allowed
+            .with_protection_key(0)
+            .with_os_available_low(0)
+            .with_os_available_high(0)
+            .with_pat_bit2(false)
+    }
+
+    /// Alias for [`with_user_table_wb_noexec`]: non-leaf, WB-cached, NX=true.
+    #[inline]
+    #[must_use]
+    pub const fn with_user_table_wb_data_only() -> Self {
+        Self::with_user_table_wb_noexec()
+    }
+
+    /// Alias for [`with_user_table_wb_exec_ok`]: non-leaf, WB-cached, NX=false.
+    #[inline]
+    #[must_use]
+    pub const fn with_user_table_wb_code_ok() -> Self {
+        Self::with_user_table_wb_exec_ok()
+    }
+
     /// Enable write-combining (WC) via PAT registers.
     #[inline]
     #[must_use]

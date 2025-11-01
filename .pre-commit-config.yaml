@@ -39,14 +39,14 @@ repos:
       - id: rustfmt
         name: rustfmt
         description: Check if all files follow the rustfmt style
-        entry: just fmt
+        entry: task fmt
         language: system
         files: \.rs$
         pass_filenames: false
       - id: clippy
         name: clippy
         description: Check if all files implement Clippy lints
-        entry: just lint
+        entry: task clippy:fix
         language: system
         files: \.rs$
         pass_filenames: false
