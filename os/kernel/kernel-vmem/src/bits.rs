@@ -3,7 +3,7 @@ use crate::page_table::pd::{Pde, Pde2M};
 use crate::page_table::pdpt::{Pdpte, Pdpte1G};
 use crate::page_table::pml4::Pml4Entry;
 use crate::page_table::pt::PtEntry4k;
-use getset::WithSetters;
+use utils_accessors_derive::Setters;
 
 /// Unified, ergonomic view over x86-64 paging entries (all levels / forms).
 ///
@@ -18,8 +18,7 @@ use getset::WithSetters;
 /// Use the provided `from_*` and `to_*` helpers to map between this view and
 /// the actual bitfield entries. Alignment and level-specific constraints are
 /// validated in `to_*` conversions (debug assertions).
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, WithSetters)]
-#[getset(set_with = "pub")]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Setters)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct VirtualMemoryPageBits {
     /// **Present** (P): valid entry if `true`.
@@ -82,7 +81,7 @@ impl VirtualMemoryPageBits {
     /// Enable write-combining (WC) via PAT registers.
     #[inline]
     #[must_use]
-    pub fn with_write_combining(self) -> Self {
+    pub const fn with_write_combining(self) -> Self {
         self.with_write_through(false)
             .with_cache_disable(true)
             .with_pat_bit2(true)

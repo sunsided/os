@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["os/kernel/*", "os/uefi/*"]
+members = ["os/kernel/*", "os/uefi/*", "os/utils/*"]
 
 [workspace.package]
 version = "0.0.0"
@@ -15,7 +15,9 @@ publish = false
 
 [workspace.dependencies]
 bitfield-struct = { version = "0.12.0", default-features = false }
-getset = "0.1.6"
+proc-macro2 = "1"
+quote = "1"
+syn = "2"
 thiserror = { version = "2.0.17", default-features = false }
 uefi = { version = "0.35", default-features = false }
 

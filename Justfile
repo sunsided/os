@@ -91,7 +91,7 @@ lib-test: test-libs
 
 # Run library test in all projects
 test-libs *ARGS:
-    @cargo test --all-features --lib {{ ARGS }}
+    @cargo test --all-features --lib --target x86_64-unknown-linux-gnu {{ ARGS }}
 
 # Build and open the docs
 docs:

@@ -1,5 +1,6 @@
 [package]
-name = "kernel-vmem"
+name = "utils-accessors-derive"
+description = "Derive macro that generates set_/with_ setters for struct fields"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,11 +11,12 @@ keywords.workspace = true
 categories.workspace = true
 license.workspace = true
 
+[lib]
+proc-macro = true
+
 [dependencies]
-bitfield-struct.workspace = true
-kernel-info = { path = "../kernel-info" }
-thiserror.workspace = true
-utils-accessors-derive = { path = "../../utils/utils-accessors-derive" }
+quote.workspace = true
+syn = { workspace = true, features = ["full", "extra-traits"] }
 
 [lints]
 workspace = true
