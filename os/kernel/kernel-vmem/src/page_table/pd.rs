@@ -380,12 +380,7 @@ impl PdEntry {
         leaf_flags: VirtualMemoryPageBits,
         page: PhysicalPage<Size4K>,
     ) -> Self {
-        Self::new_entry(
-            leaf_flags
-                .to_pde()
-                .with_present(true)
-                .with_physical_page(page),
-        )
+        Self::new_entry(leaf_flags.to_pde(page).with_present(true))
     }
 
     /// Create a new, present [`PdEntry`] with the specified flags, at the specified page.
@@ -396,10 +391,9 @@ impl PdEntry {
     ) -> Self {
         Self::new_leaf(
             leaf_flags
-                .to_pde_2m()
+                .to_pde_2m(page)
                 .with_present(true)
-                .with_page_size(true)
-                .with_physical_page(page),
+                .with_page_size(true),
         )
     }
 }

@@ -136,10 +136,7 @@ impl PtEntry4k {
         leaf_flags: VirtualMemoryPageBits,
         page: PhysicalPage<Size4K>,
     ) -> Self {
-        leaf_flags
-            .to_pte_4k()
-            .with_present(true)
-            .with_physical_page(page)
+        leaf_flags.to_pte_4k(page).with_present(true)
     }
 
     /// 4 KiB **user RO+NX** mapping (read-only, no execute).

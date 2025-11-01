@@ -381,7 +381,7 @@ impl PdptEntry {
         flags: VirtualMemoryPageBits,
         page: PhysicalPage<Size4K>,
     ) -> Self {
-        let flags = flags.to_pdpte().with_present(true).with_physical_page(page);
+        let flags = flags.to_pdpte(page).with_present(true);
         Self::new_entry(flags)
     }
 
@@ -396,10 +396,9 @@ impl PdptEntry {
         page: PhysicalPage<Size1G>,
     ) -> Self {
         let flags = flags
-            .to_pdpte_1g()
+            .to_pdpte_1g(page)
             .with_present(true)
-            .with_page_size(true)
-            .with_physical_page(page);
+            .with_page_size(true);
         Self::new_leaf(flags)
     }
 }

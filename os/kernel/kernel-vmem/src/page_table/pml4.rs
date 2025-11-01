@@ -192,10 +192,7 @@ impl Pml4Entry {
         flags: VirtualMemoryPageBits,
         next_pdpt_page: PhysicalPage<Size4K>,
     ) -> Self {
-        flags
-            .to_pml4e()
-            .with_present(true)
-            .with_physical_address(next_pdpt_page)
+        flags.to_pml4e(next_pdpt_page).with_present(true)
     }
 
     /// Set the PDPT base address (must be 4 KiB-aligned).
