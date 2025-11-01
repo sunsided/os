@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["L1Index","PageTable","PtEntry4k"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BootPixelFormat"],"struct":["BootPixelMasks","FramebufferInfo","KernelBootInfo","MemoryMapInfo"],"type":["KernelEntryFn"]};

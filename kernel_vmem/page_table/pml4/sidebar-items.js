@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["L4Index","PageMapLevel4","Pml4Entry"]};

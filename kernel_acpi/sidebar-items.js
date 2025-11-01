@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["sum"],"mod":["rsdp"],"trait":["PhysMapRo"]};

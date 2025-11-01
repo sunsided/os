@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["sealed"],"struct":["MemoryAddress","MemoryAddressOffset","MemoryPage","PhysicalAddress","PhysicalPage","Size1G","Size2M","Size4K","VirtualAddress","VirtualPage"],"trait":["PageSize"]};

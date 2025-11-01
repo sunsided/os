@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["read_cr3_phys"],"mod":["address_space","addresses","bits","info","page_table"],"struct":["VirtualMemoryPageBits"],"trait":["FrameAlloc","PhysMapper","PhysMapperExt"]};

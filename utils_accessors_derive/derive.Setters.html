@@ -1,0 +1,24 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Derive to generate `.set_&#60;field&#62;(&#38;mut self, value: Ty) -&#62; &#38;mut Self` and `const .with_&#60;field&#62;(mut self, value: Ty) -&#62; Self` for each named field."><title>Setters in utils_accessors_derive - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="utils_accessors_derive" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (82ae0ee64 2025-10-31)" data-channel="nightly" data-search-js="search-6acd48a0.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc derive"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Setters</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../utils_accessors_derive/index.html">utils_<wbr>accessors_<wbr>derive</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Setters</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#example" title="Example">Example</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate utils_<wbr>accessors_<wbr>derive</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">utils_accessors_derive</a></div><h1>Derive Macro <span class="derive">Setters</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/utils_accessors_derive/lib.rs.html#33-104">Source</a> </span></div><pre class="rust item-decl"><code>#[derive(Setters)]
+{
+    <span class="comment">// Attributes available to this derive:</span>
+    #[setters]
+}
+</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Derive to generate <code>.set_&lt;field&gt;(&amp;mut self, value: Ty) -&gt; &amp;mut Self</code> and
+<code>const .with_&lt;field&gt;(mut self, value: Ty) -&gt; Self</code> for each <strong>named</strong> field.</p>
+<ul>
+<li>Skipping a field: <code>#[setters(skip)]</code></li>
+</ul>
+<h2 id="example"><a class="doc-anchor" href="#example">§</a>Example</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>utils_accessors_derive::Setters;
+
+<span class="attr">#[derive(Setters)]
+</span><span class="kw">struct </span>Foo&lt;T&gt; <span class="kw">where </span>T: Default {
+    a: u32,
+    <span class="attr">#[setters(skip)]
+    </span>_phantom: T,
+}
+
+<span class="kw">let </span><span class="kw-2">mut </span>f = Foo { a: <span class="number">1</span>, _phantom: u8::default() };
+f.set_a(<span class="number">10</span>).set_a(<span class="number">11</span>);
+<span class="kw">let </span>f2 = f.with_a(<span class="number">42</span>);
+<span class="macro">assert_eq!</span>(f2.a, <span class="number">42</span>);</code></pre></div></div></details></section></div></main></body></html>
