@@ -1,5 +1,9 @@
 # Rusty OS
 
+[![Docs](https://img.shields.io/github/actions/workflow/status/sunsided/os/gh-pages.yaml?branch=main&label=Docs&logo=github)](https://sunsided.github.io/os/)
+[![Build Kernel](https://img.shields.io/github/actions/workflow/status/sunsided/os/build-kernel.yaml?branch=main&label=Kernel%20Build&logo=github)](https://github.com/sunsided/os/actions/workflows/build-kernel.yaml)
+[![Build UEFI Loader](https://img.shields.io/github/actions/workflow/status/sunsided/os/build-uefi.yaml?branch=main&label=UEFI%20Loader%20Build&logo=github)](https://github.com/sunsided/os/actions/workflows/build-uefi.yaml)
+
 A toy x86-64 operating system written in Rust, using UEFI to boot and load a kernel image.
 
 ![A screenshot of the "OS" running](docs/screenshot.png)
