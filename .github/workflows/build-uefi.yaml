@@ -32,7 +32,6 @@ concurrency:
 defaults:
   run:
     shell: bash
-    working-directory: os/uefi/uefi-loader
 
 jobs:
   build:
@@ -54,3 +53,23 @@ jobs:
 
       - name: Build (release)
         run: cargo build --release --target x86_64-unknown-uefi
+        working-directory: os/uefi/uefi-loader
+
+      - name: Package and hash (compress → sha256)
+        run: |
+          BIN=target/x86_64-unknown-uefi/release/uefi-loader.efi
+          OUT=uefi-loader.tar.gz
+          tar -czf "$OUT" -C "$(dirname "$BIN")" "$(basename "$BIN")"
+          sha256sum "$OUT" | tee "$OUT.sha256"
+          echo "Archive + hash:"
+          ls -lh "$OUT" "$OUT.sha256"
+          cat "$OUT.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: uefi-loader-release
+          path: |
+            uefi-loader.tar.gz
+            uefi-loader.tar.gz.sha256
+          retention-days: 14
