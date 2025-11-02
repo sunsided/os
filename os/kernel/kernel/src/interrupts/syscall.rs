@@ -23,7 +23,7 @@ impl SyscallInterrupt for Idt {
             .set_handler(handler)
             .selector(KERNEL_CS) // ensure it targets kernel code segment
             .present(true)
-            .dpl(3) // allow from Ring-3
+            .user_callable()
             .gate_type(GateType::InterruptGate);
     }
 }

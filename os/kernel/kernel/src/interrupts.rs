@@ -48,6 +48,7 @@
 
 mod syscall;
 
+use crate::ring::Ring;
 use bitfield_struct::bitfield;
 use core::arch::asm;
 use core::mem::size_of;
@@ -287,7 +288,7 @@ pub struct IdtEntryBuilder<'a> {
 impl IdtEntryBuilder<'_> {
     /// Set the **Present** bit. Must be `true` for a usable gate.
     #[inline]
-    pub const fn present(self, p: bool) -> Self {
+    pub const fn present(&mut self, p: bool) -> &mut Self {
         let bf = IdtGateAttr::from_bits(self.entry.ist_type).with_present(p);
         self.entry.ist_type = bf.into_bits();
         self
@@ -297,16 +298,34 @@ impl IdtEntryBuilder<'_> {
     ///
     /// To allow user-mode code to trigger this gate via `int n`, set `dpl(3)`.
     #[inline]
-    pub fn dpl(self, dpl: u8) -> Self {
+    pub fn dpl(&mut self, dpl: u8) -> &mut Self {
         debug_assert!(dpl <= 3);
         let bf = IdtGateAttr::from_bits(self.entry.ist_type).with_dpl(dpl);
         self.entry.ist_type = bf.into_bits();
         self
     }
 
+    /// Set **DPL** (Descriptor Privilege Level), 0..=3.
+    ///
+    /// To allow user-mode code to trigger this gate via `int n`, set `dpl(3)`.
+    #[inline]
+    pub fn dpl_ring(&mut self, ring: Ring) -> &mut Self {
+        self.dpl(u8::from(ring))
+    }
+
+    #[inline]
+    pub fn user_callable(&mut self) -> &mut Self {
+        self.dpl_ring(Ring::Ring3)
+    }
+
+    #[inline]
+    pub fn kernel_only(&mut self) -> &mut Self {
+        self.dpl_ring(Ring::Ring0)
+    }
+
     /// Make this an **Interrupt Gate** (type 0xE, `S=0`).
     #[inline]
-    pub const fn gate_interrupt(self) -> Self {
+    pub const fn gate_interrupt(&mut self) -> &mut Self {
         let bf = IdtGateAttr::from_bits(self.entry.ist_type)
             .with_typ(0xE)
             .with_s(false);
@@ -316,7 +335,7 @@ impl IdtEntryBuilder<'_> {
 
     /// Make this a **Trap Gate** (type 0xF, `S=0`).
     #[inline]
-    pub const fn gate_trap(self) -> Self {
+    pub const fn gate_trap(&mut self) -> &mut Self {
         let bf = IdtGateAttr::from_bits(self.entry.ist_type)
             .with_typ(0xF)
             .with_s(false);
@@ -326,7 +345,7 @@ impl IdtEntryBuilder<'_> {
 
     /// Choose the gate type via an enum.
     #[inline]
-    pub const fn gate_type(self, gate_type: GateType) -> Self {
+    pub const fn gate_type(&mut self, gate_type: GateType) -> &mut Self {
         match gate_type {
             GateType::InterruptGate => self.gate_interrupt(),
             GateType::TrapGate => self.gate_trap(),
@@ -338,7 +357,7 @@ impl IdtEntryBuilder<'_> {
     /// # Panics (debug only)
     /// Asserts `idx <= 7`. Hardware supports `1..=7`.
     #[inline]
-    pub fn ist(self, idx: u8) -> Self {
+    pub fn ist(&mut self, idx: u8) -> &mut Self {
         debug_assert!(idx <= 7);
         let bf = IdtGateAttr::from_bits(self.entry.ist_type).with_ist(idx);
         self.entry.ist_type = bf.into_bits();
@@ -347,7 +366,7 @@ impl IdtEntryBuilder<'_> {
 
     /// Override the code segment **selector** (defaults to the current CS).
     #[inline]
-    pub const fn selector(self, sel: u16) -> Self {
+    pub const fn selector(&mut self, sel: u16) -> &mut Self {
         self.entry.selector = sel;
         self
     }

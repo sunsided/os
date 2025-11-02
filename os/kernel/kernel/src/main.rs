@@ -6,6 +6,7 @@
 
 mod framebuffer;
 mod interrupts;
+mod ring;
 mod tracing;
 mod userland;
 
