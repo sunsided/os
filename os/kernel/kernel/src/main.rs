@@ -5,6 +5,7 @@
 #![allow(unsafe_code)]
 
 mod framebuffer;
+mod interrupts;
 mod tracing;
 mod userland;
 
