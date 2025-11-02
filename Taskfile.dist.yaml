@@ -293,6 +293,11 @@ tasks:
           PROFILE: '{{.PROFILE}}'
     env:
       QEMU: '{{ .QEMU | default "qemu-system-x86_64" }}'
+    sources:
+      - '{{.OVMF_CODE_PATH}}'
+      - '{{.OVMF_LOCAL_VARS_PATH}}'
+      - '{{.ESP_LOCAL_UEFI_PATH}}'
+      - '{{.ESP_LOCAL_KERNEL_PATH}}'
     cmds:
       - |
         $QEMU \

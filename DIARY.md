@@ -1,5 +1,22 @@
 # Developer Diary
 
+## 2025-11-02
+
+Found [Task](https://taskfile.dev/) today and migrated from `Justfile` to `Taskfile.yaml`. It's
+a bit of a paradigm shift but the added complexity made release builds significantly easier
+(although I still not _entirely_ happy with it). It's good to see that the framebuffer pixel pokes
+are not entirely slow under a proper build.
+
+I also started with the initial userspace code logic yesterday. The idea is to use a CPIO "initramfs"
+style filesystem. UEFI could load it into RAM and map it, then hand it over to the kernel. This way I
+can get my first userspace code to load without having to implement a full-blown filesystem
+driver. To that I decided I'd go with classic FAT16 first, read-only to begin with, but there's
+still a _long_ way until I get there. The first idea is to mimic user code as a function in the
+Kernel itself - doesn't matter where the code came from, after all - and then implement very basic
+INT 80h style context switching. With an extremely basic initial syscall for poking into the QEMU
+debug port and returning some numerical value I can try to set up a very first task. Preempting
+would then be next.
+
 ## 2025-10-31
 
 ... and touching the Virtual Memory again, this time to add PAT (Page Attribute Table) bits
