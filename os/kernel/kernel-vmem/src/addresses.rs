@@ -403,6 +403,12 @@ impl VirtualAddress {
 
     #[inline]
     #[must_use]
+    pub const fn zero() -> Self {
+        Self::new(0)
+    }
+
+    #[inline]
+    #[must_use]
     pub const fn as_u64(self) -> u64 {
         self.0.as_u64()
     }

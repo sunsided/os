@@ -46,13 +46,16 @@
 //!   for most ISRs and for a simple `int 0x80` syscall path.
 //! - **Trap gates** leave IF unchanged. Useful for debugging and certain faults.
 
-mod syscall;
+pub mod int80_entry;
+pub mod syscall;
 
-use crate::ring::Ring;
+use crate::gdt::selectors::{SegmentSelector, SegmentSelectorRaw, SelectorKind};
+use crate::privilege::Ring;
 use bitfield_struct::bitfield;
 use core::arch::asm;
 use core::mem::size_of;
 use core::ops::{Index, IndexMut};
+use kernel_vmem::addresses::VirtualAddress;
 
 // Compile-time layout sanity checks for the architecture.
 //
@@ -153,11 +156,48 @@ impl Idt {
     pub unsafe fn load(&'static self) {
         let idtr = Idtr {
             limit: (size_of::<Self>() - 1) as u16,
-            base: core::ptr::from_ref(self) as u64,
+            base: VirtualAddress::from_ptr(core::ptr::from_ref(self)),
         };
         unsafe {
             asm!("lidt [{}]", in(reg) &raw const idtr, options(nostack, preserves_flags, readonly));
         }
+    }
+
+    /// Check whether this IDT is currently loaded in the CPU’s **IDTR**.
+    ///
+    /// Uses the `sidt` instruction to read the current **Interrupt Descriptor Table Register (IDTR)**
+    /// and compares it against this IDT’s address and size.
+    ///
+    /// # Returns
+    /// `true` if the CPU’s IDTR matches the base address and size of this `Idt`,
+    /// meaning this table is the one currently active. Otherwise, returns `false`.
+    ///
+    /// # Safety
+    /// - Executes privileged `sidt` instruction, which is allowed at any privilege level
+    ///   but must not be misused to infer or modify kernel memory mappings.
+    /// - Assumes that the memory region backing this `Idt` remains valid and static.
+    ///
+    /// # Notes
+    /// - This check is **informational only**; it does not guarantee the IDT entries themselves
+    ///   are still intact or unmodified.
+    /// - The comparison is made by checking both:
+    ///   - the base address returned by `sidt`, and
+    ///   - the limit (size − 1) field, which should equal `size_of::<Idt>() - 1`.
+    #[inline]
+    pub unsafe fn is_loaded(&'static self) -> bool {
+        let mut idtr = Idtr {
+            limit: 0,
+            base: VirtualAddress::zero(),
+        };
+        unsafe {
+            asm!("sidt [{}]", in(reg) &raw mut idtr, options(nostack, preserves_flags));
+        }
+
+        // Compare base to our IDT buffer
+        #[allow(static_mut_refs)]
+        let our_base = VirtualAddress::from_ptr(self);
+        let base = unsafe { core::ptr::addr_of!(idtr.base).read_unaligned() };
+        base == our_base && idtr.limit as usize + 1 == size_of::<Self>()
     }
 }
 
@@ -176,9 +216,9 @@ impl IndexMut<usize> for Idt {
 
 /// Operand format used by `lidt` (limit + base).
 #[repr(C, packed)]
-struct Idtr {
+pub struct Idtr {
     limit: u16,
-    base: u64,
+    base: VirtualAddress,
 }
 
 /// One **16-byte** x86-64 IDT gate descriptor.
@@ -213,7 +253,7 @@ struct Idtr {
 #[derive(Copy, Clone)]
 pub struct IdtEntry {
     offset_lo: u16,
-    selector: u16,
+    selector: SegmentSelectorRaw,
     /// Two bytes packed via `IdtGateAttr` (IST + type/attrs).
     ist_type: u16, // manipulated through IdtGateAttr
     offset_mid: u16,
@@ -237,7 +277,7 @@ impl IdtEntry {
     /// A zeroed, non-present entry.
     pub const MISSING: Self = Self {
         offset_lo: 0,
-        selector: 0,
+        selector: SegmentSelectorRaw::new(),
         ist_type: IdtGateAttr::new().into_bits(),
         offset_mid: 0,
         offset_hi: 0,
@@ -252,7 +292,7 @@ impl IdtEntry {
     ///
     /// The entry is **not** marked present by default; call
     /// [`IdtEntryBuilder::present`] when you are ready.
-    pub fn set_handler(&mut self, handler: fn()) -> IdtEntryBuilder<'_> {
+    pub fn set_handler(&mut self, handler: extern "C" fn()) -> IdtEntryBuilder<'_> {
         let addr = handler as u64;
         self.offset_lo = (addr & 0xFFFF) as u16;
         self.offset_mid = ((addr >> 16) & 0xFFFF) as u16;
@@ -366,18 +406,21 @@ impl IdtEntryBuilder<'_> {
 
     /// Override the code segment **selector** (defaults to the current CS).
     #[inline]
-    pub const fn selector(&mut self, sel: u16) -> &mut Self {
-        self.entry.selector = sel;
+    pub const fn selector<K>(&mut self, sel: SegmentSelector<K>) -> &mut Self
+    where
+        K: SelectorKind,
+    {
+        self.entry.selector = sel.raw();
         self
     }
 }
 
 /// Read the current **CS** selector (used as a sensible default for entries).
 #[inline]
-fn current_cs() -> u16 {
+fn current_cs() -> SegmentSelectorRaw {
     let cs: u16;
     unsafe {
         asm!("mov {0:x}, cs", out(reg) cs, options(nomem, nostack, preserves_flags));
     }
-    cs
+    SegmentSelectorRaw::from_bits(cs)
 }

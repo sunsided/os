@@ -1,5 +1,15 @@
 # Developer Diary
 
+## 2025-11-04
+
+Still wrapping my head around GDT, IDT, TSS, ...
+I ran into some issue yesterday evening where the kernel wouldn't start up; took me until
+today to figure out that I just failed a debug assertion and my panic handler simply idle looped.
+I now added some proper text output to it to avoid this in the future.
+The test to see whether the IDT was installed was wrong, and now I'm using the `sidt` instruction
+to actually fetch the IDT record instead of reading the first byte and hoping for the best.
+The INT 80h handler now installs, but I have still no way to properly test it just yet.
+
 ## 2025-11-02
 
 Found [Task](https://taskfile.dev/) today and migrated from `Justfile` to `Taskfile.yaml`. It's

@@ -39,7 +39,6 @@ dependencies = [
  "kernel-alloc",
  "kernel-info",
  "kernel-qemu",
- "kernel-syscall",
  "kernel-vmem",
 ]
 
@@ -66,10 +65,6 @@ version = "0.0.0"
 
 [[package]]
 name = "kernel-sync"
-version = "0.0.0"
-
-[[package]]
-name = "kernel-syscall"
 version = "0.0.0"
 
 [[package]]

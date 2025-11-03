@@ -105,8 +105,11 @@ tasks:
     cmds:
       - scripts/clippy-fix.sh
 
-  docs:
+  docs:build:
     desc: Build workspace docs (no-deps) into target/doc
+    aliases:
+      - doc
+      - docs
     sources:
       - Cargo.toml
       - os/kernel/**
@@ -119,6 +122,8 @@ tasks:
 
   docs:open:
     desc: Build workspace docs (no-deps) into target/doc
+    aliases:
+      - doc:open
     sources:
       - Cargo.toml
       - os/kernel/**
@@ -200,7 +205,7 @@ tasks:
       - cargo build --bin kernel --target '{{.NONE_TARGET_TRIPLE}}' {{.PROFILE_FLAG}}
       - task: kernel:elf
     generates:
-      - '../../../{{.KERNEL_BIN_PATH}}'
+      - '{{.KERNEL_BIN_PATH}}'
 
   kernel:elf:
     desc: Prints ELF information about {{.KERNEL_BIN_PATH}}
@@ -233,7 +238,7 @@ tasks:
     cmds:
       - cargo build --bin uefi-loader --target '{{.UEFI_TARGET_TRIPLE}}' {{.PROFILE_FLAG}}
     generates:
-      - '../../../{{.UEFI_LOADER_PATH}}'
+      - '{{.UEFI_LOADER_PATH}}'
 
   package:
     desc: Prepare QEMU/OVMF runnable layout in {{.BUILD_LOCAL_DIR}} (ESP + vars)
@@ -293,11 +298,6 @@ tasks:
           PROFILE: '{{.PROFILE}}'
     env:
       QEMU: '{{ .QEMU | default "qemu-system-x86_64" }}'
-    sources:
-      - '{{.OVMF_CODE_PATH}}'
-      - '{{.OVMF_LOCAL_VARS_PATH}}'
-      - '{{.ESP_LOCAL_UEFI_PATH}}'
-      - '{{.ESP_LOCAL_KERNEL_PATH}}'
     cmds:
       - |
         $QEMU \

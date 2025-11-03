@@ -1,16 +1,24 @@
 //! # The main Kernel
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 #![no_main]
 #![allow(unsafe_code)]
 
 mod framebuffer;
+mod gdt;
+mod idt;
 mod interrupts;
-mod ring;
+mod panik;
+mod privilege;
+mod syscall;
+mod task;
 mod tracing;
+mod tss;
 mod userland;
 
 use crate::framebuffer::{VGA_LIKE_OFFSET, fill_solid};
+use crate::idt::{idt_update_in_place, init_idt_once};
+use crate::interrupts::Idt;
 use crate::tracing::trace_boot_info;
 use core::hint::spin_loop;
 use kernel_alloc::frame_alloc::BitmapFrameAlloc;
@@ -21,13 +29,6 @@ use kernel_info::memory::HHDM_BASE;
 use kernel_qemu::qemu_trace;
 use kernel_vmem::VirtualMemoryPageBits;
 use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        spin_loop();
-    }
-}
 
 /// Stack size.
 const BOOT_STACK_SIZE: usize = 64 * 1024;
@@ -42,6 +43,43 @@ struct Aligned<const N: usize>([u8; N]);
 #[unsafe(link_section = ".bss.boot")]
 #[unsafe(no_mangle)]
 static mut BOOT_STACK: Aligned<BOOT_STACK_SIZE> = Aligned([0; BOOT_STACK_SIZE]);
+
+#[inline]
+fn boot_kstack_top() -> VirtualAddress {
+    unsafe extern "C" {
+        static BOOT_STACK: [u8; BOOT_STACK_SIZE];
+    }
+    let base = unsafe { &raw const BOOT_STACK as u64 };
+
+    // ASM already aligned to 16 before using it; do the same here.
+    VirtualAddress::new((base + BOOT_STACK_SIZE as u64) & !0xFu64)
+}
+
+fn early_kernel_init_arch() {
+    // TODO: Fails in here.
+
+    // GDT + TSS (loads GDT via lgdt and TSS via ltr)
+    qemu_trace!("Allocating boot kernel stack\n");
+    let kstack_top = boot_kstack_top();
+
+    qemu_trace!("Initializing GDT and TSS ...\n");
+    gdt::init_gdt_and_tss(kstack_top, None);
+
+    // Initialize the IDT once.
+    qemu_trace!("Initializing IDT ...\n");
+
+    unsafe {
+        init_idt_once(Idt::new());
+    }
+
+    // Update the IDT. Enters a critical section and (re-)enables interrupts
+    // when the function returns.
+    qemu_trace!("Installing interupt handlers ...\n");
+    // TODO: Fails in here.
+    idt_update_in_place(|idt| {
+        // idt.init_syscall_gate(interrupts::int80_entry::int80_entry);
+    });
+}
 
 /// The kernel entry point
 ///
@@ -95,6 +133,9 @@ pub extern "C" fn _start_kernel(_boot_info: *const KernelBootInfo) {
 extern "C" fn kernel_entry(boot_info: *const KernelBootInfo) -> ! {
     qemu_trace!("Kernel reporting to QEMU!\n");
 
+    early_kernel_init_arch();
+    qemu_trace!("Early kernel init done\n");
+
     // Enable interrupts (undo the earlier 'cli')
     unsafe { core::arch::asm!("sti") };
 
@@ -118,7 +159,7 @@ extern "C" fn kernel_entry(boot_info: *const KernelBootInfo) -> ! {
 /// # Safety
 /// Assumes that [`remap_boot_memory`] has been called and all required mappings are in place.
 fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
-    qemu_trace!("Entering Kernel main loop ...\n");
+    qemu_trace!("Kernel doing kernel things now ...\n");
 
     let mut cycle = 127u8;
     loop {
