@@ -10,6 +10,86 @@ The test to see whether the IDT was installed was wrong, and now I'm using the `
 to actually fetch the IDT record instead of reading the first byte and hoping for the best.
 The INT 80h handler now installs, but I have still no way to properly test it just yet.
 
+On Memory Segmentation, Dr. ChatGPT says:
+
+> A memory segment is a region of linear (virtual) memory defined by a segment descriptor in
+> the GDT (Global Descriptor Table) or LDT (Local Descriptor Table). Each descriptor provides:
+>
+> * a base address,
+> * a limit (size),
+> * and attributes (read/write, execute, privilege level, etc.).
+>
+> In 16- and 32-bit protected mode, logical addresses consist of a segment selector + offset.
+> The CPU combines them like this:
+>
+> ```
+> linear_address = segment.base + offset
+> ```
+>
+> and checks that the offset ≤ limit.
+>
+> **Example (protected mode):**
+>
+> ```asm
+> mov eax, [ds:0x1234]
+> ```
+>
+> Here `ds` selects a descriptor (e.g., base = 0x40000000, limit = 0xFFFFF).
+> So the CPU fetches from linear address `0x40001234`.
+>
+> Thus, segmentation was used to isolate code/data and implement per-task address spaces before paging became dominant.
+>
+> Long mode disables nearly all of this:
+>
+> * The base of all code/data segments is forced to 0.
+> * The limit is ignored (treated as 0xFFFF_FFFF_FFFF_FFFF).
+> * The only segmentation that still partly works:
+>   * FS and GS register bases can still hold non-zero 64-bit values.
+>     * These are used by OSes to implement thread-local storage or CPU-local data.
+>   * Privilege levels (DPL bits) of code segments still matter.
+>   * System segments (TSS, LDT descriptors) still exist.
+>
+> So in long mode, a “memory segment” is _still a logical concept_ defined by a descriptor,
+> but the hardware effectively treats all normal segments as flat, except `FS` and `GS`.
+
+On **Task State Segments**, Dr. ChatGPT says:
+
+> Despite the name, the Task State Segment is not a memory segment for your code or data.
+> It’s a special data structure the CPU consults for privileged operations,
+> historically meant for hardware task switching (which long mode no longer uses).
+>
+> The TSS lives in memory, and the GDT (Global Descriptor Table) contains a system
+> descriptor (type = 0x9 / 0xB) that points to it.
+>
+> | Field            | Purpose                                                                                                                                       |
+> |------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+> | rsp0, rsp1, rsp2 | Kernel stacks for CPL = 0,1,2. When the CPU transitions from user mode (CPL = 3) to kernel mode (CPL = 0), it loads `RSP` from `rsp0`.        |
+> | ist1..ist7       | Optional **Interrupt Stack Table** entries — alternate stacks for specific interrupts (e.g., double fault, NMI, #DF).                         |
+> | iopb_offset      | Offset of the I/O permission bitmap — controls which I/O ports the task can access. Setting this offset ≥ sizeof(TSS) disables IOPB entirely. |
+>
+> The CPU references the TSS only:
+>
+> * on privilege transitions (to pick a safe stack), and
+> * when delivering interrupts using IST entries.
+
+And
+
+> ```
+> +-------------------+          +-------------------+
+> | GDT (Descriptors) |----+---> | Code Segment (base=0)   --> flat 64-bit memory
+> | - Kernel code     |    |
+> | - Kernel data     |    |
+> | - User code       |    |
+> | - User data       |    |
+> | - TSS descriptor  |----+---> | TSS64 structure in memory
+> |                   |          |  rsp0, ist1..7, iopb_offset
+> +-------------------+          +-------------------+
+> ```
+
+Before continuing wiring userland in, I'm thinking to refactor the half-state I have right now into
+a per-CPU struct. Not that I expect SMP anytime soon, but it might just help myself understand better
+which information I need to keep together to set up the CPU/kernel.
+
 ## 2025-11-02
 
 Found [Task](https://taskfile.dev/) today and migrated from `Justfile` to `Taskfile.yaml`. It's

@@ -1,7 +1,8 @@
-//! # Global Descriptor Table (GDT) & TSS descriptor wiring for long mode
+//! # Global Descriptor Table (GDT) & Task State Segment (TSS) descriptor wiring for long mode
 //!
 //! In 64-bit mode (“long mode”), classic segmentation for code/data is largely
 //! disabled, but **segment selectors still matter**:
+//!
 //! - They distinguish **code vs. data/stack** segments.
 //! - They carry the **Descriptor Privilege Level (DPL)** used by the CPU to
 //!   enforce privilege transitions (Ring-0 ↔ Ring-3).
@@ -219,7 +220,7 @@ pub fn init_gdt_and_tss(kernel_stack_top: VirtualAddress, ist1_top: Option<Virtu
         tss: TssDesc64::new(tss_base, tss_limit),
     };
 
-    // 3) Load GDT + TR and refresh data segments.
+    // Load GDT + TR and refresh data segments.
     #[allow(static_mut_refs)]
     unsafe {
         GDT.write(gdt);

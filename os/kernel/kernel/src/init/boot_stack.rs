@@ -58,7 +58,7 @@ struct Aligned16<const N: usize>([u8; N]);
 pub static mut BOOT_STACK: Aligned16<BOOT_STACK_SIZE> = Aligned16([0; BOOT_STACK_SIZE]);
 
 const _: () = assert!(
-    BOOT_STACK_SIZE % 16 == 0,
+    BOOT_STACK_SIZE.is_multiple_of(16),
     "BOOT_STACK_SIZE should be 16-byte aligned"
 );
 
