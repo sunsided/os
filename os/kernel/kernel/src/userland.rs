@@ -1,4 +1,4 @@
-use crate::alloc::{KernelVmm, with_kernel_vmm};
+use crate::alloc::KernelVmm;
 use crate::gdt::{USER_CS, USER_DS};
 use crate::tracing::log_ctrl_bits;
 use crate::{alloc, userland_demo};

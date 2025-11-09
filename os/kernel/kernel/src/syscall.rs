@@ -41,7 +41,6 @@
 #![allow(dead_code, unused_variables)]
 
 use crate::ports::outb;
-use kernel_qemu::qemu_trace;
 
 #[repr(u64)]
 pub enum Sysno {
@@ -112,6 +111,13 @@ pub extern "C" fn syscall_int80_handler() {
         "push rbx",
         "push rax",
 
+        // ENTRY: if came from CPL3, swapgs to kernel GS base ---
+        "mov rax, [rsp + 128]",    // saved CS
+        "test al, 3",
+        "jz  .Lno_entry_swapgs",
+        "swapgs",
+        ".Lno_entry_swapgs:",
+
         // At this point, [rsp] = rax field ⇒ &TrapFrame == rsp.
         // SysV: first arg in RDI.
         "mov rdi, rsp",
@@ -119,6 +125,14 @@ pub extern "C" fn syscall_int80_handler() {
         // Call into Rust. We kept stack 16-byte aligned (160 bytes pushed).
         // The Rust side writes the return value back to tf.rax.
         "call {rust}",
+
+        // EXIT: if returning to CPL3, swapgs back to user GS base ---
+        // Do this BEFORE popping regs so any scratch doesn’t leak to user
+        "mov rax, [rsp + 128]",    // saved CS for return path
+        "test al, 3",
+        "jz  .Lno_exit_swapgs",
+        "swapgs",
+        ".Lno_exit_swapgs:",
 
         // Restore in strict reverse order.
         "pop rax",
@@ -137,8 +151,6 @@ pub extern "C" fn syscall_int80_handler() {
         "pop r14",
         "pop r15",
 
-        // CPU interrupt frame (RIP, CS, RFLAGS, RSP, SS) remains below.
-        // `iretq` consumes it and returns to the interrupted context.
         "iretq",
 
         rust = sym syscall_int80_rust

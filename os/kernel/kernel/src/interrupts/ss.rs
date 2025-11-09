@@ -3,7 +3,6 @@ use crate::interrupts::{GateType, Idt};
 use core::arch::naked_asm;
 use core::hint::spin_loop;
 use kernel_qemu::qemu_trace;
-use kernel_vmem::addresses::VirtualAddress;
 
 pub const SS_FAULT_VECTOR: usize = 0x0C; // 12
 

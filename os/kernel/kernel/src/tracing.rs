@@ -39,7 +39,7 @@ pub fn trace_boot_info(boot_info: &KernelBootInfo) {
 
 pub fn log_ctrl_bits() {
     unsafe {
-        let (mut cr4, mut efer): (u64, u64);
+        let (mut cr4, efer): (u64, u64);
         core::arch::asm!("mov {}, cr4", out(reg) cr4, options(nostack, preserves_flags));
         // read MSR EFER (0xC000_0080)
         let lo: u32;

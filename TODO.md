@@ -18,7 +18,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/syscall.rs](./os/kernel/kernel/src/syscall.rs)
 
-- Line [77](./os/kernel/kernel/src/syscall.rs#L77): Validate the CPU frame is indeed in the correct location here.
+- Line [76](./os/kernel/kernel/src/syscall.rs#L76): Validate the CPU frame is indeed in the correct location here.
 
 ## [os/kernel/kernel/src/userland.rs](./os/kernel/kernel/src/userland.rs)
 

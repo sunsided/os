@@ -37,7 +37,7 @@ impl Pte {
 // Raw volatile read of the idx-th u64 entry in a 4KiB table mapped via your typed view
 #[inline]
 unsafe fn read_table_u64(base_ptr: *const u64, idx: usize) -> u64 {
-    read_volatile(base_ptr.add(idx))
+    unsafe { read_volatile(base_ptr.add(idx)) }
 }
 
 #[inline]
@@ -158,14 +158,14 @@ pub fn promote_pml4_user_bit<M: PhysMapperExt>(mapper: &M, target_va: VirtualAdd
 
         // Treat it as raw u64 entries; bit 2 is US
         let ents: *mut u64 = pml4 as *mut _ as *mut u64;
-        let cur = read_volatile(unsafe { ents.add(slot) });
+        let cur = read_volatile(ents.add(slot));
         if (cur & 1) == 0 {
             qemu_trace!("promote_pml4_user_bit: slot {} not present", slot);
             return;
         }
         let new = cur | (1 << 2); // US=1
         if new != cur {
-            core::ptr::write_volatile(unsafe { ents.add(slot) }, new);
+            core::ptr::write_volatile(ents.add(slot), new);
             qemu_trace!("PML4E[{}]: {:016x} -> {:016x} (US=1)", slot, cur, new);
         } else {
             qemu_trace!("PML4E[{}] already US=1", slot);

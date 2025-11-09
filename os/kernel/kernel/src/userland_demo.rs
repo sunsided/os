@@ -1,7 +1,5 @@
-// Use int3 to jump into the breakpoint handler
 core::arch::global_asm!(
     r#"
-    .intel_syntax noprefix
     .section .user.text,"ax",@progbits
     .balign 16
     .globl _user_demo_start
