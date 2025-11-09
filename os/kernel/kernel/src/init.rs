@@ -22,7 +22,6 @@ use crate::per_cpu::PerCpu;
 use crate::per_cpu::ist_stacks::{IST1_SIZE, ist_slot_for_cpu};
 use crate::per_cpu::kernel_stacks::kstack_slot_for_cpu;
 use crate::per_cpu::stack::{CpuStack, map_ist_stack, map_kernel_stack};
-use crate::syscall::syscall_int80_handler;
 use crate::tsc::estimate_tsc_hz;
 use kernel_alloc::frame_alloc::BitmapFrameAlloc;
 use kernel_alloc::phys_mapper::HhdmPhysMapper;
@@ -304,7 +303,7 @@ extern "C" fn stage_two_init_bootstrap_processor(
     idt_update_in_place(|idt| {
         idt.init_df_gate_ist(interrupts::df::double_fault_handler, Ist::Ist1); // TODO: Use a different IST from PF
         idt.init_breakpoint_gate(interrupts::bp::bp_handler);
-        idt.init_syscall_gate(syscall_int80_handler);
+        idt.init_syscall_gate();
         idt.init_ss_fault_gate(interrupts::ss::ss_fault_handler);
         idt.init_gp_fault_gate(interrupts::gp::gp_fault_handler);
         idt.init_page_fault_gate_ist(interrupts::page_fault::page_fault_handler, Ist::Ist1);

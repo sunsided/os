@@ -34,7 +34,6 @@ pub extern "C" fn double_fault_handler() {
     );
 }
 
-#[unsafe(no_mangle)]
 extern "C" fn df_rust(cr2: u64) {
     kernel_qemu::qemu_trace!("#DF cr2={:#x}", cr2);
 }

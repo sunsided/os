@@ -36,7 +36,6 @@ pub extern "C" fn bp_handler() {
     );
 }
 
-#[unsafe(no_mangle)]
 extern "C" fn bp_rust(cr3: u64) {
     qemu_trace!("Breakpoint from user, CR3={:#x}", cr3);
 }

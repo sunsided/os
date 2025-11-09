@@ -47,7 +47,6 @@ pub extern "C" fn gp_fault_handler() {
     )
 }
 
-#[unsafe(no_mangle)]
 extern "C" fn log_gp_fault(rip: VirtualAddress, selector: u64) {
     qemu_trace!(
         "general protection fault general protection fault page
