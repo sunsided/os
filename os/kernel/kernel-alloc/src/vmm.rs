@@ -103,6 +103,7 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
             self.aspace
                 .map_one::<A, Size4K>(self.alloc, va, pa, nonleaf, leaf)?;
         }
+
         Ok(())
     }
 

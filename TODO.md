@@ -13,12 +13,12 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/init.rs](./os/kernel/kernel/src/init.rs)
 
-- Line [159](./os/kernel/kernel/src/init.rs#L159): 3. Allocate & map a per-CPU kernel stack (with a guard page), compute its 16-byte–aligned top.
-- Line [305](./os/kernel/kernel/src/init.rs#L305): Use a different IST from PF
+- Line [158](./os/kernel/kernel/src/init.rs#L158): 3. Allocate & map a per-CPU kernel stack (with a guard page), compute its 16-byte–aligned top.
+- Line [304](./os/kernel/kernel/src/init.rs#L304): Use a different IST from PF
 
-## [os/kernel/kernel/src/syscall.rs](./os/kernel/kernel/src/syscall.rs)
+## [os/kernel/kernel/src/interrupts/syscall.rs](./os/kernel/kernel/src/interrupts/syscall.rs)
 
-- Line [76](./os/kernel/kernel/src/syscall.rs#L76): Validate the CPU frame is indeed in the correct location here.
+- Line [96](./os/kernel/kernel/src/interrupts/syscall.rs#L96): Validate the CPU frame is indeed in the correct location here.
 
 ## [os/kernel/kernel/src/userland.rs](./os/kernel/kernel/src/userland.rs)
 

@@ -29,7 +29,7 @@ pub const KERNEL_STACK_SIZE: usize = 32 * 1024;
 
 /// The size of the kernel stack in release builds.
 #[cfg(not(debug_assertions))]
-pub const KERNEL_STACK_SIZE: usize = 16 * 1024;
+pub const KERNEL_STACK_SIZE: usize = 32 * 1024;
 
 const _: () = {
     assert!(KERNEL_STACK_SIZE.is_multiple_of(4096));

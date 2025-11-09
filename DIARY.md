@@ -10,6 +10,10 @@ The `INT3` breakpoint handler now works, so it seem slike usermode to kernel cal
 A bit later, the `INT80` syscall also worked. From what I can tell, returning values
 via `rax` from syscall works, and the printing loop works as well. This is massive progress!
 
+Trying my code in release build shortly after immediately got it stuck in `map_ist_stack`.
+I got it fixed by increasing the release mode stack from 16 KiB to the 32 KiB I have
+been using during development; this immediatly unblocked it.
+
 ## 2025-11-08
 
 Today's topic is allocating a proper kernel stack for the bootstrap processor, i.e. not
