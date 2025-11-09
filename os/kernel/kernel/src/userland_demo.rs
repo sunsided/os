@@ -6,7 +6,9 @@ core::arch::global_asm!(
     .balign 16
     .globl _user_demo_start
 _user_demo_start:
-    int3
+    mov rax, 1          // Sysno::DebugWrite
+    mov dil, 0x42       // 'B'
+    int 0x80
 1:  jmp 1b
     .globl _user_demo_end
 _user_demo_end:

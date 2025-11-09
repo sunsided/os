@@ -7,6 +7,8 @@ I was chasing ghosts when calling into userland when in reality I just attempted
 to lock the mutex from within a mutex lock.
 
 The `INT3` breakpoint handler now works, so it seem slike usermode to kernel call works.
+A bit later, the `INT80` syscall also worked. As of now I am not sure if it returns, but
+that's next.
 
 ## 2025-11-08
 
