@@ -46,7 +46,7 @@ use kernel_qemu::qemu_trace;
 #[repr(u64)]
 pub enum Sysno {
     /// Write a single byte to a kernel-chosen “debug” sink.
-    DebugWrite = 1,
+    DebugWriteByte = 1,
     /// Just return a made-up number to prove plumbing.
     Bogus = 2,
 }
@@ -152,18 +152,14 @@ pub extern "C" fn syscall_int80_handler() {
 /// - Writes the return value to `tf.rax`.
 /// - Must not assume interrupts are enabled; they are not.
 extern "C" fn syscall_int80_rust(tf: &mut TrapFrame) {
-    qemu_trace!("In syscall handler\n");
-
     let sysno = tf.rax;
     let a0 = tf.rdi;
     let a1 = tf.rsi;
     let a2 = tf.rdx;
 
     tf.rax = match sysno {
-        x if x == Sysno::DebugWrite as u64 => {
+        x if x == Sysno::DebugWriteByte as u64 => {
             unsafe {
-                // QEMU debug console: pick the one you wired up; you said 0x402.
-                // (0xE9 is another common one.)
                 let byte = (a0 & 0xFF) as u8;
                 outb(0x402, byte);
             }

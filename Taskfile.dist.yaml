@@ -102,6 +102,8 @@ tasks:
 
   clippy:fix:
     desc: Lint all workspace crates (deny warnings)
+    aliases:
+      - fix
     cmds:
       - scripts/clippy-fix.sh
 

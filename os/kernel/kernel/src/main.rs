@@ -140,7 +140,7 @@ unsafe fn measure_timer_hz(cpu: &PerCpu) -> u64 {
     let dt_ticks = t1_ticks.saturating_sub(t0_ticks);
 
     // Scale up to per-second
-    (dt_ticks as u128)
+    u128::from(dt_ticks)
         .saturating_mul(10) // 1 / 0.1s
         .try_into()
         .unwrap_or(u64::MAX)

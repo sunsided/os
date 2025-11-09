@@ -175,7 +175,7 @@ pub struct MemoryAddress(u64);
 impl MemoryAddress {
     #[inline]
     #[must_use]
-    pub fn from_nonnull<T>(ptr: NonNull<T>) -> Self {
+    pub const fn from_nonnull<T>(ptr: NonNull<T>) -> Self {
         Self::from_ptr(ptr.as_ptr())
     }
 
@@ -305,6 +305,7 @@ impl<S: PageSize> MemoryPage<S> {
 
     /// Page that contains `addr` (aligns down).
     #[inline]
+    #[must_use]
     pub const fn containing(addr: u64) -> Self {
         let mask = !(S::SIZE - 1);
         Self::from_addr(MemoryAddress::new(addr & mask))
@@ -463,7 +464,7 @@ pub struct VirtualAddress(MemoryAddress);
 impl VirtualAddress {
     #[inline]
     #[must_use]
-    pub fn from_nonnull<T>(ptr: NonNull<T>) -> Self {
+    pub const fn from_nonnull<T>(ptr: NonNull<T>) -> Self {
         Self::from_ptr(ptr.as_ptr())
     }
 
@@ -569,13 +570,13 @@ pub struct PhysicalAddress(MemoryAddress);
 impl PhysicalAddress {
     #[inline]
     #[must_use]
-    pub fn from_nonnull<T>(ptr: NonNull<T>) -> Self {
+    pub const fn from_nonnull<T>(ptr: NonNull<T>) -> Self {
         Self::from_ptr(ptr.as_ptr())
     }
 
     #[inline]
     #[must_use]
-    pub fn from_ptr<T>(ptr: *const T) -> Self {
+    pub const fn from_ptr<T>(ptr: *const T) -> Self {
         Self(MemoryAddress::from_ptr(ptr))
     }
 
@@ -673,6 +674,7 @@ impl<S: PageSize> VirtualPage<S> {
 
     /// Page that contains `addr` (aligns down to page boundary).
     #[inline]
+    #[must_use]
     pub const fn containing_address(addr: VirtualAddress) -> Self {
         Self(MemoryPage::<S>::containing(addr.as_u64()))
     }

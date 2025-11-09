@@ -24,6 +24,7 @@ pub fn sti_enable_interrupts() {
 }
 
 #[inline]
+#[must_use]
 pub fn rflags() -> u64 {
     let r: u64;
     unsafe { core::arch::asm!("pushfq; pop {}", out(reg) r, options(nostack, preserves_flags)) }

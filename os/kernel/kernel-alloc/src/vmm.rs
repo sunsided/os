@@ -148,7 +148,7 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
         nonleaf: VirtualMemoryPageBits,
         leaf_rx: VirtualMemoryPageBits,
     ) -> Result<(), VmmError> {
-        let pages = (len + Size4K::SIZE - 1) / Size4K::SIZE;
+        let pages = len.div_ceil(Size4K::SIZE);
         for i in 0..pages {
             let va = VirtualAddress::new(va_start.as_u64() + i * Size4K::SIZE);
             let Some(pa) = self.query(va) else {
@@ -180,7 +180,7 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
 }
 
 #[inline]
-fn pa_aligned_4k(pa: PhysicalAddress) -> PhysicalAddress {
+const fn pa_aligned_4k(pa: PhysicalAddress) -> PhysicalAddress {
     // PhysicalAddress::new(pa.as_u64() & !(Size4K::SIZE - 1))
     pa.page::<Size4K>().base()
 }
