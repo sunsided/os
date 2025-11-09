@@ -40,6 +40,14 @@ pub extern "C" fn page_fault_handler() {
         "push rax",
         "push rdi",
         "push rsi",
+
+        // ENTRY swapgs if from CPL3: CS at [rsp + 40]
+        "mov rax, [rsp + 40]",
+        "test al, 3",
+        "jz 1f",
+        "swapgs",
+        "1:",
+
         // rdi := cr2 (first arg)
         "mov rdi, cr2",
         // The CPU pushed an error code before entering the handler.
@@ -100,6 +108,7 @@ extern "C" fn log_page_fault(cr2: VirtualAddress, err: PageFaultError) {
     loop {
         spin_loop();
     }
+    // TODO: Whenever returning, fix the swapgs in the asm handler above.
 }
 
 /// Page-fault error code layout (x86-64).

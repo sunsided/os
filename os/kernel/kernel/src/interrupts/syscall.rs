@@ -134,9 +134,9 @@ extern "C" fn syscall_int80_handler() {
         // ENTRY: if came from CPL3, swapgs to kernel GS base ---
         "mov rax, [rsp + 128]",    // saved CS
         "test al, 3",
-        "jz  .Lno_entry_swapgs",
+        "jz  1f",
         "swapgs",
-        ".Lno_entry_swapgs:",
+        "1:",
 
         // At this point, [rsp] = rax field ⇒ &TrapFrame == rsp.
         // SysV: first arg in RDI.
@@ -150,9 +150,9 @@ extern "C" fn syscall_int80_handler() {
         // Do this BEFORE popping regs so any scratch doesn’t leak to user
         "mov rax, [rsp + 128]",    // saved CS for return path
         "test al, 3",
-        "jz  .Lno_exit_swapgs",
+        "jz  1f",
         "swapgs",
-        ".Lno_exit_swapgs:",
+        "1:",
 
         // Restore in strict reverse order.
         "pop rax",

@@ -32,6 +32,13 @@ pub extern "C" fn gp_fault_handler() {
         "push rdi",
         "push rsi",
 
+        // ENTRY swapgs if from CPL3: CS at [rsp + 40]
+        "mov rax, [rsp + 40]",
+        "test al, 3",
+        "jz 1f",
+        "swapgs",
+        "1:",
+
         // rdi := RIP (first arg)
         "mov rdi, [rsp + 32]",   // 3 pushes * 8 + 8 = 24 + 8 = 32
         // rsi := error code (second arg)

@@ -16,6 +16,10 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 - Line [158](./os/kernel/kernel/src/init.rs#L158): 3. Allocate & map a per-CPU kernel stack (with a guard page), compute its 16-byte–aligned top.
 - Line [304](./os/kernel/kernel/src/init.rs#L304): Use a different IST from PF
 
+## [os/kernel/kernel/src/interrupts/page_fault.rs](./os/kernel/kernel/src/interrupts/page_fault.rs)
+
+- Line [111](./os/kernel/kernel/src/interrupts/page_fault.rs#L111): Whenever returning, fix the swapgs in the asm handler above.
+
 ## [os/kernel/kernel/src/interrupts/syscall.rs](./os/kernel/kernel/src/interrupts/syscall.rs)
 
 - Line [96](./os/kernel/kernel/src/interrupts/syscall.rs#L96): Validate the CPU frame is indeed in the correct location here.

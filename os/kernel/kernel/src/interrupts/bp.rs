@@ -27,8 +27,24 @@ pub extern "C" fn bp_handler() {
         "push rax",
         "mov rax, cr3",
         "push rax",
+
+        // ENTRY swapgs if from CPL3: CS at [rsp + 24]
+        "mov rax, [rsp + 24]",
+        "test al, 3",
+        "jz 1f",
+        "swapgs",
+        "1:",
+
         "mov rdi, [rsp]      ", // cr3 as arg0 (just to print something)
         "call {rust}",
+
+         // EXIT: swapgs back if returning to CPL3 (same offset; stack unchanged)
+        "mov rax, [rsp + 24]",
+        "test al, 3",
+        "jz 2f",
+        "swapgs",
+        "2:",
+
         "add rsp, 8",            // pop cr3
         "pop rax",
         "iretq",
