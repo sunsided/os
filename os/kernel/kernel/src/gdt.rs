@@ -46,10 +46,38 @@ pub mod tss_desc;
 use crate::gdt::descriptors::Desc64;
 use crate::gdt::selectors::{CodeSel, DataSel, SegmentSelector, TssSel};
 use crate::gdt::tss_desc::TssDesc64;
-use crate::privilege::Rpl;
-use crate::tss::{Tss64, init_tss, tss};
-use core::mem::{MaybeUninit, size_of};
+use crate::per_cpu::PerCpu;
+use crate::privilege::{Dpl, Rpl};
+use crate::tss::{Tss64, init_tss};
+use core::mem::size_of;
 use kernel_vmem::addresses::VirtualAddress;
+
+#[allow(dead_code)]
+pub struct Selectors {
+    pub kernel_cs: SegmentSelector<CodeSel>,
+    pub kernel_ds: SegmentSelector<DataSel>,
+    pub user_cs: SegmentSelector<CodeSel>,
+    pub user_ds: SegmentSelector<DataSel>,
+    pub tss: SegmentSelector<TssSel>,
+}
+
+impl Selectors {
+    pub const fn new() -> Self {
+        Self {
+            kernel_cs: KERNEL_CS_SEL,
+            kernel_ds: KERNEL_DS_SEL,
+            user_cs: USER_CS_SEL,
+            user_ds: USER_DS_SEL,
+            tss: TSS_SYS_SEL,
+        }
+    }
+}
+
+impl Default for Selectors {
+    fn default() -> Selectors {
+        Self::new()
+    }
+}
 
 // Well-known selectors matching the GDT layout in `gdt.rs`.
 //
@@ -62,11 +90,11 @@ pub const USER_DS_SEL: SegmentSelector<DataSel> = SegmentSelector::<DataSel>::ne
 pub const TSS_SYS_SEL: SegmentSelector<TssSel> = SegmentSelector::<TssSel>::new(5);
 
 // Encoded selector numbers as `u16` (what the CPU actually loads).
-pub const KERNEL_CS: u16 = KERNEL_CS_SEL.to_u16(); // 0x08
-pub const KERNEL_DS: u16 = KERNEL_DS_SEL.to_u16(); // 0x10
-pub const USER_CS: u16 = USER_CS_SEL.to_u16(); // 0x1b
-pub const USER_DS: u16 = USER_DS_SEL.to_u16(); // 0x23
-pub const TSS_SEL: u16 = TSS_SYS_SEL.to_u16(); // 0x28
+pub const KERNEL_CS: u16 = KERNEL_CS_SEL.encode(); // 0x08
+pub const KERNEL_DS: u16 = KERNEL_DS_SEL.encode(); // 0x10
+pub const USER_CS: u16 = USER_CS_SEL.encode(); // 0x1b
+pub const USER_DS: u16 = USER_DS_SEL.encode(); // 0x23
+pub const TSS_SEL: u16 = TSS_SYS_SEL.encode(); // 0x28
 
 // Compile-time sanity checks for selectors and descriptor sizes.
 const _: () = {
@@ -89,11 +117,11 @@ const _: () = {
     assert!(TSS_SEL == enc(5, 0)); // TSS (low): index=5, RPL=0
 
     // Typed selectors must produce the same raw values.
-    assert!(KERNEL_CS == KERNEL_CS_SEL.to_u16());
-    assert!(KERNEL_DS == KERNEL_DS_SEL.to_u16());
-    assert!(USER_CS == USER_CS_SEL.to_u16());
-    assert!(USER_DS == USER_DS_SEL.to_u16());
-    assert!(TSS_SEL == TSS_SYS_SEL.to_u16());
+    assert!(KERNEL_CS == KERNEL_CS_SEL.encode());
+    assert!(KERNEL_DS == KERNEL_DS_SEL.encode());
+    assert!(USER_CS == USER_CS_SEL.encode());
+    assert!(USER_DS == USER_DS_SEL.encode());
+    assert!(TSS_SEL == TSS_SYS_SEL.encode());
 };
 
 /// Virtual address used in descriptor-table pointers (with paging on).
@@ -117,7 +145,7 @@ struct DescTablePtr {
 /// Layout matches the table described in this module-level doc. The TSS occupies
 /// two consecutive entries (a 16-byte system descriptor).
 #[repr(C, align(16))]
-struct Gdt {
+pub struct Gdt {
     /// Null descriptor (must be present at index 0).
     null: Desc64, // 0
     /// Kernel code segment (64-bit, DPL=0).
@@ -132,13 +160,28 @@ struct Gdt {
     tss: TssDesc64, // 5 & 6 (16-byte system descriptor)
 }
 
-/// Load a GDT with `lgdt`.
-///
-/// # Safety
-/// - `gdt` must point to a valid, fully initialized table whose memory will
-///   remain **mapped and readable** for the lifetime of the CPU.
-/// - Callers must ensure no interrupts or faults observe a half-installed state.
-static mut GDT: MaybeUninit<Gdt> = MaybeUninit::uninit();
+impl Default for Gdt {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Gdt {
+    pub const fn new_with_tss(tss: TssDesc64) -> Self {
+        Self {
+            null: Desc64 { raw: 0 },
+            kcode: Desc64::from_code_dpl(Dpl::Ring0), // kernel code: DPL=0
+            kdata: Desc64::from_data_dpl(Dpl::Ring0), // kernel data: DPL=0
+            ucode: Desc64::from_code_dpl(Dpl::Ring3), // user   code: DPL=3
+            udata: Desc64::from_data_dpl(Dpl::Ring3), // user   data: DPL=3
+            tss,
+        }
+    }
+
+    pub const fn new() -> Self {
+        Self::new_with_tss(TssDesc64::new(VirtualAddress::zero(), 0))
+    }
+}
 
 /// Load a GDT with `lgdt`.
 ///
@@ -147,7 +190,7 @@ static mut GDT: MaybeUninit<Gdt> = MaybeUninit::uninit();
 ///   remain **mapped and readable** for the lifetime of the CPU.
 /// - Callers must ensure no interrupts or faults observe a half-installed state.
 #[inline]
-unsafe fn lgdt(gdt: &'static Gdt) {
+unsafe fn load_gdt(gdt: &Gdt) {
     let ptr = DescTablePtr {
         limit: (size_of::<Gdt>() - 1) as u16,
         base: LinearAddress::from_ptr(&raw const *gdt),
@@ -155,9 +198,9 @@ unsafe fn lgdt(gdt: &'static Gdt) {
 
     unsafe {
         core::arch::asm!(
-            "lgdt [{}]",
-            in(reg) &raw const ptr,
-            options(readonly, nostack, preserves_flags)
+        "lgdt [{}]",
+        in(reg) &raw const ptr,
+        options(readonly, nostack, preserves_flags)
         );
     }
 }
@@ -172,7 +215,8 @@ unsafe fn lgdt(gdt: &'static Gdt) {
 /// - The TSS memory must remain **resident**; the CPU reads from it on traps and
 ///   privilege changes.
 #[inline]
-unsafe fn ltr(sel: u16) {
+unsafe fn load_task_register(sel: SegmentSelector<TssSel>) {
+    let sel = sel.encode();
     unsafe {
         core::arch::asm!(
             "ltr {0:x}",
@@ -204,31 +248,27 @@ unsafe fn ltr(sel: u16) {
 /// // During boot on BSP:
 /// init_gdt_and_tss(kernel_stack_top, Some(double_fault_stack_top));
 /// ```
-pub fn init_gdt_and_tss(kernel_stack_top: VirtualAddress, ist1_top: Option<VirtualAddress>) {
+pub fn init_gdt_and_tss(
+    p: &mut PerCpu,
+    kernel_stack_top: VirtualAddress,
+    ist1_top: VirtualAddress,
+) {
     // Initialize TSS contents first.
-    init_tss(kernel_stack_top, ist1_top);
-    let tss_base = VirtualAddress::from_ptr(core::ptr::from_ref::<Tss64>(tss()));
+    init_tss(p, kernel_stack_top, ist1_top);
+    let tss_base = p.tss_base();
     let tss_limit = (size_of::<Tss64>() - 1) as u32;
 
     // Build GDT with typed descriptors (no raw bit twiddling here).
-    let gdt = Gdt {
-        null: Desc64 { raw: 0 },
-        kcode: Desc64::from_code_dpl(0), // kernel code: DPL=0
-        kdata: Desc64::from_data_dpl(0), // kernel data: DPL=0
-        ucode: Desc64::from_code_dpl(3), // user   code: DPL=3
-        udata: Desc64::from_data_dpl(3), // user   data: DPL=3
-        tss: TssDesc64::new(tss_base, tss_limit),
-    };
+    p.gdt = Gdt::new_with_tss(TssDesc64::new(tss_base, tss_limit));
 
     // Load GDT + TR and refresh data segments.
     #[allow(static_mut_refs)]
     unsafe {
-        GDT.write(gdt);
-        let gdt_ref = &*GDT.as_ptr();
-        lgdt(gdt_ref);
+        // Load the GDTR with this CPU's GDT
+        load_gdt(&p.gdt);
 
-        // Refresh data segments to kernel data (CS typically already valid).
-        let kdata_sel = KERNEL_DS;
+        // Refresh data segments to kernel data
+        let kdata_sel = p.selectors.kernel_ds.encode();
         core::arch::asm!(
             "mov ds, {0:x}",
             "mov es, {0:x}",
@@ -237,7 +277,21 @@ pub fn init_gdt_and_tss(kernel_stack_top: VirtualAddress, ist1_top: Option<Virtu
             options(nostack, preserves_flags)
         );
 
+        // Far reload of CS = 0x08 (kernel code). Use retfq trick in long mode.
+        let kcs: u16 = p.selectors.kernel_cs.encode(); // 0x08
+        core::arch::asm!(
+            // push target CS and RIP, then far return
+            "push {cs}",
+            "lea rax, [rip + 2f]",
+            "push rax",
+            "retfq",
+            "2:",
+            cs = in(reg) (kcs as u64),
+            out("rax") _,
+            options(nostack)
+        );
+
         // Load TR with the TSS selector (0x28).
-        ltr(TSS_SEL);
+        load_task_register(p.selectors.tss);
     }
 }

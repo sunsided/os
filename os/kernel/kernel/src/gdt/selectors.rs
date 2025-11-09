@@ -22,6 +22,7 @@ use bitfield_struct::bitfield;
 ///
 /// Only the GDT is used here; LDT is provided for completeness.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[repr(u8)]
 pub enum Table {
     /// Global Descriptor Table
     Gdt = 0,
@@ -31,8 +32,13 @@ pub enum Table {
 
 impl Table {
     #[inline]
-    const fn bit(self) -> bool {
-        matches!(self, Self::Ldt)
+    pub const fn from_bits(bits: u8) -> Self {
+        if bits == 0 { Self::Gdt } else { Self::Ldt }
+    }
+
+    #[inline]
+    pub const fn into_bits(self) -> u8 {
+        self as u8
     }
 }
 
@@ -46,7 +52,8 @@ pub struct SegmentSelectorRaw {
     #[bits(2)]
     rpl: Rpl,
     /// Table Indicator (bit 2): 0 = GDT, 1 = LDT.
-    ti: bool,
+    #[bits(1)]
+    ti: Table,
     /// Descriptor index (bits 3..15).
     #[bits(13)]
     index: u16,
@@ -56,10 +63,7 @@ impl SegmentSelectorRaw {
     /// Create a raw selector (no semantic checks).
     #[inline]
     pub const fn new_with(index: u16, table: Table, rpl: Rpl) -> Self {
-        Self::new()
-            .with_index(index)
-            .with_ti(table.bit())
-            .with_rpl(rpl)
+        Self::new().with_index(index).with_ti(table).with_rpl(rpl)
     }
 
     /// Return the selector as a plain `u16`.
@@ -70,15 +74,18 @@ impl SegmentSelectorRaw {
 }
 
 /// Marker trait for typed selectors.
-pub trait SelectorKind {}
+pub trait SelectorKind: Copy {}
 
 /// Code segment (CS) selector.
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum CodeSel {}
 
 /// Data/stack (DS/ES/SS) selector.
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum DataSel {}
 
 /// TSS system segment selector (for `ltr`).
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum TssSel {}
 
 impl SelectorKind for CodeSel {}
@@ -102,8 +109,8 @@ impl<K: SelectorKind> SegmentSelector<K> {
 
     /// Encode as `u16` (for `iret`, `mov ss, ax`, etc.).
     #[inline]
-    pub const fn to_u16(self) -> u16 {
-        self.0.to_u16()
+    pub const fn encode(self) -> u16 {
+        self.0.into_bits()
     }
 }
 

@@ -21,7 +21,8 @@
 //!
 //! For SMP, create one TSS per CPU and load the CPU-local TSS on AP startup.
 
-use core::mem::{MaybeUninit, size_of};
+use crate::per_cpu::PerCpu;
+use core::mem::size_of;
 use kernel_vmem::addresses::VirtualAddress;
 
 /// 64-bit Task State Segment (TSS) as used by x86-64 long mode.
@@ -170,48 +171,22 @@ impl Tss64 {
     }
 }
 
-/// A single global TSS for now. In an SMP system, allocate one per CPU.
-static mut TSS: MaybeUninit<Tss64> = MaybeUninit::uninit();
-
-/// Borrow an immutable reference to the initialized global TSS.
-#[inline]
-pub fn tss() -> &'static Tss64 {
-    #[allow(static_mut_refs)]
-    unsafe {
-        &*TSS.as_ptr()
-    }
-}
-
-/// Borrow a mutable reference to the global TSS (internal helpers).
-#[inline]
-pub fn tss_mut() -> &'static mut Tss64 {
-    #[allow(static_mut_refs)]
-    unsafe {
-        &mut *TSS.as_mut_ptr()
-    }
-}
-
 /// Initialize the TSS with a kernel RSP0 and optional IST1.
 ///
 /// * `kernel_stack_top` — top (highest address) of a valid kernel stack.
 ///   The CPU switches to this when entering Ring-0 from Ring-3 via an
 ///   interrupt/exception gate (e.g., `int 0x80`).
-/// * `ist1_top` — optional top of an IST1 stack for critical handlers (you
+/// * `ist1_top` — top of an IST1 stack for critical handlers (you
 ///   later bind an IDT entry to IST1).
-pub fn init_tss(kernel_stack_top: VirtualAddress, ist1_top: Option<VirtualAddress>) {
-    let mut tss = Tss64::new();
-    tss.rsp0 = kernel_stack_top;
-    if let Some(ist) = ist1_top {
-        tss.ist1 = ist;
-    }
+pub fn init_tss(p: &mut PerCpu, kernel_stack_top: VirtualAddress, ist1_top: VirtualAddress) {
+    let tss = &mut p.tss;
 
-    #[allow(static_mut_refs)]
-    unsafe {
-        TSS.write(tss)
-    };
+    tss.rsp0 = kernel_stack_top;
+    tss.ist1 = ist1_top;
 }
 
 /// Update the Ring-0 stack pointer used on user→kernel transitions.
-pub fn set_rsp0(new_top: VirtualAddress) {
-    tss_mut().rsp0 = new_top;
+#[allow(dead_code)]
+pub fn set_rsp0(p: &mut PerCpu, new_top: VirtualAddress) {
+    p.tss.rsp0 = new_top;
 }

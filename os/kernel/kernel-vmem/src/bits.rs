@@ -109,7 +109,8 @@ impl VirtualMemoryPageBits {
     /// Use this for page tables that will eventually map code or mixed regions.
     #[inline]
     #[must_use]
-    pub const fn with_user_table_wb_exec_ok() -> Self {
+    #[doc(alias = "with_user_table_wb_code_ok")]
+    pub const fn user_table_wb_exec() -> Self {
         Self::new()
             .with_present(true)
             .with_writable(true) // ignored for non-leaf; set conventionally
@@ -132,15 +133,16 @@ impl VirtualMemoryPageBits {
     /// Use this for data-only subtrees (e.g. stack or heap regions).
     #[inline]
     #[must_use]
-    pub const fn with_user_table_wb_noexec() -> Self {
-        Self::with_user_table_wb_exec_ok().with_no_execute(true)
+    #[doc(alias = "user_table_wb_data_only")]
+    pub const fn user_table_wb_noexec() -> Self {
+        Self::user_table_wb_exec().with_no_execute(true)
     }
 
     /// Build a **user data leaf entry**:
     /// writable, non-executable, write-back (WB) caching.
     #[inline]
     #[must_use]
-    pub const fn with_user_leaf_data_wb() -> Self {
+    pub const fn user_leaf_data_wb() -> Self {
         Self::new()
             .with_present(true)
             .with_writable(true)
@@ -161,7 +163,7 @@ impl VirtualMemoryPageBits {
     /// read-only, executable, write-back (WB) caching.
     #[inline]
     #[must_use]
-    pub const fn with_user_leaf_code_wb() -> Self {
+    pub const fn user_leaf_code_wb() -> Self {
         Self::new()
             .with_present(true)
             .with_writable(false)
@@ -178,18 +180,11 @@ impl VirtualMemoryPageBits {
             .with_pat_bit2(false)
     }
 
-    /// Alias for [`with_user_table_wb_noexec`]: non-leaf, WB-cached, NX=true.
-    #[inline]
-    #[must_use]
-    pub const fn with_user_table_wb_data_only() -> Self {
-        Self::with_user_table_wb_noexec()
-    }
-
     /// Alias for [`with_user_table_wb_exec_ok`]: non-leaf, WB-cached, NX=false.
     #[inline]
     #[must_use]
     pub const fn with_user_table_wb_code_ok() -> Self {
-        Self::with_user_table_wb_exec_ok()
+        Self::user_table_wb_exec()
     }
 
     /// Enable write-combining (WC) via PAT registers.

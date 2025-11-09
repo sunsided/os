@@ -39,6 +39,7 @@ dependencies = [
  "kernel-alloc",
  "kernel-info",
  "kernel-qemu",
+ "kernel-sync",
  "kernel-vmem",
 ]
 
@@ -53,6 +54,7 @@ dependencies = [
  "kernel-info",
  "kernel-sync",
  "kernel-vmem",
+ "thiserror",
 ]
 
 [[package]]

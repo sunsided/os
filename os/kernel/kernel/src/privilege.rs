@@ -62,5 +62,6 @@ mod dpl;
 mod ring;
 mod rpl;
 
+pub use dpl::Dpl;
 pub use ring::Ring;
 pub use rpl::Rpl;

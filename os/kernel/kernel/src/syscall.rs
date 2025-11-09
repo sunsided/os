@@ -40,6 +40,9 @@
 
 #![allow(dead_code, unused_variables)]
 
+use crate::ports::outb;
+use kernel_qemu::qemu_trace;
+
 #[repr(u64)]
 pub enum Sysno {
     /// Write a single byte to a kernel-chosen “debug” sink.
@@ -88,7 +91,7 @@ pub struct TrapFrame {
 }
 
 #[unsafe(naked)]
-extern "C" fn syscall_int80_handler() -> ! {
+pub extern "C" fn syscall_int80_handler() {
     // Naked: no compiler prologue/epilogue; we must be perfectly balanced.
     core::arch::naked_asm!(
         // --- Callee-save and caller-save alike: we capture the full GPR set. ---
@@ -149,6 +152,8 @@ extern "C" fn syscall_int80_handler() -> ! {
 /// - Writes the return value to `tf.rax`.
 /// - Must not assume interrupts are enabled; they are not.
 extern "C" fn syscall_int80_rust(tf: &mut TrapFrame) {
+    qemu_trace!("In syscall handler\n");
+
     let sysno = tf.rax;
     let a0 = tf.rdi;
     let a1 = tf.rsi;
@@ -167,23 +172,4 @@ extern "C" fn syscall_int80_rust(tf: &mut TrapFrame) {
         x if x == Sysno::Bogus as u64 => 0xd34d_c0d3, // prove return works
         _ => u64::MAX,                                // -ENOSYS
     };
-}
-
-/// Write a byte to an I/O port.
-///
-/// # Safety
-/// - Only use with ports you own; undefined hardware state otherwise.
-/// - Preserves flags and does not touch the stack.
-#[inline(always)]
-#[allow(clippy::inline_always)]
-unsafe fn outb(port: u16, val: u8) {
-    // TODO: Code duplication with kernel-qemu/src/lib.rs
-    unsafe {
-        core::arch::asm!(
-            "out dx, al",
-            in("dx") port,
-            in("al") val,
-            options(nostack, preserves_flags)
-        );
-    }
 }

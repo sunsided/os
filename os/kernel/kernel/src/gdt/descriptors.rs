@@ -15,6 +15,7 @@
 //! constructors that set the correct invariants for **64-bit code** and **data**
 //! segments, so you don’t have to twiddle bits by hand.
 
+use crate::privilege::Dpl;
 use bitfield_struct::bitfield;
 
 /// Bit layout of a **64-bit code segment** descriptor.
@@ -35,7 +36,7 @@ pub struct CodeDescBits {
     pub typ: u8, // [43:40] = 0b1010 (exec+read)
     pub s: bool,       // [44]     = 1 (code/data)
     #[bits(2)]
-    pub dpl: u8, // [46:45]  = 0 or 3
+    pub dpl: Dpl, // [46:45]  = 0 or 3
     pub p: bool,       // [47]     = 1
     #[bits(4)]
     pub limit_hi: u8, // [51:48]
@@ -62,7 +63,7 @@ pub struct DataDescBits {
     pub typ: u8, // [43:40] = 0b0010 (read/write data)
     pub s: bool,       // [44]     = 1
     #[bits(2)]
-    pub dpl: u8, // [46:45]
+    pub dpl: Dpl, // [46:45]
     pub p: bool,       // [47]     = 1
     #[bits(4)]
     pub limit_hi: u8, // [51:48]
@@ -89,14 +90,14 @@ impl Desc64 {
     /// Build a **64-bit code** descriptor (execute+read, `L=1`, `DB=0`).
     ///
     /// `dpl` must be in `0..=3` (masked internally).
-    pub const fn from_code_dpl(dpl: u8) -> Self {
+    pub const fn from_code_dpl(dpl: Dpl) -> Self {
         let code = CodeDescBits::new()
             .with_limit_lo(0)
             .with_base_lo(0)
             .with_base_mid(0)
             .with_typ(0b1010)
             .with_s(true)
-            .with_dpl(dpl & 0b11)
+            .with_dpl(dpl)
             .with_p(true)
             .with_limit_hi(0)
             .with_avl(false)
@@ -110,14 +111,14 @@ impl Desc64 {
     /// Build a **data/stack** descriptor (read/write, `L=0`).
     ///
     /// `dpl` must be in `0..=3` (masked internally).
-    pub const fn from_data_dpl(dpl: u8) -> Self {
+    pub const fn from_data_dpl(dpl: Dpl) -> Self {
         let data = DataDescBits::new()
             .with_limit_lo(0)
             .with_base_lo(0)
             .with_base_mid(0)
             .with_typ(0b0010)
             .with_s(true)
-            .with_dpl(dpl & 0b11)
+            .with_dpl(dpl)
             .with_p(true)
             .with_limit_hi(0)
             .with_avl(false)
@@ -130,6 +131,7 @@ impl Desc64 {
 
     /// Raw 64-bit encoding (safe to read for either variant).
     #[inline]
+    #[allow(dead_code)]
     pub const fn to_u64(self) -> u64 {
         // Reading the `raw` field is always valid.
         unsafe { self.raw }
@@ -137,12 +139,14 @@ impl Desc64 {
 
     /// View as code bits. **Unsafe**: UB if this entry isn’t a code descriptor.
     #[inline]
+    #[allow(dead_code)]
     pub const unsafe fn as_code(self) -> CodeDescBits {
         unsafe { self.code }
     }
 
     /// View as data bits. **Unsafe**: UB if this entry isn’t a data descriptor.
     #[inline]
+    #[allow(dead_code)]
     pub const unsafe fn as_data(self) -> DataDescBits {
         unsafe { self.data }
     }

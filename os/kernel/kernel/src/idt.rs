@@ -69,6 +69,7 @@
 use crate::interrupts::Idt;
 use core::mem::MaybeUninit;
 use core::sync::atomic;
+use kernel_sync::IrqGuard;
 
 /// The global interrupt descriptor table.
 static mut IDT: MaybeUninit<Idt> = MaybeUninit::uninit();
@@ -156,14 +157,12 @@ pub fn idt_update_in_place<F: FnOnce(&mut Idt)>(f: F) {
         debug_assert!(IDT.assume_init_ref().is_loaded(), "IDT is not installed");
     }
 
+    let _guard = IrqGuard::new();
     unsafe {
-        // Disable interrupts locally while mutating this CPU’s view of the table.
-        core::arch::asm!("cli", options(nostack, preserves_flags));
         let idt = idt_mut();
         f(idt);
 
         // Ensure the write completes before re-enabling interrupts.
         atomic::fence(atomic::Ordering::SeqCst);
-        core::arch::asm!("sti", options(nostack, preserves_flags));
     }
 }

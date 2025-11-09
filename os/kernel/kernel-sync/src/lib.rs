@@ -3,4 +3,28 @@
 #![cfg_attr(not(test), no_std)]
 #![allow(unsafe_code)]
 
-pub mod spin_lock;
+pub mod irq;
+mod mutex;
+mod raw_spin;
+mod raw_ticket;
+mod spin_lock;
+mod sync_once_cell;
+
+pub use irq::{IrqGuard, IrqMutex};
+pub use mutex::{Mutex, MutexGuard};
+pub use raw_spin::RawSpin;
+pub use raw_ticket::RawTicket;
+pub use spin_lock::{SpinLock, SpinLockGuard};
+pub use sync_once_cell::SyncOnceCell;
+
+pub type SpinMutex<T> = Mutex<T, RawSpin>;
+pub type TicketMutex<T> = Mutex<T, RawTicket>;
+
+pub trait RawLock {
+    fn raw_lock(&self);
+    fn raw_try_lock(&self) -> bool;
+}
+
+pub trait RawUnlock {
+    unsafe fn raw_unlock(&self);
+}

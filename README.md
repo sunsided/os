@@ -29,6 +29,7 @@ A toy x86-64 operating system written in Rust, using UEFI to boot and load a ker
 * [x] UEFI bootloader
 * [x] Kernel image loading
 * [x] Basic memory management
+* [x] APIC timer interrupt calibrated on TSC
 * [ ] Basic I/O
 * [ ] Basic process management
 * [ ] Basic file system

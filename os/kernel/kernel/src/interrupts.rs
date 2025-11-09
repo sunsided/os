@@ -46,8 +46,15 @@
 //!   for most ISRs and for a simple `int 0x80` syscall path.
 //! - **Trap gates** leave IF unchanged. Useful for debugging and certain faults.
 
-pub mod int80_entry;
+pub mod bp;
+pub mod df;
+pub mod gp;
+mod ist;
+pub mod page_fault;
+pub mod spurious;
+pub mod ss;
 pub mod syscall;
+pub mod timer;
 
 use crate::gdt::selectors::{SegmentSelector, SegmentSelectorRaw, SelectorKind};
 use crate::privilege::Ring;
@@ -55,6 +62,7 @@ use bitfield_struct::bitfield;
 use core::arch::asm;
 use core::mem::size_of;
 use core::ops::{Index, IndexMut};
+pub use ist::Ist;
 use kernel_vmem::addresses::VirtualAddress;
 
 // Compile-time layout sanity checks for the architecture.
@@ -76,7 +84,7 @@ pub struct IdtGateAttr {
     ///
     /// Requires a properly initialized **TSS** with `ist[index]` stack pointers.
     #[bits(3)]
-    pub ist: u8,
+    pub ist: Ist,
 
     /// Must be zero (hardware-reserved).
     #[bits(5)]
@@ -270,6 +278,7 @@ pub enum GateType {
     /// Masks further maskable interrupts upon entry (clears `IF`).
     InterruptGate,
     /// Leaves `IF` unchanged; useful for debugging/tracing faults.
+    #[allow(dead_code)]
     TrapGate,
 }
 
@@ -303,7 +312,7 @@ impl IdtEntry {
         self.ist_type = IdtGateAttr::interrupt_gate()
             .with_present(false)
             .with_dpl(0)
-            .with_ist(0)
+            .with_ist(Ist::None)
             .into_bits();
 
         IdtEntryBuilder { entry: self }
@@ -359,6 +368,7 @@ impl IdtEntryBuilder<'_> {
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn kernel_only(&mut self) -> &mut Self {
         self.dpl_ring(Ring::Ring0)
     }
@@ -397,8 +407,8 @@ impl IdtEntryBuilder<'_> {
     /// # Panics (debug only)
     /// Asserts `idx <= 7`. Hardware supports `1..=7`.
     #[inline]
-    pub fn ist(&mut self, idx: u8) -> &mut Self {
-        debug_assert!(idx <= 7);
+    #[allow(dead_code)]
+    pub fn ist(&mut self, idx: Ist) -> &mut Self {
         let bf = IdtGateAttr::from_bits(self.entry.ist_type).with_ist(idx);
         self.entry.ist_type = bf.into_bits();
         self

@@ -82,39 +82,89 @@ mod sealed {
 
 /// Marker trait for supported page sizes.
 pub trait PageSize:
-    sealed::Sealed + Clone + Copy + Eq + PartialEq + Ord + PartialOrd + Hash
+    sealed::Sealed + Clone + Copy + Eq + PartialEq + Ord + PartialOrd + Hash + fmt::Display + fmt::Debug
 {
     /// Page size in bytes (power of two).
     const SIZE: u64;
     /// log2(SIZE), i.e., number of low bits used for the offset.
     const SHIFT: u32;
+
+    fn as_str() -> &'static str;
 }
 
 /// 4 KiB page (4096 bytes).
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Size4K;
 impl sealed::Sealed for Size4K {}
 impl PageSize for Size4K {
     const SIZE: u64 = 4096;
     const SHIFT: u32 = 12;
+
+    fn as_str() -> &'static str {
+        "4K"
+    }
 }
 
 /// 2 MiB page (`2_097_152` bytes).
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Size2M;
 impl sealed::Sealed for Size2M {}
 impl PageSize for Size2M {
     const SIZE: u64 = 2 * 1024 * 1024;
     const SHIFT: u32 = 21;
+
+    fn as_str() -> &'static str {
+        "2M"
+    }
 }
 
 /// 1 GiB page (`1_073_741_824` bytes).
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Size1G;
 impl sealed::Sealed for Size1G {}
 impl PageSize for Size1G {
     const SIZE: u64 = 1024 * 1024 * 1024;
     const SHIFT: u32 = 30;
+
+    fn as_str() -> &'static str {
+        "1G"
+    }
+}
+
+impl fmt::Display for Size4K {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(Self::as_str())
+    }
+}
+
+impl fmt::Display for Size2M {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(Self::as_str())
+    }
+}
+
+impl fmt::Display for Size1G {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(Self::as_str())
+    }
+}
+
+impl fmt::Debug for Size4K {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self, f)
+    }
+}
+
+impl fmt::Debug for Size2M {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self, f)
+    }
+}
+
+impl fmt::Debug for Size1G {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self, f)
+    }
 }
 
 /// Principal raw memory address ([virtual](VirtualAddress) or [physical](PhysicalAddress)).
@@ -131,8 +181,20 @@ impl MemoryAddress {
 
     #[inline]
     #[must_use]
-    pub fn from_ptr<T>(ptr: *const T) -> Self {
-        Self::new(ptr as u64)
+    pub const fn from_ptr<T>(ptr: *const T) -> Self {
+        const _: () = assert!(
+            size_of::<*const ()>() == size_of::<u64>(),
+            "pointer size mismatch"
+        );
+
+        // using a union to const-time convert a pointer to an u64
+        union Ptr<T> {
+            ptr: *const T,
+            raw: u64,
+        }
+
+        let ptr = Ptr { ptr };
+        Self::new(unsafe { ptr.raw })
     }
 
     #[inline]
@@ -220,6 +282,15 @@ pub struct MemoryPage<S: PageSize> {
     _phantom: PhantomData<S>,
 }
 
+impl<S> fmt::Display for MemoryPage<S>
+where
+    S: PageSize,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{:016X}/{}", self.value, S::as_str())
+    }
+}
+
 impl<S: PageSize> MemoryPage<S> {
     /// Create from a raw value, aligning down to the page boundary.
     #[inline]
@@ -230,6 +301,13 @@ impl<S: PageSize> MemoryPage<S> {
             value,
             _phantom: PhantomData,
         }
+    }
+
+    /// Page that contains `addr` (aligns down).
+    #[inline]
+    pub const fn containing(addr: u64) -> Self {
+        let mask = !(S::SIZE - 1);
+        Self::from_addr(MemoryAddress::new(addr & mask))
     }
 
     /// Create from a raw value that must already be aligned.
@@ -391,7 +469,7 @@ impl VirtualAddress {
 
     #[inline]
     #[must_use]
-    pub fn from_ptr<T>(ptr: *const T) -> Self {
+    pub const fn from_ptr<T>(ptr: *const T) -> Self {
         Self(MemoryAddress::from_ptr(ptr))
     }
 
@@ -434,13 +512,28 @@ impl VirtualAddress {
 
 impl fmt::Debug for VirtualAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "VirtualAddress(0x{:016X})", self.as_u64())
+        write!(f, "VA(0x{:016X})", self.as_u64())
     }
 }
 
 impl fmt::Display for VirtualAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "0x{:016X}", self.as_u64())
+    }
+}
+
+impl Add<u64> for VirtualAddress {
+    type Output = Self;
+    #[inline]
+    fn add(self, rhs: u64) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl AddAssign<u64> for VirtualAddress {
+    #[inline]
+    fn add_assign(&mut self, rhs: u64) {
+        self.0 += rhs;
     }
 }
 
@@ -519,13 +612,28 @@ impl PhysicalAddress {
 
 impl fmt::Debug for PhysicalAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PhysicalAddress(0x{:016X})", self.as_u64())
+        write!(f, "PA(0x{:016X})", self.as_u64())
     }
 }
 
 impl fmt::Display for PhysicalAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "0x{:016X}", self.as_u64())
+    }
+}
+
+impl Add<u64> for PhysicalAddress {
+    type Output = Self;
+    #[inline]
+    fn add(self, rhs: u64) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl AddAssign<u64> for PhysicalAddress {
+    #[inline]
+    fn add_assign(&mut self, rhs: u64) {
+        self.0 += rhs;
     }
 }
 
@@ -563,6 +671,12 @@ impl<S: PageSize> VirtualPage<S> {
         Self(p)
     }
 
+    /// Page that contains `addr` (aligns down to page boundary).
+    #[inline]
+    pub const fn containing_address(addr: VirtualAddress) -> Self {
+        Self(MemoryPage::<S>::containing(addr.as_u64()))
+    }
+
     #[inline]
     #[must_use]
     pub const fn base(self) -> VirtualAddress {
@@ -576,6 +690,15 @@ impl<S: PageSize> VirtualPage<S> {
     }
 }
 
+impl<S> fmt::Display for VirtualPage<S>
+where
+    S: PageSize,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
 impl<S: PageSize> fmt::Debug for VirtualPage<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -584,6 +707,19 @@ impl<S: PageSize> fmt::Debug for VirtualPage<S> {
             core::any::type_name::<S>(),
             self.0.base().as_u64()
         )
+    }
+}
+
+impl<S: PageSize> TryFrom<VirtualAddress> for VirtualPage<S> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(va: VirtualAddress) -> Result<Self, ()> {
+        if (va.as_u64() & (S::SIZE - 1)) == 0 {
+            Ok(va.page())
+        } else {
+            Err(())
+        }
     }
 }
 
@@ -637,6 +773,15 @@ impl<S: PageSize> PhysicalPage<S> {
     #[must_use]
     pub const fn join(self, off: MemoryAddressOffset<S>) -> PhysicalAddress {
         PhysicalAddress(self.0.join(off))
+    }
+}
+
+impl<S> fmt::Display for PhysicalPage<S>
+where
+    S: PageSize,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
     }
 }
 

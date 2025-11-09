@@ -24,7 +24,11 @@ uefi = { version = "0.35", default-features = false }
 pedantic = "deny"
 nursery = "warn"
 
+[profile.dev]
+opt-level = 0
+
 [profile.release]
+# debug = "full"
 opt-level = 3
 lto = "fat"
 codegen-units = 1

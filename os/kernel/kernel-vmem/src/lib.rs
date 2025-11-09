@@ -76,7 +76,7 @@ mod bits;
 pub mod page_table;
 
 pub use crate::address_space::AddressSpace;
-use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K};
+use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualPage};
 pub use crate::bits::VirtualMemoryPageBits;
 use crate::page_table::pd::PageDirectory;
 use crate::page_table::pdpt::PageDirectoryPointerTable;
@@ -257,4 +257,21 @@ pub unsafe fn read_cr3_phys() -> PhysicalAddress {
     // Clear PCID / low bits by turning it into a 4K page base and back to an address.
     let page = PhysicalAddress::from(cr3).page::<Size4K>(); // drop low 12 bits
     PhysicalAddress::from(page)
+}
+
+/// Invalidate one page in the TLB.
+///
+/// # Safety
+/// - The address must be canonical for the current paging mode.
+/// - Use only when modifying the current address space (CR3).
+#[inline]
+pub unsafe fn invalidate_tlb_page(page: VirtualPage<Size4K>) {
+    let va = page.base().as_u64();
+    unsafe {
+        core::arch::asm!(
+            "invlpg [{}]",
+            in(reg) va,
+            options(nostack, preserves_flags),
+        );
+    }
 }

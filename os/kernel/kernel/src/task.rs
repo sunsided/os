@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use kernel_alloc::vmm::Vmm;
 use kernel_vmem::addresses::VirtualAddress;
 use kernel_vmem::{FrameAlloc, PhysMapper};

@@ -1,5 +1,37 @@
 # Developer Diary
 
+## 2025-11-09
+
+Shot myself in the foot today: My spin mutex works, but it also silently blocks.
+I was chasing ghosts when calling into userland when in reality I just attempted
+to lock the mutex from within a mutex lock.
+
+The `INT3` breakpoint handler now works, so it seem slike usermode to kernel call works.
+
+## 2025-11-08
+
+Today's topic is allocating a proper kernel stack for the bootstrap processor, i.e. not
+running off the `BOOT_STACK` linker section. I decided to rework the previous days' hacks
+into a `PerCpu` structure even though I am not dealing with multiple CPUs right now;
+collecting everything together made it a lot simpler to reason about what's needed (i.e.,
+no `statics` all over the place), although I would be lying if I claimed to have grasped
+the whole picture just yet. That said, right now I am able to trampoline onto a properly
+allocated stack (once again), and am now dealing with wiring in the second-stage boostrapping.
+
+There's now also an early page fault handler that at least avoids the triple fault every time.
+
+The DS/ES/SS reload after setting the GDT haunted me today. The LAPIC timer interrupt would
+get stuck, seemingly without reason, on `iretq`. In reality it caused a general protection
+fault which I could observe after installing the GP handler. It tried to execute into segment
+`0x38`, which clearly doesn't exist, and not on the `KERNEL_CS` as expected. Turns out that
+reloading the DS/ES/SS was good, but I never actually reloaded the CS (code segment) itself.
+After adding that in the `init_gdt_and_tss` function, the timer seemed to work significantly
+better.
+
+The code needs a severe cleanup after today. Right now the APIC timer works and is calibrated
+against the TSC (via serialized `rdtsc` and some busy looping). From there, APIC timer
+start and divisors are computed, and now it ticks 1 kHz.
+
 ## 2025-11-04
 
 Still wrapping my head around GDT, IDT, TSS, ...

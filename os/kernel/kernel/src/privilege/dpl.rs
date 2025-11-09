@@ -50,12 +50,12 @@ impl Dpl {
     }
 
     #[inline]
-    const fn into_bits(self) -> u8 {
+    pub const fn into_bits(self) -> u8 {
         self as u8
     }
 
     #[inline]
-    const fn from_bits(v: u8) -> Self {
+    pub const fn from_bits(v: u8) -> Self {
         match v & 0b11 {
             0 => Self::Ring0,
             1 => Self::Ring1,

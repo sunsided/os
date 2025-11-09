@@ -1,34 +1,22 @@
-//! # Spin Lock
+use core::{
+    cell::UnsafeCell,
+    hint::spin_loop,
+    ops::{Deref, DerefMut},
+    sync::atomic::{AtomicBool, Ordering},
+};
 
-use core::cell::UnsafeCell;
-use core::sync::atomic::{AtomicBool, Ordering};
-
-/// A tiny spinlock for short critical sections.
-///
-/// This lock is suitable for **uniprocessor** or early boot stages where:
-/// - Preemption is either disabled or non-existent.
-/// - Critical sections are very short (no I/O, no blocking).
-///
-/// # Guarantees
-/// - Provides mutual exclusion for access to the protected value.
-/// - `Sync` is implemented when `T: Send`, allowing shared references across
-///   threads (the lock enforces interior mutability).
-///
-/// # Caveats
-/// - Does **not** disable interrupts.
-/// - Busy-waits with `spin_loop`, so keep critical sections small.
 pub struct SpinLock<T> {
-    /// Lock state (`false` = unlocked, `true` = locked).
+    /// lock state
+    /// * `false`: unlocked
+    /// * `true`: locked
     locked: AtomicBool,
-    /// The protected value.
     inner: UnsafeCell<T>,
 }
 
-// Safety: SpinLock provides mutual exclusion; it can be shared across threads as long as T is Send.
+// Safety: mutual exclusion; only T: Send may cross threads.
 unsafe impl<T: Send> Sync for SpinLock<T> {}
 
 impl<T> SpinLock<T> {
-    /// Create a new spinlock wrapping `inner`.
     pub const fn new(inner: T) -> Self {
         Self {
             locked: AtomicBool::new(false),
@@ -36,28 +24,81 @@ impl<T> SpinLock<T> {
         }
     }
 
-    /// Execute `f` with exclusive access to the inner value.
-    ///
-    /// Spins until the lock is acquired, then releases it after `f` returns.
-    ///
-    /// # Panics
-    /// Never panics by itself; panics in `f` will unwind through the critical section.
-    pub fn with_lock<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
-        // Spin until we acquire the lock.
-        while self
+    /// Try once; returns immediately.
+    #[inline]
+    pub fn try_lock(&self) -> Option<SpinLockGuard<'_, T>> {
+        if self
+            .locked
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_ok()
+        {
+            Some(SpinLockGuard { lock: self })
+        } else {
+            None
+        }
+    }
+
+    /// Spin until acquired (TATAS), then return a guard.
+    #[inline]
+    pub fn lock(&self) -> SpinLockGuard<'_, T> {
+        // Fast path: take the lock if it looks free.
+        if self
             .locked
             .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
             .is_err()
         {
-            core::hint::spin_loop();
+            // Contended path: spin on a read (cheap), then retry CAS.
+            while self.locked.load(Ordering::Relaxed) {
+                spin_loop();
+            }
+            // try to take it when it flips to false
+            while self
+                .locked
+                .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+                .is_err()
+            {
+                while self.locked.load(Ordering::Relaxed) {
+                    spin_loop();
+                }
+            }
         }
+        SpinLockGuard { lock: self }
+    }
 
-        // SAFETY: We have exclusive access while the lock is held.
-        let res = {
-            let inner = unsafe { &mut *self.inner.get() };
-            f(inner)
-        };
-        self.locked.store(false, Ordering::Release);
-        res
+    /// Closure convenience, built on the guard.
+    #[inline]
+    pub fn with_lock<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
+        let mut g = self.lock();
+        f(&mut g)
+    }
+
+    /// Mutable access when you have `&mut self` (no contention possible).
+    #[inline]
+    pub const fn get_mut(&mut self) -> &mut T {
+        self.inner.get_mut()
+    }
+}
+
+pub struct SpinLockGuard<'a, T> {
+    lock: &'a SpinLock<T>,
+}
+
+impl<T> Deref for SpinLockGuard<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        unsafe { &*self.lock.inner.get() }
+    }
+}
+
+impl<T> DerefMut for SpinLockGuard<'_, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        unsafe { &mut *self.lock.inner.get() }
+    }
+}
+
+impl<T> Drop for SpinLockGuard<'_, T> {
+    fn drop(&mut self) {
+        // Release publishes the critical section.
+        self.lock.locked.store(false, Ordering::Release);
     }
 }
