@@ -75,6 +75,11 @@ impl BitmapFrameAlloc {
         }
     }
 
+    #[must_use]
+    pub const fn manageable_size(&self) -> usize {
+        (NUM_FRAMES as u64 * FRAME_SIZE) as usize
+    }
+
     /// Mark a frame as used (allocated).
     pub const fn mark_used(&mut self, frame_idx: usize) {
         let (word, bit) = (frame_idx / 64, frame_idx % 64);

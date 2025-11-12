@@ -19,6 +19,17 @@ use kernel_vmem::addresses::{PageSize, PhysicalAddress, Size4K, VirtualAddress, 
 use kernel_vmem::{AddressSpace, PhysFrameAlloc, PhysMapper};
 use kernel_vmem::{VirtualMemoryPageBits, invalidate_tlb_page};
 
+/// Indicates for whom to allocate.
+pub enum AllocationTarget {
+    /// This allocation is for usermode programs.
+    /// Allows allocation up to [`LAST_USERSPACE_ADDRESS`](`kernel_info::memory::LAST_USERSPACE_ADDRESS`).
+    User,
+    /// This allocation is for kernelspace programs.
+    /// Allows allocation after (but not before) [`LAST_USERSPACE_ADDRESS`](`kernel_info::memory::LAST_USERSPACE_ADDRESS`),
+    /// typically after [`KERNEL_BASE`](kernel_info::memory::HHDM_BASE).
+    Kernel,
+}
+
 /// Minimal kernel virtual memory manager.
 pub struct Vmm<'m, M: PhysMapper, A: PhysFrameAlloc> {
     /// The page tables.

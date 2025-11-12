@@ -3,11 +3,10 @@ OUTPUT_FORMAT(elf64-x86-64)
 OUTPUT_ARCH(i386:x86-64)
 ENTRY(_start_kernel)
 
-/* --- Tunables (overrideable via --defsym) --- */
+/* Tunables (overrideable via --defsym) */
 KBASE = DEFINED(KERNEL_BASE) ? KERNEL_BASE : 0xffffffff80000000;  /* VMA base */
 PLOAD = DEFINED(PHYS_LOAD)   ? PHYS_LOAD   : 0x00100000;          /* LMA base (1 MiB) */
 
-/* Sanity checks (optional but handy) */
 ASSERT((KBASE & ((1 << 21) - 1)) == 0, "KERNEL_BASE must be 2 MiB aligned");
 ASSERT((PLOAD & 0xFFF) == 0, "PHYS_LOAD must be 4 KiB aligned");
 
@@ -18,7 +17,7 @@ PHDRS {
 
 SECTIONS
 {
-  /* --- All section VMAs live in higher half --- */
+  /* All section VMAs live in higher half */
   . = KBASE + PLOAD;
 
   /* Text (VMA = KBASE+..., LMA = PLOAD+offset) */
@@ -38,6 +37,16 @@ SECTIONS
   .data : AT(ADDR(.data) - KBASE) {
     *(.data .data.*)
   } :data
+
+  /* --- PMM bitmap: large zeroed array in its own NOLOAD section --- */
+  . = ALIGN(2M);
+  __pmm_start = .;
+  .bss.pmm (NOLOAD) : {
+    /* Keep even with --gc-sections */
+    KEEP(*(.bss.pmm .bss.pmm.*))
+  }
+  :data
+  __pmm_end = .;
 
   /* BSS: no file bytes, just virtual space */
   . = ALIGN(4096);
@@ -59,3 +68,6 @@ SECTIONS
   /* Drop unwind info */
   /DISCARD/ : { *(.eh_frame) *(.eh_frame_hdr) }
 }
+
+ASSERT( (__pmm_end - __pmm_start) <= 2 * 1024 * 1024,
+    "PMM bitmap exceeds 2 MiB; adjust design or limits" );

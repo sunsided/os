@@ -6,7 +6,7 @@ use crate::{gdt, interrupts, kernel_main};
 use kernel_info::boot::{FramebufferInfo, KernelBootInfo};
 use kernel_qemu::qemu_trace;
 
-use crate::alloc::{FlushTlb, init_kernel_vmm, try_with_kernel_vmm};
+use crate::alloc::{FlushTlb, init_kernel_vmm, init_pmm, try_with_kernel_vmm};
 use crate::apic::{init_lapic_and_set_cpu_id, start_lapic_timer};
 use crate::cpuid::CpuidRanges;
 use crate::framebuffer::VGA_LIKE_OFFSET;
@@ -23,7 +23,6 @@ use crate::per_cpu::ist_stacks::{IST1_SIZE, ist_slot_for_cpu};
 use crate::per_cpu::kernel_stacks::kstack_slot_for_cpu;
 use crate::per_cpu::stack::{CpuStack, map_ist_stack, map_kernel_stack};
 use crate::tsc::estimate_tsc_hz;
-use kernel_alloc::frame_alloc::BitmapFrameAlloc;
 use kernel_alloc::phys_mapper::HhdmPhysMapper;
 use kernel_info::memory::{HHDM_BASE, KERNEL_STACK_SIZE};
 use kernel_sync::irq::sti_enable_interrupts;
@@ -152,7 +151,13 @@ pub extern "C" fn kernel_entry_on_boot_stack(boot_info: *const KernelBootInfo) -
 
     qemu_trace!("Initializing Virtual Memory Manager ...\n");
     unsafe {
-        init_kernel_vmm(HhdmPhysMapper, BitmapFrameAlloc::new());
+        // TODO: Restrict allocator to actual available RAM size.
+        let alloc = init_pmm();
+        qemu_trace!(
+            "Supporting {} MiB of physical RAM ...\n",
+            alloc.manageable_size() / 1024 / 1024
+        );
+        init_kernel_vmm(HhdmPhysMapper, alloc);
     }
 
     // TODO: 3. Allocate & map a per-CPU kernel stack (with a guard page), compute its 16-byte–aligned top.
