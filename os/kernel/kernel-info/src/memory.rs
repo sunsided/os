@@ -1,10 +1,10 @@
 //! # Memory Layout
 
 /// End of userspace VA range after which Kernel space begins.
-pub const LAST_USERSPACE_ADDRESS: u64 = 0xffff_0000_0000_0000;
+pub const USERSPACE_END: u64 = 0xffff_0000_0000_0000;
 
 /// End of userspace VA range after which Kernel space begins.
-pub const USERSPACE_END: u64 = 0xffff_0000_0000_0000;
+pub const LAST_USERSPACE_ADDRESS: u64 = USERSPACE_END - 1;
 
 /// A simple Higher Half Direct Map (HHDM) base.
 /// Anything you map at [`HHDM_BASE`] + `pa` lets the kernel

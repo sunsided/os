@@ -76,8 +76,9 @@ impl BitmapFrameAlloc {
     }
 
     #[must_use]
-    pub const fn manageable_size(&self) -> usize {
-        (NUM_FRAMES as u64 * FRAME_SIZE) as usize
+    #[allow(clippy::cast_possible_truncation)]
+    pub const fn manageable_size(&self) -> u64 {
+        (NUM_FRAMES as u64) * FRAME_SIZE
     }
 
     /// Mark a frame as used (allocated).

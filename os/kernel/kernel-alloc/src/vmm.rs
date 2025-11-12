@@ -14,12 +14,14 @@
 //! ```
 
 use core::ptr::copy_nonoverlapping;
+use kernel_info::memory::{LAST_USERSPACE_ADDRESS, USERSPACE_END};
 use kernel_vmem::address_space::{AddressSpaceMapOneError, AddressSpaceMapRegionError, MapSize};
 use kernel_vmem::addresses::{PageSize, PhysicalAddress, Size4K, VirtualAddress, VirtualPage};
 use kernel_vmem::{AddressSpace, PhysFrameAlloc, PhysMapper};
 use kernel_vmem::{VirtualMemoryPageBits, invalidate_tlb_page};
 
 /// Indicates for whom to allocate.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum AllocationTarget {
     /// This allocation is for usermode programs.
     /// Allows allocation up to [`LAST_USERSPACE_ADDRESS`](`kernel_info::memory::LAST_USERSPACE_ADDRESS`).
@@ -28,6 +30,22 @@ pub enum AllocationTarget {
     /// Allows allocation after (but not before) [`LAST_USERSPACE_ADDRESS`](`kernel_info::memory::LAST_USERSPACE_ADDRESS`),
     /// typically after [`KERNEL_BASE`](kernel_info::memory::HHDM_BASE).
     Kernel,
+}
+
+impl AllocationTarget {
+    #[must_use]
+    pub const fn from(va: VirtualAddress) -> Self {
+        if va.as_u64() >= USERSPACE_END {
+            Self::Kernel
+        } else {
+            Self::User
+        }
+    }
+
+    #[must_use]
+    pub fn matches(&self, va: VirtualAddress) -> bool {
+        Self::from(va).eq(self)
+    }
 }
 
 /// Minimal kernel virtual memory manager.
@@ -60,11 +78,13 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
     #[allow(clippy::missing_errors_doc)]
     pub fn map_one<S: MapSize>(
         &mut self,
+        target: AllocationTarget,
         va: VirtualAddress,
         pa: PhysicalAddress,
         nonleaf_flags: VirtualMemoryPageBits,
         leaf_flags: VirtualMemoryPageBits,
     ) -> Result<(), AddressSpaceMapOneError> {
+        assert!(target.matches(va));
         self.ptables
             .map_one::<A, S>(self.alloc, va, pa, nonleaf_flags, leaf_flags)
     }
@@ -81,12 +101,14 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
     /// Allocation fails, e.g. due to OOM.
     pub fn map_region(
         &mut self,
+        target: AllocationTarget,
         va: VirtualAddress,
         pa: PhysicalAddress,
         len: u64,
         nonleaf: VirtualMemoryPageBits,
         leaf: VirtualMemoryPageBits,
     ) -> Result<(), VmmError> {
+        assert!(target.matches(va));
         Ok(self
             .ptables
             .map_region(self.alloc, va, pa, len, nonleaf, leaf)?)
@@ -102,12 +124,15 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
     #[allow(clippy::missing_errors_doc)]
     pub fn map_anon_4k_pages(
         &mut self,
+        target: AllocationTarget,
         va_start: VirtualAddress,
         guard: u64,
         bytes: u64,
         nonleaf: VirtualMemoryPageBits,
         leaf: VirtualMemoryPageBits,
     ) -> Result<(), VmmError> {
+        assert!(target.matches(va_start));
+        assert!(target.matches(va_start + bytes));
         debug_assert!(guard.is_multiple_of(Size4K::SIZE) && bytes.is_multiple_of(Size4K::SIZE));
 
         let base = VirtualAddress::new(va_start.as_u64() + guard);
@@ -137,6 +162,11 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
         dst_user: VirtualAddress,
         src: &[u8],
     ) -> Result<(), VmmError> {
+        assert!(
+            dst_user.as_u64() <= LAST_USERSPACE_ADDRESS,
+            "attempted to copy user code into kernel space"
+        );
+
         // Optional simple mapping check: walk each page boundary
         let start = dst_user.as_u64();
         let end = start
@@ -177,9 +207,16 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
                 return Err(VmmError::Unmapped);
             };
 
-            // Ensure 4K mapping
+            // Recreate the target. This is safe to do here because we
+            // are not moving the memory, so we just recreate the original argument
+            // to ensure the check passes when re-mapping.
+            let target = AllocationTarget::from(va);
+
+            // Ensure 4K mapping. We unmap first since otherwise the mapping call would
+            // fail with the page already in use.
+
             self.unmap_one_4k(va).map_err(VmmError::UnmapFailed)?;
-            self.map_one::<Size4K>(va, pa_aligned_4k(pa), nonleaf, leaf_rx)?;
+            self.map_one::<Size4K>(target, va, pa_aligned_4k(pa), nonleaf, leaf_rx)?;
             self.invlpg(VirtualPage::<Size4K>::containing_address(va));
         }
         Ok(())

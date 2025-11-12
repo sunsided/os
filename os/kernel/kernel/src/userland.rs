@@ -3,7 +3,7 @@ use crate::gdt::{USER_CS, USER_DS};
 use crate::tracing::log_ctrl_bits;
 use crate::{alloc, userland_demo};
 use kernel_alloc::phys_mapper::HhdmPhysMapper;
-use kernel_alloc::vmm::{Vmm, VmmError};
+use kernel_alloc::vmm::{AllocationTarget, Vmm, VmmError};
 use kernel_qemu::qemu_trace;
 use kernel_vmem::addresses::{PageSize, Size4K, VirtualAddress};
 use kernel_vmem::{PhysFrameAlloc, PhysMapper, VirtualMemoryPageBits};
@@ -88,6 +88,7 @@ fn map_user_demo<M: PhysMapper, A: PhysFrameAlloc>(
     let code_len_4k = (code_len + Size4K::SIZE - 1) & !(Size4K::SIZE - 1);
 
     vmm.map_anon_4k_pages(
+        AllocationTarget::User,
         code_va,
         0,           // no guard for code
         code_len_4k, // whole pages
@@ -108,8 +109,12 @@ fn map_user_demo<M: PhysMapper, A: PhysFrameAlloc>(
     let stack_base = VirtualAddress::new(ustack_top.as_u64() - guard - stack_size);
 
     vmm.map_anon_4k_pages(
-        stack_base, guard, // leave guard unmapped (fault on underflow)
-        stack_size, nonleaf, leaf_rw, // writable, NX
+        AllocationTarget::User,
+        stack_base,
+        guard, // leave guard unmapped (fault on underflow)
+        stack_size,
+        nonleaf,
+        leaf_rw, // writable, NX
     )?;
 
     Ok((code_va, ustack_top))

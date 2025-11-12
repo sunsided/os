@@ -26,6 +26,7 @@ use crate::per_cpu::kernel_stacks::kstack_slot_for_cpu;
 use crate::per_cpu::stack::{CpuStack, map_ist_stack, map_kernel_stack};
 use crate::tsc::estimate_tsc_hz;
 use kernel_alloc::phys_mapper::HhdmPhysMapper;
+use kernel_alloc::vmm::AllocationTarget;
 use kernel_info::memory::{HHDM_BASE, KERNEL_STACK_SIZE};
 use kernel_sync::irq::sti_enable_interrupts;
 use kernel_vmem::VirtualMemoryPageBits;
@@ -390,7 +391,14 @@ fn remap_framebuffer_memory(bi: &KernelBootInfo) -> FramebufferInfo {
         .with_no_execute(true);
 
     try_with_kernel_vmm(FlushTlb::OnSuccess, |vmm| {
-        vmm.map_region(va_base, fb_pa, fb_len, fb_flags, fb_flags)
+        vmm.map_region(
+            AllocationTarget::Kernel,
+            va_base,
+            fb_pa,
+            fb_len,
+            fb_flags,
+            fb_flags,
+        )
     })
     .expect("Framebuffer mapping failed");
 

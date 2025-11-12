@@ -17,8 +17,8 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/init.rs](./os/kernel/kernel/src/init.rs)
 
-- Line [174](./os/kernel/kernel/src/init.rs#L174): Restrict allocator to actual available RAM size.
-- Line [314](./os/kernel/kernel/src/init.rs#L314): Use a different IST from PF
+- Line [175](./os/kernel/kernel/src/init.rs#L175): Restrict allocator to actual available RAM size.
+- Line [315](./os/kernel/kernel/src/init.rs#L315): Use a different IST from PF
 
 ## [os/kernel/kernel/src/interrupts/page_fault.rs](./os/kernel/kernel/src/interrupts/page_fault.rs)
 
