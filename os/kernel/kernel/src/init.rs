@@ -9,6 +9,7 @@ use log::{LevelFilter, info};
 
 use crate::alloc::{
     FlushTlb, init_kernel_vmm, init_physical_memory_allocator_once, try_with_kernel_vmm,
+    with_kernel_vmm,
 };
 use crate::apic::{init_lapic_and_set_cpu_id, start_lapic_timer};
 use crate::cpuid::CpuidRanges;
@@ -339,6 +340,9 @@ extern "C" fn stage_two_init_bootstrap_processor(
 
     info!("Enabling interrupts ...");
     sti_enable_interrupts();
+
+    info!("Clearing UEFI pages ...");
+    with_kernel_vmm(|vmm| unsafe { vmm.clear_lower_half() });
 
     info!("Kernel early init is done, jumping into kernel main loop ...");
     kernel_main(&fb_virt)

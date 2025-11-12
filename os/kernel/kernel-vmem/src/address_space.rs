@@ -40,7 +40,7 @@ use crate::page_table::pdpt::{L3Index, PageDirectoryPointerTable, PdptEntry, Pdp
 use crate::page_table::pml4::{L4Index, PageMapLevel4, Pml4Entry};
 use crate::page_table::pt::{L1Index, PageTable, PtEntry4k};
 use crate::{PhysFrameAlloc, PhysMapper, PhysMapperExt, read_cr3_phys};
-use log::{debug, warn};
+use log::{trace, warn};
 
 /// Handle to a single, concrete address space.
 pub struct AddressSpace<'m, M: PhysMapper> {
@@ -165,7 +165,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
             warn!("physical address mapping error: {err:?}");
         })?;
 
-        debug!("Mapped one {} page at VA={va} -> PA={pa}", S::as_str());
+        trace!("Mapped one {} page at VA={va} -> PA={pa}", S::as_str());
         S::set_leaf(self, leaf_tbl, va, pa, leaf_flags);
         Ok(())
     }
@@ -182,7 +182,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
                     return Err("missing: pte");
                 }
 
-                debug!("Unmapped VA={va}");
+                trace!("Unmapped VA={va}");
                 pt.set_zero(i1);
                 Ok(())
             }
@@ -449,6 +449,19 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
                 debug_assert!(!e.user(), "kernel PML4E must have US=0");
             }
             dst_l4.set(i, e);
+        }
+    }
+
+    /// Post-bringup clearing.
+    pub fn clear_lower_half(&mut self) {
+        let root = self.root_page();
+
+        // Map both PML4 pages via HHDM
+        let l4: &mut PageMapLevel4 = unsafe { self.mapper.phys_to_mut(root.base()) };
+
+        // User half: indices 0..256
+        for i in (0..256).map(L4Index::new) {
+            l4.set(i, Pml4Entry::zero());
         }
     }
 }

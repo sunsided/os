@@ -17,8 +17,8 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/init.rs](./os/kernel/kernel/src/init.rs)
 
-- Line [179](./os/kernel/kernel/src/init.rs#L179): Restrict allocator to actual available RAM size.
-- Line [322](./os/kernel/kernel/src/init.rs#L322): Use a different IST from PF
+- Line [180](./os/kernel/kernel/src/init.rs#L180): Restrict allocator to actual available RAM size.
+- Line [323](./os/kernel/kernel/src/init.rs#L323): Use a different IST from PF
 
 ## [os/kernel/kernel/src/interrupts/page_fault.rs](./os/kernel/kernel/src/interrupts/page_fault.rs)
 
@@ -30,13 +30,13 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/userland.rs](./os/kernel/kernel/src/userland.rs)
 
-- Line [49](./os/kernel/kernel/src/userland.rs#L49): Remove this later! Manually patches the specific L4 entry to be user-accessible.
+- Line [50](./os/kernel/kernel/src/userland.rs#L50): Remove later
 
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
 - Line [35](./os/uefi/uefi-loader/src/main.rs#L35): Add proper documentation.
-- Line [170](./os/uefi/uefi-loader/src/main.rs#L170): Document this properly
-- Line [177](./os/uefi/uefi-loader/src/main.rs#L177): Handle properly
+- Line [172](./os/uefi/uefi-loader/src/main.rs#L172): Document this properly
+- Line [179](./os/uefi/uefi-loader/src/main.rs#L179): Handle properly
 
 ## [os/uefi/uefi-loader/src/memory.rs](./os/uefi/uefi-loader/src/memory.rs)
 

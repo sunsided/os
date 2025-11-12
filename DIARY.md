@@ -14,6 +14,19 @@ Migrated to the `log` crate today. I'm hoping that this makes logging in the ker
 crates a bit easier, so that I can then focus on identifying the page issue
 when not applying my debug patches to the user code.
 
+The error from the days before was that I didn't consider the UEFI-side mapping.
+Before bringup of the kernel, UEFI maps the trampoline code and stack into the CR3.
+In my case, the currently executing binary was in the lower half at the beginning of RAM,
+hence a low page table was used, and I used direct mapping on top. As a result, when
+loading the userland code into its designated spot on the kernel side, the page
+was already in use, marked not user, and ultimately partially marked not executable.
+On top of that, the code to create the userland used the NX flag for the leafs, which
+also contributed another reason for the page fault.
+
+What I do now is this: After the kernel is fully set up (vmem, interrupts, etc.),
+I set the lower half PML4 entries to zero, hence unmapping all UEFI-related code.
+Since my own allocator never knew about these, I'm not leaking memory either. Now it works.
+
 ## 2025-11-09
 
 Shot myself in the foot today: My spin mutex works, but it also silently blocks.

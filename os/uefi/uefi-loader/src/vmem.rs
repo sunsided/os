@@ -178,7 +178,7 @@ pub fn create_kernel_pagetables(
     }
 
     // Identity map the trampoline code (4 KiB, executable)
-    info!("Identity map trampoline code ...");
+    info!("Identity map trampoline code at {tramp_code_va} ...");
     {
         let start = tramp_code_va.page::<Size4K>().base().as_u64();
         let end = align_up_u64(

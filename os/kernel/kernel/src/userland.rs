@@ -1,7 +1,8 @@
 use crate::alloc::KernelVmm;
 use crate::gdt::{USER_CS, USER_DS};
 use crate::tracing::log_ctrl_bits;
-use crate::userland_demo;
+use crate::{alloc, userland_demo};
+use kernel_alloc::phys_mapper::HhdmPhysMapper;
 use kernel_alloc::vmm::{AllocationTarget, Vmm, VmmError};
 use kernel_vmem::addresses::{PageSize, Size4K, VirtualAddress};
 use kernel_vmem::{PhysFrameAlloc, PhysMapper, VirtualMemoryPageBits};
@@ -46,19 +47,8 @@ pub fn boot_single_user_task(vmm: &mut KernelVmm) -> ! {
     info!("About to enter user mode ...");
     log_ctrl_bits();
 
-    // TODO: Remove this later! Manually patches the specific L4 entry to be user-accessible.
-    //       A better solution might be to use a root page that is not already implicitly added as no-user, no-execute.
-    /*
-    alloc::debug::promote_pml4_user_bit(
-        &HhdmPhysMapper,
-        VirtualAddress::new(0x0000_0000_4000_0000),
-    );
-    alloc::debug::clear_parent_xd_for_exec(
-        &HhdmPhysMapper,
-        VirtualAddress::new(0x0000_0000_4000_0000),
-    );
+    // TODO: Remove later
     alloc::debug::dump_walk(&HhdmPhysMapper, VirtualAddress::new(0x0000_0000_4000_0000));
-    */
 
     info!("About to flush TLB ...");
     unsafe {
@@ -76,7 +66,7 @@ fn map_user_demo<M: PhysMapper, A: PhysFrameAlloc>(
     blob: &[u8],
 ) -> Result<(VirtualAddress, VirtualAddress), VmmError> {
     // non-leaf: allow user traversal (U/S=1), WB, Present, Write=1 (harmless), NX don't-care
-    let nonleaf = VirtualMemoryPageBits::user_table_wb_noexec(); // must set US=1
+    let nonleaf = VirtualMemoryPageBits::user_table_wb_exec(); // must set US=1
 
     // leaf for CODE (RX): Present=1, User=1, Write=0, NX=0
     let leaf_rx = VirtualMemoryPageBits::user_leaf_code_wb(); // NX=0, US=1

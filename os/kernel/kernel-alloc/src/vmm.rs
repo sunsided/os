@@ -68,6 +68,14 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
         }
     }
 
+    /// # Safety
+    /// This completely unmaps all lower-half PML4 records of the page table
+    /// without walking, nor actively unmapping PDPT, PD and PT records. This
+    /// is meant to be used exactly once after the kernel is set up, and never again.
+    pub unsafe fn clear_lower_half(&mut self) {
+        self.ptables.clear_lower_half();
+    }
+
     /// Translate VA→PA if mapped (handles 1G/2M/4K leaves with offset).
     #[must_use]
     pub fn query(&self, va: VirtualAddress) -> Option<PhysicalAddress> {

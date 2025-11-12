@@ -110,7 +110,9 @@ fn efi_main() -> Status {
     let tramp_code_len: usize = PAGE_SIZE; // should be enough
 
     // Allocate a trampoline stack (with guard page)
-    debug!("Allocating trampoline stack for Kernel ({TRAMPOLINE_STACK_SIZE_BYTES} bytes)");
+    debug!(
+        "Allocating trampoline stack for Kernel ({tramp_code_va}, {TRAMPOLINE_STACK_SIZE_BYTES} bytes)"
+    );
     let (tramp_stack_base_phys, tramp_stack_top_va) =
         alloc_trampoline_stack(TRAMPOLINE_STACK_SIZE_BYTES, true);
 
