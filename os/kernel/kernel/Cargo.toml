@@ -15,9 +15,11 @@ default = ["qemu"]
 qemu = ["kernel-qemu/enabled"]
 
 [dependencies]
+bitfield-struct.workspace = true
 kernel-alloc = { path = "../kernel-alloc" }
 kernel-info = { path = "../kernel-info" }
 kernel-qemu = { path = "../../kernel/kernel-qemu", default-features = false }
+kernel-sync = { path = "../../kernel/kernel-sync" }
 kernel-vmem = { path = "../../kernel/kernel-vmem" }
 
 [build-dependencies]

@@ -1,5 +1,160 @@
 # Developer Diary
 
+## 2025-11-12
+
+There's some more work left to do with the INT80h parts. The fact that I currently
+manually patch an explicitly known memory address of the user code table to make it
+work is wild. I will have to update the VMM to either allocate disjoint tables
+if any bit in the path is already marked system / not user-callable, but maybe
+it makes even more sense to directly use dedicated VA bases for kernel and user code.
+This doesn't solve the issue on its own (e.g. because of NX bits), but at least it
+avoids user-callable bit issues and makes reasoning about memory ranges a bit easier.
+
+## 2025-11-09
+
+Shot myself in the foot today: My spin mutex works, but it also silently blocks.
+I was chasing ghosts when calling into userland when in reality I just attempted
+to lock the mutex from within a mutex lock.
+
+The `INT3` breakpoint handler now works, so it seems like usermode to kernel call works.
+A bit later, the `INT80` syscall also worked. From what I can tell, returning values
+via `rax` from syscall works, and the printing loop works as well. This is massive progress!
+
+Trying my code in release build shortly after immediately got it stuck in `map_ist_stack`.
+I got it fixed by increasing the release mode stack from 16 KiB to the 32 KiB I have
+been using during development; this immediately unblocked it.
+
+## 2025-11-08
+
+Today's topic is allocating a proper kernel stack for the bootstrap processor, i.e. not
+running off the `BOOT_STACK` linker section. I decided to rework the previous days' hacks
+into a `PerCpu` structure even though I am not dealing with multiple CPUs right now;
+collecting everything together made it a lot simpler to reason about what's needed (i.e.,
+no `statics` all over the place), although I would be lying if I claimed to have grasped
+the whole picture just yet. That said, right now I am able to trampoline onto a properly
+allocated stack (once again), and am now dealing with wiring in the second-stage boostrapping.
+
+There's now also an early page fault handler that at least avoids the triple fault every time.
+
+The DS/ES/SS reload after setting the GDT haunted me today. The LAPIC timer interrupt would
+get stuck, seemingly without reason, on `iretq`. In reality, it caused a general protection
+fault which I could observe after installing the GP handler. It tried to execute into segment
+`0x38`, which clearly doesn't exist, and not on the `KERNEL_CS` as expected. Turns out that
+reloading the DS/ES/SS was good, but I never actually reloaded the CS (code segment) itself.
+After adding that in the `init_gdt_and_tss` function, the timer seemed to work significantly
+better.
+
+The code needs a severe cleanup after today. Right now the APIC timer works and is calibrated
+against the TSC (via serialized `rdtsc` and some busy looping). From there, APIC timer
+start and divisors are computed, and now it ticks 1 kHz.
+
+## 2025-11-04
+
+Still wrapping my head around GDT, IDT, TSS, ...
+I ran into some issue yesterday evening where the kernel wouldn't start up; took me until
+today to figure out that I just failed a debug assertion and my panic handler simply idle looped.
+I now added some proper text output to it to avoid this in the future.
+The test to see whether the IDT was installed was wrong, and now I'm using the `sidt` instruction
+to actually fetch the IDT record instead of reading the first byte and hoping for the best.
+The INT 80h handler now installs, but I have still no way to properly test it just yet.
+
+On Memory Segmentation, Dr. ChatGPT says:
+
+> A memory segment is a region of linear (virtual) memory defined by a segment descriptor in
+> the GDT (Global Descriptor Table) or LDT (Local Descriptor Table). Each descriptor provides:
+>
+> * a base address,
+> * a limit (size),
+> * and attributes (read/write, execute, privilege level, etc.).
+>
+> In 16- and 32-bit protected mode, logical addresses consist of a segment selector + offset.
+> The CPU combines them like this:
+>
+> ```
+> linear_address = segment.base + offset
+> ```
+>
+> and checks that the offset ≤ limit.
+>
+> **Example (protected mode):**
+>
+> ```asm
+> mov eax, [ds:0x1234]
+> ```
+>
+> Here `ds` selects a descriptor (e.g., base = 0x40000000, limit = 0xFFFFF).
+> So the CPU fetches from linear address `0x40001234`.
+>
+> Thus, segmentation was used to isolate code/data and implement per-task address spaces before paging became dominant.
+>
+> Long mode disables nearly all of this:
+>
+> * The base of all code/data segments is forced to 0.
+> * The limit is ignored (treated as 0xFFFF_FFFF_FFFF_FFFF).
+> * The only segmentation that still partly works:
+>   * FS and GS register bases can still hold non-zero 64-bit values.
+>     * These are used by OSes to implement thread-local storage or CPU-local data.
+>   * Privilege levels (DPL bits) of code segments still matter.
+>   * System segments (TSS, LDT descriptors) still exist.
+>
+> So in long mode, a “memory segment” is _still a logical concept_ defined by a descriptor,
+> but the hardware effectively treats all normal segments as flat, except `FS` and `GS`.
+
+On **Task State Segments**, Dr. ChatGPT says:
+
+> Despite the name, the Task State Segment is not a memory segment for your code or data.
+> It’s a special data structure the CPU consults for privileged operations,
+> historically meant for hardware task switching (which long mode no longer uses).
+>
+> The TSS lives in memory, and the GDT (Global Descriptor Table) contains a system
+> descriptor (type = 0x9 / 0xB) that points to it.
+>
+> | Field            | Purpose                                                                                                                                       |
+> |------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+> | rsp0, rsp1, rsp2 | Kernel stacks for CPL = 0,1,2. When the CPU transitions from user mode (CPL = 3) to kernel mode (CPL = 0), it loads `RSP` from `rsp0`.        |
+> | ist1..ist7       | Optional **Interrupt Stack Table** entries — alternate stacks for specific interrupts (e.g., double fault, NMI, #DF).                         |
+> | iopb_offset      | Offset of the I/O permission bitmap — controls which I/O ports the task can access. Setting this offset ≥ sizeof(TSS) disables IOPB entirely. |
+>
+> The CPU references the TSS only:
+>
+> * on privilege transitions (to pick a safe stack), and
+> * when delivering interrupts using IST entries.
+
+And
+
+> ```
+> +-------------------+          +-------------------+
+> | GDT (Descriptors) |----+---> | Code Segment (base=0)   --> flat 64-bit memory
+> | - Kernel code     |    |
+> | - Kernel data     |    |
+> | - User code       |    |
+> | - User data       |    |
+> | - TSS descriptor  |----+---> | TSS64 structure in memory
+> |                   |          |  rsp0, ist1..7, iopb_offset
+> +-------------------+          +-------------------+
+> ```
+
+Before continuing wiring userland in, I'm thinking to refactor the half-state I have right now into
+a per-CPU struct. Not that I expect SMP anytime soon, but it might just help myself understand better
+which information I need to keep together to set up the CPU/kernel.
+
+## 2025-11-02
+
+Found [Task](https://taskfile.dev/) today and migrated from `Justfile` to `Taskfile.yaml`. It's
+a bit of a paradigm shift but the added complexity made release builds significantly easier
+(although I still not _entirely_ happy with it). It's good to see that the framebuffer pixel pokes
+are not entirely slow under a proper build.
+
+I also started with the initial userspace code logic yesterday. The idea is to use a CPIO "initramfs"
+style filesystem. UEFI could load it into RAM and map it, then hand it over to the kernel. This way I
+can get my first userspace code to load without having to implement a full-blown filesystem
+driver. To that I decided I'd go with classic FAT16 first, read-only to begin with, but there's
+still a _long_ way until I get there. The first idea is to mimic user code as a function in the
+Kernel itself - doesn't matter where the code came from, after all - and then implement very basic
+INT 80h style context switching. With an extremely basic initial syscall for poking into the QEMU
+debug port and returning some numerical value I can try to set up a very first task. Preempting
+would then be next.
+
 ## 2025-10-31
 
 ... and touching the Virtual Memory again, this time to add PAT (Page Attribute Table) bits

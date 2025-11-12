@@ -1,6 +1,6 @@
 //! # Kernel QEMU Helpers
 
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(any(test, doctest)), no_std)]
 #![allow(unsafe_code)]
 #![cfg_attr(not(feature = "enabled"), allow(unused_variables))]
 
@@ -33,6 +33,7 @@ pub mod qemu_fmt {
         }
     }
 
+    // TODO: Model this as an actual sink for arbitrary port write
     pub struct QemuSink;
 
     impl Write for QemuSink {
@@ -73,6 +74,7 @@ pub mod qemu_fmt {
     }
 }
 
+// TODO: Model this as a regular trace macro optionally backed by the QWEMU sink
 #[macro_export]
 macro_rules! qemu_trace {
     ($($arg:tt)*) => {{

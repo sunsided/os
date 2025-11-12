@@ -29,6 +29,7 @@ A toy x86-64 operating system written in Rust, using UEFI to boot and load a ker
 * [x] UEFI bootloader
 * [x] Kernel image loading
 * [x] Basic memory management
+* [x] APIC timer interrupt calibrated on TSC
 * [ ] Basic I/O
 * [ ] Basic process management
 * [ ] Basic file system
@@ -45,9 +46,9 @@ A toy x86-64 operating system written in Rust, using UEFI to boot and load a ker
 To build and run the project on QEMU, use:
 
 ```shell
-just package && just run-qemu
+task qemu
 # or
-just package-release && just run-qemu
+task qemu PROFILE=release
 ```
 
 ### Rust targets
@@ -59,6 +60,12 @@ rustup target add x86_64-unknown-uefi
 rustup target add x86_64-unknown-none
 ```
 
+For a simplified experience, run
+
+```shell
+task setup
+```
+
 ### Pitfalls for Compiling
 
 The workspace targets require different target architectures, for example `x86_64-unknown-uefi` for
@@ -67,7 +74,7 @@ cannot be configured for per-package targets, so
 using `cargo build` from the workspace root is bound to
 fail.
 
-For the easiest build path, use `just build` instead
+For the easiest build path, use `task build` instead
 of `cargo build`, or use any of the aliases defined
 in [`.cargo/config.toml`](.cargo/config.toml) (such
 as `cargo uefi-dev`).
@@ -75,9 +82,9 @@ as `cargo uefi-dev`).
 ### Example Build Commands
 
 ```sh
-just uefi
+task build:uefi
 cargo uefi
-just build
+task build
 ```
 
 Or, manually:

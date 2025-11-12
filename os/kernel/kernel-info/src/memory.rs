@@ -22,3 +22,15 @@ pub const HHDM_BASE: u64 = 0xffff_8880_0000_0000;
 /// Keep a tiny identity map so the paging switch code remains executable
 /// right after CR3 reload (and to let you pass low pointers if you want).
 pub const IDENTITY_LOW_BYTES: u64 = 0x20_0000; // 2 MiB
+
+/// The size of the kernel stack in debug builds.
+#[cfg(debug_assertions)]
+pub const KERNEL_STACK_SIZE: usize = 32 * 1024;
+
+/// The size of the kernel stack in release builds.
+#[cfg(not(debug_assertions))]
+pub const KERNEL_STACK_SIZE: usize = 32 * 1024;
+
+const _: () = {
+    assert!(KERNEL_STACK_SIZE.is_multiple_of(4096));
+};

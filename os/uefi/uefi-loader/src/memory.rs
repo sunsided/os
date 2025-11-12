@@ -34,7 +34,7 @@ unsafe impl GlobalAlloc for UefiBootAllocator {
 
         // Boot services must be active; if not, return null to signal OOM.
         // Allocate from LOADER_DATA pool; align is handled manually.
-        let Ok(raw) = boot::allocate_pool(boot::MemoryType::LOADER_DATA, total) else {
+        let Ok(raw) = boot::allocate_pool(MemoryType::LOADER_DATA, total) else {
             return null_mut();
         };
 
@@ -42,6 +42,7 @@ unsafe impl GlobalAlloc for UefiBootAllocator {
         let addr = raw_ptr as usize + size_of::<usize>();
         let aligned = (addr + (align - 1)) & !(align - 1);
         let header_ptr = (aligned - size_of::<usize>()) as *mut usize;
+
         // Store the original allocation pointer just before the aligned region
         unsafe {
             ptr::write(header_ptr, raw_ptr as usize);
@@ -53,9 +54,11 @@ unsafe impl GlobalAlloc for UefiBootAllocator {
         if ptr.is_null() {
             return;
         }
+
         // Recover the original pool pointer from the header we stored in alloc()
         let header_ptr = (ptr as usize - size_of::<usize>()) as *mut usize;
         let orig_ptr = unsafe { ptr::read(header_ptr) as *mut u8 };
+
         // SAFETY: `orig_ptr` was returned by `allocate_pool` and stored by us.
         let _ = unsafe { boot::free_pool(NonNull::new_unchecked(orig_ptr)) };
     }
@@ -65,6 +68,7 @@ unsafe impl GlobalAlloc for UefiBootAllocator {
         if !p.is_null() {
             unsafe { ptr::write_bytes(p, 0, layout.size()) };
         }
+
         p
     }
 }

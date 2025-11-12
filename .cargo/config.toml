@@ -1,12 +1,17 @@
 [build]
 target-dir = "target"
 
+# This is technically incorrect because the UEFI parts must be built with
+# x86_64-unknown-uefi; it provied a proper default for the kernel bits however
+# when building directly from the workspace root.
+target = "x86_64-unknown-none"
+
 [alias]
-uefi           = "uefi-debug"
-uefi-debug     = "build -p uefi-loader --target x86_64-unknown-uefi"
-uefi-release   = "build -p uefi-loader --release --target x86_64-unknown-uefi"
-kernel         = "kernel-debug"
-kernel-debug   = "build -p kernel --target x86_64-unknown-none"
+uefi = "uefi-debug"
+uefi-debug = "build -p uefi-loader --target x86_64-unknown-uefi"
+uefi-release = "build -p uefi-loader --release --target x86_64-unknown-uefi"
+kernel = "kernel-debug"
+kernel-debug = "build -p kernel --target x86_64-unknown-none"
 kernel-release = "build -p kernel --release --target x86_64-unknown-none"
 
 [target.x86_64-unknown-uefi]

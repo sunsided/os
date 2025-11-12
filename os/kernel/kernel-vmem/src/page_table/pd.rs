@@ -470,7 +470,7 @@ mod test {
                 assert_eq!(p.base().as_u64(), 0x3000_0000);
                 assert_eq!(f.into_bits() & (1 << 7), 0, "must be PS=0");
             }
-            _ => panic!("expected next PT"),
+            PdEntryKind::Leaf2MiB(_, _) => panic!("expected next PT"),
         }
 
         let m2 = PhysicalPage::<Size2M>::from_addr(PhysicalAddress::new(0x4000_0000));
@@ -480,7 +480,7 @@ mod test {
                 assert_eq!(p.base().as_u64(), 0x4000_0000);
                 assert_ne!(f.into_bits() & (1 << 7), 0, "must be PS=1");
             }
-            _ => panic!("expected 2MiB leaf"),
+            PdEntryKind::NextPageTable(_, _) => panic!("expected 2MiB leaf"),
         }
     }
 }

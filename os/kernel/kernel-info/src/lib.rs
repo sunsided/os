@@ -1,6 +1,6 @@
 //! # Kernel Helpers
 
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(any(test, doctest)), no_std)]
 #![deny(unsafe_code)]
 
 pub mod boot;

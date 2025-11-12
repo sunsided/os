@@ -67,7 +67,7 @@
 //! virtual address space, using leaf pages of 1 GiB, 2 MiB, or 4 KiB depending
 //! on which level the translation stops.
 
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(any(test, doctest)), no_std)]
 #![allow(unsafe_code, clippy::inline_always)]
 
 pub mod address_space;
@@ -76,7 +76,7 @@ mod bits;
 pub mod page_table;
 
 pub use crate::address_space::AddressSpace;
-use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K};
+use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualPage};
 pub use crate::bits::VirtualMemoryPageBits;
 use crate::page_table::pd::PageDirectory;
 use crate::page_table::pdpt::PageDirectoryPointerTable;
@@ -257,4 +257,31 @@ pub unsafe fn read_cr3_phys() -> PhysicalAddress {
     // Clear PCID / low bits by turning it into a 4K page base and back to an address.
     let page = PhysicalAddress::from(cr3).page::<Size4K>(); // drop low 12 bits
     PhysicalAddress::from(page)
+}
+
+/// Invalidate one page in the TLB on the **current CPU** for the **current** address space.
+///
+/// Emits `invlpg [va]`.
+///
+/// # Safety
+/// The caller must uphold:
+/// - **Privilege:** Executed in a context where `invlpg` is permitted (e.g., ring 0).
+/// - **Canonical VA:** `page.base()` must be canonical for the current paging mode.
+/// - **Current address space:** Only use after modifying the **active** address space
+///   (same CR3/PCID as the caller). It does not invalidate entries for other CR3s.
+/// - **Scope:** It affects **only** the local CPU. Coordinate remote invalidations
+///   on other CPUs that could have cached the translation.
+/// - **PCID/global pages:** If PCID or global mappings are in use, ensure this
+///   instruction’s semantics match your needs; otherwise prefer INVPCID or a
+///   global-flush strategy when required.
+#[inline]
+pub unsafe fn invalidate_tlb_page(page: VirtualPage<Size4K>) {
+    let va = page.base().as_u64();
+    unsafe {
+        core::arch::asm!(
+            "invlpg [{}]",
+            in(reg) va,
+            options(nostack, preserves_flags),
+        );
+    }
 }

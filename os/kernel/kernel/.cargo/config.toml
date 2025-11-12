@@ -12,8 +12,7 @@ rustflags = [
     # Make it a fixed-address, non-PIE executable with no dynamic deps
     "-C", "relocation-model=static",
     "-C", "code-model=kernel",
-    "-C", "link-arg=-static",
-    "-C", "link-arg=-nostdlib",
-    "-C", "link-arg=-no-pie",
-    "-Cpanic=abort",
+    "-C", "link-args=-static -nostdlib -no-pie",
+    "-C", "no-redzone=true",
+    "-C", "panic=abort",
 ]

@@ -35,9 +35,11 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 name = "kernel"
 version = "0.0.0"
 dependencies = [
+ "bitfield-struct",
  "kernel-alloc",
  "kernel-info",
  "kernel-qemu",
+ "kernel-sync",
  "kernel-vmem",
 ]
 
@@ -52,6 +54,7 @@ dependencies = [
  "kernel-info",
  "kernel-sync",
  "kernel-vmem",
+ "thiserror",
 ]
 
 [[package]]
