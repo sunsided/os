@@ -10,8 +10,8 @@
 //! the privileged `RDMSR` and `WRMSR` instructions.
 //!
 //! Commonly used MSRs include:
-//! - `IA32_GS_BASE` (0xC000_0101): current GS base address used by `mov %gs:...`
-//! - `IA32_KERNEL_GS_BASE` (0xC000_0102): swap value used when executing `swapgs`
+//! - `IA32_GS_BASE` (`0xC000_0101)`: current GS base address used by `mov %gs:...`
+//! - `IA32_KERNEL_GS_BASE` (`0xC000_0102)`: swap value used when executing `swapgs`
 //!
 //! The kernel typically uses `IA32_KERNEL_GS_BASE` to store the **kernel-side GS base**
 //! (e.g., a pointer to per-CPU data), while userland may use `IA32_GS_BASE` for TLS.
@@ -44,7 +44,7 @@ impl Msr {
     ///
     /// In 64-bit mode, this value is 64 bits wide and read/writable through
     /// `RDMSR`/`WRMSR` at index `0xC000_0101`.
-    pub const IA32_GS_BASE: Msr = Msr::new(0xC000_0101);
+    pub const IA32_GS_BASE: Self = Self::new(0xC000_0101);
 
     /// Model-Specific Register: **kernel GS base**.
     ///
@@ -54,16 +54,18 @@ impl Msr {
     ///
     /// On `swapgs`, the CPU atomically swaps the contents of
     /// `IA32_GS_BASE` and `IA32_KERNEL_GS_BASE`.
-    pub const IA32_KERNEL_GS_BASE: Msr = Msr::new(0xC000_0102);
+    pub const IA32_KERNEL_GS_BASE: Self = Self::new(0xC000_0102);
 
     /// Creates a new `Msr` from a raw index.
     #[inline(always)]
+    #[allow(clippy::inline_always)]
     const fn new(index: u32) -> Self {
         Self(index)
     }
 
     /// Returns the underlying raw MSR index.
     #[inline(always)]
+    #[allow(clippy::inline_always)]
     pub const fn raw(self) -> u32 {
         self.0
     }
@@ -99,8 +101,9 @@ impl Msr {
 /// - [`IA32_GS_BASE`]
 /// - [`IA32_KERNEL_GS_BASE`]
 #[inline]
+#[allow(clippy::cast_possible_truncation)]
 unsafe fn write_model_specific_register(msr: Msr, val: u64) {
-    let lo = val as u32;
+    let lo = (val & 0xFFFF_FFFF) as u32;
     let hi = (val >> 32) as u32;
     let msr = msr.raw();
     unsafe {
@@ -116,6 +119,7 @@ unsafe fn write_model_specific_register(msr: Msr, val: u64) {
 
 /// Reads the 64-bit value from the given **Model-Specific Register (MSR)**.
 #[inline(always)]
+#[allow(clippy::inline_always)]
 pub unsafe fn read_model_specific_register(msr: Msr) -> u64 {
     let lo: u32;
     let hi: u32;
@@ -123,17 +127,19 @@ pub unsafe fn read_model_specific_register(msr: Msr) -> u64 {
     unsafe {
         core::arch::asm!("rdmsr", in("ecx") ecx, out("eax") lo, out("edx") hi, options(nomem, nostack));
     }
-    ((hi as u64) << 32) | (lo as u64)
+    (u64::from(hi) << 32) | u64::from(lo)
 }
 
 /// Get the [`PerCpu`] pointer from the current [`IA32_GS_BASE`](Msr::IA32_GS_BASE).
 #[inline(always)]
+#[allow(clippy::inline_always)]
 pub fn gs_base_ptr() -> *const PerCpu {
     unsafe { read_model_specific_register(Msr::IA32_GS_BASE) as *const PerCpu }
 }
 
 /// Get the [`PerCpu`] pointer from the current [`IA32_GS_BASE`](Msr::IA32_GS_BASE).
 #[inline(always)]
+#[allow(clippy::inline_always)]
 #[allow(dead_code)]
 pub fn kernel_gs_base_ptr() -> *const PerCpu {
     unsafe { read_model_specific_register(Msr::IA32_KERNEL_GS_BASE) as *const PerCpu }
@@ -187,6 +193,7 @@ pub unsafe fn set_kernel_gs_base<T>(base: NonNull<T>) {
 }
 
 #[inline(always)]
+#[allow(clippy::inline_always)]
 const fn is_canonical(addr: u64) -> bool {
     // Canonical if bits 63..48 are all copies of bit 47.
     let sign = (addr >> 47) & 1;

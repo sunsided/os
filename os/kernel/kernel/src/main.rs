@@ -51,6 +51,11 @@ use kernel_qemu::qemu_trace;
 ///
 /// # Safety
 /// Assumes that [`remap_boot_memory`] has been called and all required mappings are in place.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
 fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
     qemu_trace!("Kernel doing kernel things now ...\n");
 
@@ -66,7 +71,7 @@ fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
 
     loop {
         let ticks = cpu.ticks.load(Ordering::Acquire);
-        let hz = TIMER_HZ.load(Ordering::Acquire) as u64;
+        let hz = TIMER_HZ.load(Ordering::Acquire);
 
         // Phase from integer modulo: 2-second period
         let period_ticks = 2 * hz; // 2 s
@@ -84,7 +89,7 @@ fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
 
         let s = fast_sin(x); // ~[-1, +1]
 
-        // Scale to [0, 255] ---
+        // Scale to [0, 255]
         let brightness = ((s + 1.0) * 0.5 * 255.0) as u8;
 
         // Optional: second counter (kept from your code)

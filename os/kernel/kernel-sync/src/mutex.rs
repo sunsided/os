@@ -45,8 +45,10 @@ use core::ops::{Deref, DerefMut};
 ///
 /// - The type is `!Send`/`!Sync` by default (via a `PhantomData` marker).
 /// - We unsafely implement:
+///
 ///   - `Sync` for `Mutex<T, R>` if `T: Send` and `R: Sync`.
 ///   - `Send` for `Mutex<T, R>` if `T: Send` and `R: Send`.
+///
 ///   These bounds ensure the protected data may cross threads and that the
 ///   raw lock is safe to share/move as required.
 /// - The guard unlocks in `Drop` via [`RawUnlock::raw_unlock`].

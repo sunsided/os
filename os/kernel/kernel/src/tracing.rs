@@ -45,7 +45,7 @@ pub fn log_ctrl_bits() {
         let lo: u32;
         let hi: u32;
         core::arch::asm!("rdmsr", in("ecx") 0xC000_0080u32, out("eax") lo, out("edx") hi);
-        efer = ((hi as u64) << 32) | (lo as u64);
+        efer = (u64::from(hi) << 32) | u64::from(lo);
         qemu_trace!(
             "CR4={:016x} (SMEP={} SMAP={}) EFER={:016x} (NXE={})\n",
             cr4,

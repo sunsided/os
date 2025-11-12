@@ -146,7 +146,7 @@ pub struct PageFaultError {
 }
 
 impl PageFaultError {
-    pub fn explain(&self) -> &'static str {
+    pub const fn explain(self) -> &'static str {
         if !self.present() {
             "Non-present page (page not mapped or swapped out)"
         } else if self.instruction_fetch() {

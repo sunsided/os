@@ -18,7 +18,7 @@ pub use ranges::CpuidRanges;
 /// # See also
 /// [`CpuidRanges`] provides typed access to the `cpuid(0, 0)` result.
 #[inline(always)]
-#[allow(unused_assignments)]
+#[allow(unused_assignments, clippy::inline_always)]
 pub unsafe fn cpuid(leaf: u32, subleaf: u32) -> CpuidResult {
     let (mut eax, mut ebx, mut ecx, mut edx) = (leaf, 0u32, subleaf, 0u32);
     unsafe {
@@ -37,6 +37,7 @@ pub unsafe fn cpuid(leaf: u32, subleaf: u32) -> CpuidResult {
     CpuidResult { eax, ebx, ecx, edx }
 }
 
+#[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct CpuidResult {
     pub eax: u32,

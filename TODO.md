@@ -11,6 +11,10 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 - Line [151](./os/kernel/kernel-vmem/src/address_space.rs#L151): Refactor to error type
 
+## [os/kernel/kernel/src/alloc/debug.rs](./os/kernel/kernel/src/alloc/debug.rs)
+
+- Line [7](./os/kernel/kernel/src/alloc/debug.rs#L7): Review whether the default type can be used
+
 ## [os/kernel/kernel/src/init.rs](./os/kernel/kernel/src/init.rs)
 
 - Line [158](./os/kernel/kernel/src/init.rs#L158): 3. Allocate & map a per-CPU kernel stack (with a guard page), compute its 16-byte–aligned top.

@@ -18,7 +18,7 @@ pub struct PerCpu {
     /// Pointer to the current running task (kernel struct). Optional for now.
     pub current_task: core::sync::atomic::AtomicPtr<Task>,
 
-    /// 64-bit TSS required in long mode (rsp0, ISTx, iopb).
+    /// 64-bit TSS required in long mode (rsp0, `ISTx`, iopb).
     pub tss: Tss64,
 
     /// Kernel stack top used on CPL3→CPL0 transitions (loaded from TSS.rsp0).
@@ -70,7 +70,8 @@ impl PerCpu {
     }
 
     #[inline(always)]
-    pub fn current() -> &'static PerCpu {
+    #[allow(clippy::inline_always)]
+    pub fn current() -> &'static Self {
         let ptr = gs_base_ptr();
         debug_assert!(!ptr.is_null(), "Per-CPU instance pointer is unset");
         unsafe { &*ptr }

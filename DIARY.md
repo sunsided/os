@@ -1,18 +1,28 @@
 # Developer Diary
 
+## 2025-11-12
+
+There's some more work left to do with the INT80h parts. The fact that I currently
+manually patch an explicitly known memory address of the user code table to make it
+work is wild. I will have to update the VMM to either allocate disjoint tables
+if any bit in the path is already marked system / not user-callable, but maybe
+it makes even more sense to directly use dedicated VA bases for kernel and user code.
+This doesn't solve the issue on its own (e.g. because of NX bits), but at least it
+avoids user-callable bit issues and makes reasoning about memory ranges a bit easier.
+
 ## 2025-11-09
 
 Shot myself in the foot today: My spin mutex works, but it also silently blocks.
 I was chasing ghosts when calling into userland when in reality I just attempted
 to lock the mutex from within a mutex lock.
 
-The `INT3` breakpoint handler now works, so it seem slike usermode to kernel call works.
+The `INT3` breakpoint handler now works, so it seems like usermode to kernel call works.
 A bit later, the `INT80` syscall also worked. From what I can tell, returning values
 via `rax` from syscall works, and the printing loop works as well. This is massive progress!
 
 Trying my code in release build shortly after immediately got it stuck in `map_ist_stack`.
 I got it fixed by increasing the release mode stack from 16 KiB to the 32 KiB I have
-been using during development; this immediatly unblocked it.
+been using during development; this immediately unblocked it.
 
 ## 2025-11-08
 
@@ -27,7 +37,7 @@ allocated stack (once again), and am now dealing with wiring in the second-stage
 There's now also an early page fault handler that at least avoids the triple fault every time.
 
 The DS/ES/SS reload after setting the GDT haunted me today. The LAPIC timer interrupt would
-get stuck, seemingly without reason, on `iretq`. In reality it caused a general protection
+get stuck, seemingly without reason, on `iretq`. In reality, it caused a general protection
 fault which I could observe after installing the GP handler. It tried to execute into segment
 `0x38`, which clearly doesn't exist, and not on the `KERNEL_CS` as expected. Turns out that
 reloading the DS/ES/SS was good, but I never actually reloaded the CS (code segment) itself.

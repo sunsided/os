@@ -42,9 +42,9 @@ pub const KSTACK_CPU_STRIDE: u64 = 0x10_0000; // 1 MiB per CPU
 
 const _: () = {
     // Sanity: ensure stack size fits within the per-CPU slot.
-    assert!(KERNEL_STACK_SIZE as u64 % Size4K::SIZE == 0);
+    assert!((KERNEL_STACK_SIZE as u64).is_multiple_of(Size4K::SIZE));
     assert!((KERNEL_STACK_SIZE as u64) <= max_kstack_bytes());
-    assert!(KSTACK_CPU_STRIDE % Size4K::SIZE == 0);
+    assert!(KSTACK_CPU_STRIDE.is_multiple_of(Size4K::SIZE));
 };
 
 /// Maximum usable bytes for a single kernel stack (excludes guard page).

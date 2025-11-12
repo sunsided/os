@@ -74,7 +74,7 @@ impl Selectors {
 }
 
 impl Default for Selectors {
-    fn default() -> Selectors {
+    fn default() -> Self {
         Self::new()
     }
 }
@@ -97,6 +97,7 @@ pub const USER_DS: u16 = USER_DS_SEL.encode(); // 0x23
 pub const TSS_SEL: u16 = TSS_SYS_SEL.encode(); // 0x28
 
 // Compile-time sanity checks for selectors and descriptor sizes.
+#[allow(clippy::items_after_statements)]
 const _: () = {
     // Expected raw selector numbers (given the GDT layout in this file).
     assert!(KERNEL_CS == 0x08);
@@ -190,6 +191,7 @@ impl Gdt {
 ///   remain **mapped and readable** for the lifetime of the CPU.
 /// - Callers must ensure no interrupts or faults observe a half-installed state.
 #[inline]
+#[allow(clippy::cast_possible_truncation)]
 unsafe fn load_gdt(gdt: &Gdt) {
     let ptr = DescTablePtr {
         limit: (size_of::<Gdt>() - 1) as u16,
@@ -248,6 +250,7 @@ unsafe fn load_task_register(sel: SegmentSelector<TssSel>) {
 /// // During boot on BSP:
 /// init_gdt_and_tss(kernel_stack_top, Some(double_fault_stack_top));
 /// ```
+#[allow(clippy::cast_possible_truncation)]
 pub fn init_gdt_and_tss(
     p: &mut PerCpu,
     kernel_stack_top: VirtualAddress,
@@ -286,7 +289,7 @@ pub fn init_gdt_and_tss(
             "push rax",
             "retfq",
             "2:",
-            cs = in(reg) (kcs as u64),
+            cs = in(reg) u64::from(kcs),
             out("rax") _,
             options(nostack)
         );

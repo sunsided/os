@@ -84,14 +84,14 @@ extern "C" fn log_gp_fault(rip: VirtualAddress, selector: u64) {
     );
 
     qemu_trace!("GENERAL PROTECTION FAULT: rip=0x{rip} selector={selector:#x}\n");
-    if let Some(info) = decode_gp_error(selector) {
-        qemu_trace!(
-            "  selector_idx={} ti={} ext={}\n",
-            info.selector_index,
-            info.ti_ldt,
-            info.external
-        );
-    }
+    let info = decode_gp_error(selector);
+    qemu_trace!(
+        "  selector_idx={} ti={} ext={}\n",
+        info.selector_index,
+        info.ti_ldt,
+        info.external
+    );
+
     loop {
         spin_loop();
     }
@@ -104,11 +104,11 @@ struct GpErrorInfo {
     external: bool,
 }
 
-fn decode_gp_error(err: u64) -> Option<GpErrorInfo> {
+const fn decode_gp_error(err: u64) -> GpErrorInfo {
     // If you want, treat zero specially; here we always return Some.
-    Some(GpErrorInfo {
+    GpErrorInfo {
         selector_index: ((err >> 3) & 0x1fff) as u16, // bits 15:3
         ti_ldt: ((err >> 2) & 0x1) != 0,              // Table Indicator: 0=GDT, 1=LDT
         external: (err & 0x1) != 0,                   // EXT bit
-    })
+    }
 }

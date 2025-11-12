@@ -23,6 +23,7 @@ pub unsafe fn init_kernel_vmm(mapper: HhdmPhysMapper, alloc: BitmapFrameAlloc) {
     });
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[allow(dead_code)]
 pub enum FlushTlb {
     Never,
@@ -37,7 +38,7 @@ pub fn with_kernel_vmm(f: impl FnOnce(&mut KernelVmm)) {
 
     // Safety: CR3 points to a valid PML4; mapper is valid for kernel lifetime.
     let mut vmm = unsafe { Vmm::from_current(&kvm.mapper, &mut *alloc) };
-    f(&mut vmm)
+    f(&mut vmm);
 }
 
 #[inline]

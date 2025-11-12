@@ -53,22 +53,22 @@ impl Leaf01h {
     }
 
     #[inline]
-    pub fn has_x2apic(&self) -> bool {
+    pub const fn has_x2apic(&self) -> bool {
         self.ecx.x2apic()
     }
 
     #[inline]
-    pub fn avx_usable(&self) -> bool {
+    pub const fn avx_usable(&self) -> bool {
         self.ecx.avx() && self.ecx.xsave() && self.ecx.osxsave()
     }
 
     #[inline]
-    pub fn initial_apic_id(&self) -> u8 {
+    pub const fn initial_apic_id(&self) -> u8 {
         self.ebx.initial_apic_id()
     }
 
     #[inline]
-    pub fn logical_cpus_legacy(&self) -> u8 {
+    pub const fn logical_cpus_legacy(&self) -> u8 {
         self.ebx.logical_processor_count()
     }
 
@@ -78,12 +78,12 @@ impl Leaf01h {
     }
 
     #[inline]
-    pub fn model(&self) -> u8 {
+    pub const fn model(&self) -> u8 {
         self.eax.effective_model()
     }
 
     #[inline]
-    pub fn stepping(&self) -> u8 {
+    pub const fn stepping(&self) -> u8 {
         self.eax.stepping()
     }
 }
@@ -122,10 +122,10 @@ pub struct Leaf1Eax {
 
 impl Leaf1Eax {
     /// Effective family per SDM:
-    /// if base family == 0x0F → base + ext_family, else base.
+    /// if base family == 0x0F → base + `ext_family`, else base.
     #[inline]
-    pub fn effective_family(&self) -> u16 {
-        let fam = self.family() as u16;
+    pub fn effective_family(self) -> u16 {
+        let fam = u16::from(self.family());
         if fam == 0x0F {
             fam + self.ext_family()
         } else {
@@ -134,9 +134,9 @@ impl Leaf1Eax {
     }
 
     /// Effective model per SDM:
-    /// if base family in {0x06, 0x0F} → base_model | (ext_model << 4), else base_model.
+    /// if base family in {0x06, 0x0F} → `base_model` | (`ext_model` << 4), else `base_model`.
     #[inline]
-    pub fn effective_model(&self) -> u8 {
+    pub const fn effective_model(self) -> u8 {
         let fam = self.family();
         let base = self.model();
         if fam == 0x06 || fam == 0x0F {
@@ -169,8 +169,8 @@ pub struct Leaf1Ebx {
 impl Leaf1Ebx {
     /// CLFLUSH line size in **bytes** (value * 8).
     #[inline]
-    pub fn clflush_line_bytes(&self) -> u16 {
-        (self.clflush_line_size_8b() as u16) * 8
+    pub fn clflush_line_bytes(self) -> u16 {
+        u16::from(self.clflush_line_size_8b()) * 8
     }
 }
 
@@ -197,7 +197,7 @@ pub struct Leaf1Ecx {
     vmx: bool, // 5
     /// Safer Mode Extensions (SMX) are supported.
     smx: bool, // 6
-    /// Enhanced SpeedStep Technology (EST) is supported.
+    /// Enhanced `SpeedStep` Technology (EST) is supported.
     est: bool, // 7
     /// Thermal Monitor 2 (TM2) is supported.
     tm2: bool, // 8

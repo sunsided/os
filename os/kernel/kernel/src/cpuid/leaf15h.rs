@@ -44,7 +44,7 @@ impl Leaf15h {
     /// Compute TSC frequency if enough info is present.
     pub fn tsc_hz(&self) -> Option<u64> {
         if self.denom != 0 && self.numer != 0 && self.crystal_hz != 0 {
-            Some((self.crystal_hz as u64) * (self.numer as u64) / (self.denom as u64))
+            Some(u64::from(self.crystal_hz) * u64::from(self.numer) / u64::from(self.denom))
         } else {
             None
         }

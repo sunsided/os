@@ -150,6 +150,7 @@ pub struct Tss64 {
 }
 
 impl Tss64 {
+    #[allow(clippy::cast_possible_truncation)]
     pub const fn new() -> Self {
         Self {
             _reserved0: 0,
@@ -178,7 +179,7 @@ impl Tss64 {
 ///   interrupt/exception gate (e.g., `int 0x80`).
 /// * `ist1_top` — top of an IST1 stack for critical handlers (you
 ///   later bind an IDT entry to IST1).
-pub fn init_tss(p: &mut PerCpu, kernel_stack_top: VirtualAddress, ist1_top: VirtualAddress) {
+pub const fn init_tss(p: &mut PerCpu, kernel_stack_top: VirtualAddress, ist1_top: VirtualAddress) {
     let tss = &mut p.tss;
 
     tss.rsp0 = kernel_stack_top;
@@ -187,6 +188,6 @@ pub fn init_tss(p: &mut PerCpu, kernel_stack_top: VirtualAddress, ist1_top: Virt
 
 /// Update the Ring-0 stack pointer used on user→kernel transitions.
 #[allow(dead_code)]
-pub fn set_rsp0(p: &mut PerCpu, new_top: VirtualAddress) {
+pub const fn set_rsp0(p: &mut PerCpu, new_top: VirtualAddress) {
     p.tss.rsp0 = new_top;
 }

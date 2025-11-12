@@ -259,11 +259,21 @@ pub unsafe fn read_cr3_phys() -> PhysicalAddress {
     PhysicalAddress::from(page)
 }
 
-/// Invalidate one page in the TLB.
+/// Invalidate one page in the TLB on the **current CPU** for the **current** address space.
+///
+/// Emits `invlpg [va]`.
 ///
 /// # Safety
-/// - The address must be canonical for the current paging mode.
-/// - Use only when modifying the current address space (CR3).
+/// The caller must uphold:
+/// - **Privilege:** Executed in a context where `invlpg` is permitted (e.g., ring 0).
+/// - **Canonical VA:** `page.base()` must be canonical for the current paging mode.
+/// - **Current address space:** Only use after modifying the **active** address space
+///   (same CR3/PCID as the caller). It does not invalidate entries for other CR3s.
+/// - **Scope:** It affects **only** the local CPU. Coordinate remote invalidations
+///   on other CPUs that could have cached the translation.
+/// - **PCID/global pages:** If PCID or global mappings are in use, ensure this
+///   instruction’s semantics match your needs; otherwise prefer INVPCID or a
+///   global-flush strategy when required.
 #[inline]
 pub unsafe fn invalidate_tlb_page(page: VirtualPage<Size4K>) {
     let va = page.base().as_u64();

@@ -41,6 +41,7 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
     }
 
     /// Map **one** page of size `S` with `leaf_flags`, creating parents with `nonleaf_flags`.
+    #[allow(clippy::missing_errors_doc)]
     pub fn map_one<S: MapSize>(
         &mut self,
         va: VirtualAddress,
@@ -53,6 +54,7 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
     }
 
     /// Unmap a single **4 KiB** page at `va`. Returns Err if not a 4K mapping.
+    #[allow(clippy::missing_errors_doc)]
     pub fn unmap_one_4k(&mut self, va: VirtualAddress) -> Result<(), &'static str> {
         self.aspace.unmap_one(va)
     }
@@ -81,6 +83,7 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
     /// Convenience: map a **per-page** region using freshly allocated 4K frames (no PA contiguity).
     ///
     /// Leaves `guard` bytes at the beginning **unmapped** (for stacks).
+    #[allow(clippy::missing_errors_doc)]
     pub fn map_anon_4k_pages(
         &mut self,
         va_start: VirtualAddress,
@@ -112,6 +115,7 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
     /// # Safety
     /// - `dst_user .. dst_user+src.len()` must be mapped and writable.
     /// - Same address space active (your current setup).
+    #[allow(clippy::missing_errors_doc)]
     pub unsafe fn copy_to_mapped_user(
         &mut self,
         dst_user: VirtualAddress,
@@ -141,7 +145,8 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
     }
 
     /// Change per-page protection from RW to RX by unmapping & remapping with the same PA.
-    /// Works for 4K pages created by `map_anon_4k_pages`.
+    /// Works for 4K pages created by `map_anon_4k_pages`.v
+    #[allow(clippy::missing_errors_doc)]
     pub fn make_region_rx(
         &mut self,
         va_start: VirtualAddress,
@@ -164,13 +169,50 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
         Ok(())
     }
 
-    /// Invalidate one VA on this CPU (if you modify the active space).
+    /// Invalidate one VA on this CPU (when you modified the active address space).
+    ///
+    /// Calls [`invalidate_tlb_page`] for the given 4 KiB page in the **current**
+    /// address space (the CR3 that is active on this CPU).
+    ///
+    /// # Safety (correctness requirements)
+    /// This method is safe to call, but you must ensure the following for it to
+    /// actually produce correct behavior:
+    /// - You **only** use it after modifying the **currently active** page tables
+    ///   (same CR3/PCID that the calling CPU is running under). Invalidating a VA
+    ///   for a different CR3 does nothing for that other address space.
+    /// - It affects **only the calling CPU**. On SMP systems you must also issue
+    ///   invalidations (e.g., via IPIs) on any CPU that might have cached the old
+    ///   translation.
+    /// - With PCID and/or global pages enabled, this invalidation might not cover
+    ///   all translations you expect. Use an appropriate scheme (e.g., INVPCID or
+    ///   CR4.PGE toggling) if your paging mode relies on those features.
     #[inline]
     pub fn invlpg(&self, page: VirtualPage<Size4K>) {
         unsafe { invalidate_tlb_page(page) }
     }
 
-    /// Flush the entire TLB.
+    /// Flushes the (non-global) TLB entries for the **current address space** on this CPU
+    /// by reloading CR3 with its current value.
+    ///
+    /// On `x86/x86_64`, `mov cr3, cr3` invalidates cached translations associated with the
+    /// active CR3/PCID on the **local CPU**. It does **not** invalidate global mappings.
+    ///
+    /// # Safety
+    /// Calling this is `unsafe` because misuse can corrupt memory or hang the system.
+    /// The caller must guarantee:
+    /// - **Privilege:** Running in a context where CR3 access is permitted (e.g., ring 0).
+    /// - **Address space intent:** You intend to flush the **current** CR3/PCID only.
+    ///   Other address spaces are unaffected.
+    /// - **Global mappings:** This does **not** flush global (PGE) entries. If you rely
+    ///   on global mappings, use an alternative strategy (e.g., clear/set CR4.PGE or use
+    ///   INVPCID where available).
+    /// - **PCID semantics:** With PCID enabled, this flush targets the active PCID only.
+    ///   Ensure that matches your invalidation intent.
+    /// - **SMP:** It affects **only** the calling CPU. Coordinate remote TLB shootdowns
+    ///   (e.g., via IPIs) for other CPUs that could have cached stale entries.
+    /// - **Concurrency:** Ensure that other cores/interrupts can’t concurrently depend
+    ///   on the stale translations you’re invalidating (disable interrupts or otherwise
+    ///   synchronize as appropriate).
     pub unsafe fn local_tlb_flush_all(&self) {
         unsafe {
             let cr3: u64;

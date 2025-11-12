@@ -31,12 +31,13 @@ unsafe fn rdmsr(msr: u32) -> u64 {
             options(nomem, nostack)
         );
     }
-    ((hi as u64) << 32) | (lo as u64)
+    (u64::from(hi) << 32) | u64::from(lo)
 }
 
 #[inline]
+#[allow(clippy::cast_possible_truncation)]
 unsafe fn wrmsr(msr: u32, val: u64) {
-    let lo = val as u32;
+    let lo = (val & 0xFFFF_FFFF) as u32;
     let hi = (val >> 32) as u32;
     unsafe {
         core::arch::asm!(
@@ -53,9 +54,7 @@ unsafe fn wrmsr(msr: u32, val: u64) {
 /// Panics if x2APIC isn’t supported.
 pub unsafe fn enable_and_read_id_x2apic() -> u32 {
     let has_x2apic = unsafe { Leaf01h::new().has_x2apic() };
-    if !has_x2apic {
-        panic!("x2APIC not supported on this CPU/VM");
-    }
+    assert!(has_x2apic, "x2APIC not supported on this CPU/VM");
 
     let mut base = unsafe { rdmsr(IA32_APIC_BASE) };
 
@@ -68,13 +67,20 @@ pub unsafe fn enable_and_read_id_x2apic() -> u32 {
     debug_assert!((now & APIC_EXTD) != 0, "failed to set x2APIC bit");
 
     // Read APIC ID via MSR.
-    unsafe { rdmsr(IA32_X2APIC_ID) as u32 }
+    x2apic_id()
+}
+
+#[inline]
+#[allow(clippy::cast_possible_truncation)]
+pub fn x2apic_id() -> u32 {
+    let val: u64 = unsafe { rdmsr(IA32_X2APIC_ID) };
+    (val & 0xFFFF_FFFF) as u32
 }
 
 /// Set the Spurious Interrupt Vector register and software-enable the LAPIC.
 pub unsafe fn write_svr_x2apic(vector: u8) {
     // SVR bit 8 = APIC software enable; low 8 bits = vector
-    let val = (1u64 << 8) | (vector as u64);
+    let val = (1u64 << 8) | u64::from(vector);
     unsafe {
         wrmsr(IA32_X2APIC_SVR, val);
     }
@@ -92,19 +98,20 @@ pub unsafe fn eoi_x2apic() {
 /// `divider` uses the LAPIC divide configuration encoding.
 /// `initial` is the initial counter value in APIC ticks.
 pub unsafe fn program_timer_periodic_x2apic(vector: u8, divider: u32, initial: u32) {
-    let mut lvt = (vector as u64) | (1u64 << 16); // mask bit
+    let mut lvt = u64::from(vector) | (1u64 << 16); // mask bit
     lvt |= 1u64 << 17; // periodic
 
     unsafe {
         wrmsr(IA32_X2APIC_LVT_TIMER, lvt);
-        wrmsr(IA32_X2APIC_INITCNT, initial as u64);
-        wrmsr(IA32_X2APIC_DIVCONF, divider as u64);
+        wrmsr(IA32_X2APIC_INITCNT, u64::from(initial));
+        wrmsr(IA32_X2APIC_DIVCONF, u64::from(divider));
 
         // Unmask to arm delivery.
         mask_timer_x2apic(false);
     }
 }
 
+#[allow(clippy::cast_possible_truncation)]
 pub unsafe fn mask_timer_x2apic(mask: bool) {
     const IA32_X2APIC_LVT_TIMER: u32 = 0x832;
     let mut lvt = unsafe { rdmsr(IA32_X2APIC_LVT_TIMER) as u32 };
@@ -113,7 +120,7 @@ pub unsafe fn mask_timer_x2apic(mask: bool) {
     } else {
         lvt &= !(1 << 16);
     }
-    unsafe { wrmsr(IA32_X2APIC_LVT_TIMER, lvt as u64) };
+    unsafe { wrmsr(IA32_X2APIC_LVT_TIMER, u64::from(lvt)) };
 }
 
 /// Bring up x2APIC on the BSP and record the APIC ID in `PerCpu`.
@@ -144,6 +151,7 @@ pub mod lapic_div {
 }
 
 /// Quick helper to start a periodic timer (coarse values; calibrate later).
+#[allow(clippy::cast_possible_truncation)]
 pub fn start_lapic_timer(tsc_hz: u64) {
     // Make sure: SVR enabled, TPR=0, IF=1, IDT has the gate.
     unsafe {
@@ -162,13 +170,14 @@ pub fn start_lapic_timer(tsc_hz: u64) {
     }
 }
 
+#[allow(clippy::cast_possible_truncation)]
 unsafe fn calibrate_lapic_hz_via_tsc(tsc_hz: u64, window_us: u64, div: u32) -> u64 {
     // Program LAPIC masked at chosen divider
     const LVT: u32 = 0x832;
     const DIV: u32 = 0x83E;
     const INIT: u32 = 0x838;
     unsafe {
-        wrmsr(DIV, div as u64);
+        wrmsr(DIV, u64::from(div));
     }
 
     // mask, vector don't matter for calibration
@@ -189,22 +198,24 @@ unsafe fn calibrate_lapic_hz_via_tsc(tsc_hz: u64, window_us: u64, div: u32) -> u
 
     // Read CURRCNT and compute elapsed ticks
     let cur = unsafe { rdmsr(0x839) as u32 };
-    let elapsed = 0xFFFF_FFFFu64 - (cur as u64); // ticks at (lapic_hz/div)
+    let elapsed = 0xFFFF_FFFFu64 - u64::from(cur); // ticks at (lapic_hz/div)
 
     // Convert to Hz: elapsed ticks happened in window_us
     let ticks_per_sec = elapsed * 1_000_000 / window_us;
 
     // That equals (lapic_hz / div). Multiply back:
-    ticks_per_sec
-        * match div {
-            0b1011 => 1,
-            0b0000 => 2,
-            0b0001 => 4,
-            0b0010 => 8,
-            0b0011 => 16,
-            0b1000 => 32,
-            0b1001 => 64,
-            0b1010 => 128,
-            _ => 16, // default
-        }
+    #[allow(clippy::match_same_arms)]
+    let multiplier = match div {
+        0b1011 => 1,
+        0b0000 => 2,
+        0b0001 => 4,
+        0b0010 => 8,
+        0b0011 => 16,
+        0b1000 => 32,
+        0b1001 => 64,
+        0b1010 => 128,
+        _ => 16, // default
+    };
+
+    ticks_per_sec * multiplier
 }

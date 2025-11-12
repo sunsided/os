@@ -313,10 +313,7 @@ extern "C" fn stage_two_init_bootstrap_processor(
 
     qemu_trace!("Estimating TSC frequency ...\n");
     let tsc_hz = unsafe { estimate_tsc_hz() };
-    qemu_trace!(
-        "TSC frequency = {tsc_hz} Hz ({ghz:0.2} GHz)\n",
-        ghz = (tsc_hz as f32) / 1000.0 / 1000.0 / 1000.0
-    );
+    trace_tsc_frequency(tsc_hz);
 
     // Init LAPIC, store LAPIC ID into per-CPU struct, then arm timer.
     init_lapic_and_set_cpu_id(p);
@@ -327,6 +324,14 @@ extern "C" fn stage_two_init_bootstrap_processor(
 
     qemu_trace!("Kernel early init is done, jumping into kernel main loop ...\n");
     kernel_main(&fb_virt)
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn trace_tsc_frequency(tsc_hz: u64) {
+    qemu_trace!(
+        "TSC frequency = {tsc_hz} Hz ({ghz:0.2} GHz)\n",
+        ghz = (tsc_hz as f32) / 1000.0 / 1000.0 / 1000.0
+    );
 }
 
 /// Remaps the boot framebuffer memory into the kernel's virtual address space.

@@ -17,6 +17,7 @@ pub const LEAF_16H: u32 = 0x16;
 /// Prefer CPUID.15H for **TSC** frequency when available; 16H is useful
 /// as a fallback or for UI/telemetry.
 #[derive(Copy, Clone, Debug)]
+#[allow(clippy::struct_field_names)]
 pub struct Leaf16 {
     /// Nominal/base frequency in MHz (EAX). 0 means “not reported”.
     pub base_mhz: u32,
@@ -62,22 +63,22 @@ impl Leaf16 {
     /// Nominal/base frequency in Hz (if EAX was non-zero).
     #[inline]
     pub fn base_hz(&self) -> Option<u64> {
-        (self.base_mhz != 0).then(|| (self.base_mhz as u64) * 1_000_000)
+        (self.base_mhz != 0).then(|| u64::from(self.base_mhz) * 1_000_000)
     }
 
     /// Maximum frequency in Hz (if EBX was non-zero).
     #[inline]
     pub fn max_hz(&self) -> Option<u64> {
-        (self.max_mhz != 0).then(|| (self.max_mhz as u64) * 1_000_000)
+        (self.max_mhz != 0).then(|| u64::from(self.max_mhz) * 1_000_000)
     }
 
     /// Bus/reference frequency in Hz (if ECX was non-zero).
     #[inline]
     pub fn bus_hz(&self) -> Option<u64> {
-        (self.bus_mhz != 0).then(|| (self.bus_mhz as u64) * 1_000_000)
+        (self.bus_mhz != 0).then(|| u64::from(self.bus_mhz) * 1_000_000)
     }
 
-    /// If CPUID.15H exposed a TSC ratio but **crystal_hz==0**, you can
+    /// If CPUID.15H exposed a TSC ratio but **`crystal_hz==0`**, you can
     /// *guess* `crystal_hz` from 16H’s bus/reference clock.
     /// Returns `Some(tsc_hz)` if both ratio and bus clock are known.
     #[inline]
@@ -86,6 +87,6 @@ impl Leaf16 {
             return None;
         }
         let bus = self.bus_hz()?;
-        Some(bus * (numer as u64) / (denom as u64))
+        Some(bus * u64::from(numer) / u64::from(denom))
     }
 }

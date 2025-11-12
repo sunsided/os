@@ -1,9 +1,9 @@
 //! Virtual layout for IST stacks: per-CPU × per-IST slots with a guard page.
 //!
 //! Layout (virtual):
-//!   IST_BASE
-//!     + cpu_id * CPU_STRIDE
-//!       + (ist_idx-1) * IST_SLOT_STRIDE
+//!   `IST_BASE`
+//!     + `cpu_id` * `CPU_STRIDE`
+//!       + (ist_idx-1) * `IST_SLOT_STRIDE`
 //!         -> [ guard (4 KiB, unmapped) ][ IST stack bytes, RW|NX ]
 //!
 //! Notes
@@ -42,8 +42,8 @@ const _: () = {
     // Sanity: 7 IST slots must fit inside one CPU stride
     assert!(IST_SLOTS_PER_CPU * IST_SLOT_STRIDE <= IST_CPU_STRIDE);
     // Page-aligned strides
-    assert!(IST_CPU_STRIDE % Size4K::SIZE == 0);
-    assert!(IST_SLOT_STRIDE % Size4K::SIZE == 0);
+    assert!(IST_CPU_STRIDE.is_multiple_of(Size4K::SIZE));
+    assert!(IST_SLOT_STRIDE.is_multiple_of(Size4K::SIZE));
 };
 
 /// Maximum usable IST bytes per slot (excludes the 4 KiB guard).
@@ -56,6 +56,7 @@ pub const fn max_ist_bytes() -> u64 {
 /// Return the **guard page** base for `(cpu_id, ist_idx)` (1..=7).
 /// The first mapped byte (stack base) is `guard + 4 KiB`.
 #[inline]
+#[allow(clippy::cast_possible_truncation)]
 pub const fn ist_slot_for_cpu(cpu_id: u64, ist_idx: Ist) -> VirtualPage<Size4K> {
     // Hardware IST indices are 1..=7.
     assert!(ist_idx.gate_index() >= 1 && ist_idx.gate_index() <= IST_SLOTS_PER_CPU as u8);

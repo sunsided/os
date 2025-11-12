@@ -19,7 +19,7 @@ pub unsafe fn estimate_tsc_hz() -> u64 {
 }
 
 /// Try CPUID.15H (TSC/CORE crystal + ratio).
-/// EAX = denom, EBX = numer, ECX = crystal_hz (may be 0).
+/// EAX = denom, EBX = numer, ECX = `crystal_hz` (may be 0).
 #[inline]
 unsafe fn cpuid_leaf_15_tsc_hz() -> Option<u64> {
     // Check max leaf first.
@@ -36,9 +36,9 @@ unsafe fn cpuid_leaf_15_tsc_hz() -> Option<u64> {
     }
     // TSC Hz = crystal_hz * (num / den)
     Some(
-        (r.crystal_hz as u64)
-            .saturating_mul(r.numer as u64)
-            .saturating_div(r.denom as u64),
+        u64::from(r.crystal_hz)
+            .saturating_mul(u64::from(r.numer))
+            .saturating_div(u64::from(r.denom)),
     )
 }
 
@@ -53,20 +53,20 @@ unsafe fn cpuid_leaf_16_base_mhz_hz() -> Option<u64> {
     }
 
     // Treat base MHz as TSC MHz. Often true under KVM/QEMU, good enough for a first pass.
-    Some((r.base_mhz as u64) * 1_000_000u64)
+    Some(u64::from(r.base_mhz) * 1_000_000u64)
 }
 
 /// Calibrate TSC Hz by measuring rdtsc delta over a PIT window.
 /// Uses PIT channel 0 in mode 2 (rate generator).
-/// `window_us` typically 10_000–100_000; larger → better precision.
+/// `window_us` typically `10_000–100_000`; larger → better precision.
 unsafe fn pit_measure_tsc_hz(window_us: u64) -> u64 {
     const PIT_CH0_DATA: u16 = 0x40;
     const PIT_CMD: u16 = 0x43;
     const PIT_INPUT_HZ: u64 = 1_193_182;
 
     // Compute PIT ticks for requested window (mode 2 expects 16-bit reload; clamp to >=1).
-    let desired_ticks = ((PIT_INPUT_HZ * window_us) + 999_999) / 1_000_000;
-    let reload = core::cmp::max(1, core::cmp::min(desired_ticks, 0xFFFF)) as u16;
+    let desired_ticks = (PIT_INPUT_HZ * window_us).div_ceil(1_000_000);
+    let reload = desired_ticks.clamp(1, 0xFFFF) as u16;
 
     // Program PIT: Channel 0, Access lobyte/hibyte, Mode 2 (rate gen), Binary
     unsafe {
@@ -95,10 +95,8 @@ unsafe fn pit_measure_tsc_hz(window_us: u64) -> u64 {
 /// Spin until the PIT has counted down approximately one reload period in mode 2.
 /// We read back the counter by issuing a latch command; this is coarse but stable
 /// enough for a one-shot window.
+#[allow(clippy::missing_transmute_annotations)]
 unsafe fn busy_wait_pit_window(reload: u16) {
-    const PIT_CH0_DATA: u16 = 0x40;
-    const PIT_CMD: u16 = 0x43;
-
     // Latch the count repeatedly and exit once it wraps near zero.
     // In mode 2 the counter reloads on terminal count; we wait for a wrap.
     let mut last = unsafe { read_pit_counter() };
@@ -118,20 +116,25 @@ unsafe fn busy_wait_pit_window(reload: u16) {
             core::arch::asm!("pause", options(nomem, nostack, preserves_flags));
         }
     }
-
-    #[inline]
-    unsafe fn read_pit_counter() -> u16 {
-        // Latch channel 0 count
-        unsafe {
-            outb(PIT_CMD, 0b0000_0000);
-            let lo = inb(PIT_CH0_DATA) as u16;
-            let hi = inb(PIT_CH0_DATA) as u16;
-            (hi << 8) | lo
-        }
-    }
 }
 
 #[inline]
+unsafe fn read_pit_counter() -> u16 {
+    const PIT_CH0_DATA: u16 = 0x40;
+    const PIT_CMD: u16 = 0x43;
+
+    // Latch channel 0 count
+    unsafe {
+        outb(PIT_CMD, 0b0000_0000);
+        let lo = u16::from(inb(PIT_CH0_DATA));
+        let hi = u16::from(inb(PIT_CH0_DATA));
+        (hi << 8) | lo
+    }
+}
+
+/// Allows the CPU to save some power. Functionally equivalent to [`spin_loop`](core::hint::spin_loop).
+#[inline(always)]
+#[allow(clippy::inline_always)]
 fn cpu_relax() {
     // Okay to call without unsafe
     unsafe {
@@ -140,6 +143,7 @@ fn cpu_relax() {
 }
 
 #[inline(always)]
+#[allow(clippy::inline_always)]
 pub fn rdtsc() -> u64 {
     let lo: u32;
     let hi: u32;
@@ -152,5 +156,5 @@ pub fn rdtsc() -> u64 {
             options(nomem, nostack, preserves_flags),
         );
     }
-    ((hi as u64) << 32) | (lo as u64)
+    (u64::from(hi) << 32) | u64::from(lo)
 }

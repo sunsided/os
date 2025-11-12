@@ -161,6 +161,7 @@ impl Idt {
     /// - If any entry is callable from user mode (DPL=3), ensure your **TSS**
     ///   (especially `rsp0`) is configured for safe privilege transitions.
     #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     pub unsafe fn load(&'static self) {
         let idtr = Idtr {
             limit: (size_of::<Self>() - 1) as u16,
@@ -302,7 +303,7 @@ impl IdtEntry {
     /// The entry is **not** marked present by default; call
     /// [`IdtEntryBuilder::present`] when you are ready.
     pub fn set_handler(&mut self, handler: extern "C" fn()) -> IdtEntryBuilder<'_> {
-        let addr = handler as u64;
+        let addr = handler as *const usize as u64;
         self.offset_lo = (addr & 0xFFFF) as u16;
         self.offset_mid = ((addr >> 16) & 0xFFFF) as u16;
         self.offset_hi = (addr >> 32) as u32;
@@ -408,7 +409,7 @@ impl IdtEntryBuilder<'_> {
     /// Asserts `idx <= 7`. Hardware supports `1..=7`.
     #[inline]
     #[allow(dead_code)]
-    pub fn ist(&mut self, idx: Ist) -> &mut Self {
+    pub const fn ist(&mut self, idx: Ist) -> &mut Self {
         let bf = IdtGateAttr::from_bits(self.entry.ist_type).with_ist(idx);
         self.entry.ist_type = bf.into_bits();
         self

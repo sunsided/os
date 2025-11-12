@@ -4,32 +4,39 @@ use kernel_vmem::PhysMapperExt;
 use kernel_vmem::addresses::{PageSize, Size4K, VirtualAddress};
 use kernel_vmem::addresses::{PhysicalAddress, PhysicalPage};
 
+// TODO: Review whether the default type can be used
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 struct Pte(u64);
+
 impl Pte {
     #[inline]
-    fn p(self) -> bool {
+    const fn p(self) -> bool {
         self.0 & (1 << 0) != 0
     }
+
     #[inline]
-    fn rw(self) -> bool {
+    const fn rw(self) -> bool {
         self.0 & (1 << 1) != 0
     }
+
     #[inline]
-    fn us(self) -> bool {
+    const fn us(self) -> bool {
         self.0 & (1 << 2) != 0
     }
+
     #[inline]
-    fn ps(self) -> bool {
+    const fn ps(self) -> bool {
         self.0 & (1 << 7) != 0
     } // page size (L3/L2)
+
     #[inline]
-    fn nx(self) -> bool {
+    const fn nx(self) -> bool {
         self.0 & (1 << 63) != 0
     } // XD/NX (leaf-relevant)
+
     #[inline]
-    fn addr(self) -> u64 {
+    const fn addr(self) -> u64 {
         self.0 & 0x000F_FFFF_FFFF_F000
     }
 }
@@ -41,11 +48,12 @@ unsafe fn read_table_u64(base_ptr: *const u64, idx: usize) -> u64 {
 }
 
 #[inline]
-fn phys_to_page4k(pa: u64) -> PhysicalPage<Size4K> {
+const fn phys_to_page4k(pa: u64) -> PhysicalPage<Size4K> {
     let base = PhysicalAddress::new(pa & !(Size4K::SIZE - 1));
-    PhysicalPage::<Size4K>::from(base.page())
+    base.page()
 }
 
+#[allow(clippy::similar_names)]
 pub fn dump_walk<M: PhysMapperExt>(mapper: &M, va: VirtualAddress) {
     unsafe {
         // Indices for VA
@@ -61,7 +69,7 @@ pub fn dump_walk<M: PhysMapperExt>(mapper: &M, va: VirtualAddress) {
         let pml4_pa = cr3 & 0x000F_FFFF_FFFF_F000;
 
         // L4
-        let pml4 = mapper.pml4_mut(phys_to_page4k(pml4_pa)) as *mut _ as *const u64;
+        let pml4 = core::ptr::from_mut(mapper.pml4_mut(phys_to_page4k(pml4_pa))) as *const u64;
         let pml4e = Pte(read_table_u64(pml4, l4i));
         qemu_trace!(
             "L4[{:3}]={:016x} P={} RW={} US={} NX={}\n",
@@ -79,7 +87,7 @@ pub fn dump_walk<M: PhysMapperExt>(mapper: &M, va: VirtualAddress) {
 
         // L3
         let pdpt_pa = pml4e.addr();
-        let pdpt = mapper.pdpt_mut(phys_to_page4k(pdpt_pa)) as *mut _ as *const u64;
+        let pdpt = core::ptr::from_mut(mapper.pdpt_mut(phys_to_page4k(pdpt_pa))) as *const u64;
         let pdpte = Pte(read_table_u64(pdpt, l3i));
         qemu_trace!(
             "L3[{:3}]={:016x} P={} RW={} US={} PS={} NX={}\n",
@@ -102,7 +110,7 @@ pub fn dump_walk<M: PhysMapperExt>(mapper: &M, va: VirtualAddress) {
 
         // L2
         let pd_pa = pdpte.addr();
-        let pd = mapper.pd_mut(phys_to_page4k(pd_pa)) as *mut _ as *const u64;
+        let pd = core::ptr::from_mut(mapper.pd_mut(phys_to_page4k(pd_pa))) as *const u64;
         let pde = Pte(read_table_u64(pd, l2i));
         qemu_trace!(
             "L2[{:3}]={:016x} P={} RW={} US={} PS={} NX={}\n",
@@ -125,7 +133,7 @@ pub fn dump_walk<M: PhysMapperExt>(mapper: &M, va: VirtualAddress) {
 
         // L1
         let pt_pa = pde.addr();
-        let pt = mapper.pt_mut(phys_to_page4k(pt_pa)) as *mut _ as *const u64;
+        let pt = core::ptr::from_mut(mapper.pt_mut(phys_to_page4k(pt_pa))) as *const u64;
         let pte = Pte(read_table_u64(pt, l1i));
         qemu_trace!(
             "L1[{:3}]={:016x} P={} RW={} US={} NX={}\n",
@@ -140,7 +148,7 @@ pub fn dump_walk<M: PhysMapperExt>(mapper: &M, va: VirtualAddress) {
 }
 
 #[inline]
-fn va_l4_index(va: VirtualAddress) -> usize {
+const fn va_l4_index(va: VirtualAddress) -> usize {
     ((va.as_u64() >> 39) & 0x1ff) as usize
 }
 
@@ -152,37 +160,35 @@ pub fn promote_pml4_user_bit<M: PhysMapperExt>(mapper: &M, target_va: VirtualAdd
         let slot = va_l4_index(target_va);
 
         // Get a mutable view of the PML4 table
-        let pml4 = mapper.pml4_mut(PhysicalPage::<Size4K>::from(
-            PhysicalAddress::new(pml4_pa).page(),
-        ));
+        let pml4 = mapper.pml4_mut(PhysicalAddress::new(pml4_pa).page());
 
         // Treat it as raw u64 entries; bit 2 is US
-        let ents: *mut u64 = pml4 as *mut _ as *mut u64;
+        let ents: *mut u64 = core::ptr::from_mut(pml4).cast::<u64>();
         let cur = read_volatile(ents.add(slot));
         if (cur & 1) == 0 {
             qemu_trace!("promote_pml4_user_bit: slot {} not present", slot);
             return;
         }
         let new = cur | (1 << 2); // US=1
-        if new != cur {
+        if new == cur {
+            qemu_trace!("PML4E[{}] already US=1", slot);
+        } else {
             core::ptr::write_volatile(ents.add(slot), new);
             qemu_trace!("PML4E[{}]: {:016x} -> {:016x} (US=1)", slot, cur, new);
-        } else {
-            qemu_trace!("PML4E[{}] already US=1", slot);
         }
     }
 }
 
 #[inline]
-fn l4i(va: u64) -> usize {
+const fn l4i(va: u64) -> usize {
     ((va >> 39) & 0x1ff) as usize
 }
 #[inline]
-fn l3i(va: u64) -> usize {
+const fn l3i(va: u64) -> usize {
     ((va >> 30) & 0x1ff) as usize
 }
 #[inline]
-fn l2i(va: u64) -> usize {
+const fn l2i(va: u64) -> usize {
     ((va >> 21) & 0x1ff) as usize
 }
 
@@ -193,12 +199,14 @@ pub fn clear_parent_xd_for_exec<M: PhysMapperExt>(m: &M, va: VirtualAddress) {
         core::arch::asm!("mov {}, cr3", out(reg) cr3, options(nostack, preserves_flags));
         let pml4_pa = cr3 & 0x000F_FFFF_FFFF_F000;
 
-        let pml4 = m.pml4_mut(PhysicalAddress::new(pml4_pa).page()) as *mut _ as *mut u64;
+        let pml4 =
+            core::ptr::from_mut(m.pml4_mut(PhysicalAddress::new(pml4_pa).page())).cast::<u64>();
         let pe4 = pml4.add(l4i(va));
         let e4 = core::ptr::read_volatile(pe4);
         let pdpt_pa = e4 & 0x000F_FFFF_FFFF_F000;
 
-        let pdpt = m.pdpt_mut(PhysicalAddress::new(pdpt_pa).page()) as *mut _ as *mut u64;
+        let pdpt =
+            core::ptr::from_mut(m.pdpt_mut(PhysicalAddress::new(pdpt_pa).page())).cast::<u64>();
         let pe3 = pdpt.add(l3i(va));
         let mut e3 = core::ptr::read_volatile(pe3);
         if e3 & (1 << 7) == 0 {
@@ -210,7 +218,8 @@ pub fn clear_parent_xd_for_exec<M: PhysMapperExt>(m: &M, va: VirtualAddress) {
             }
             let pd_pa = e3 & 0x000F_FFFF_FFFF_F000;
 
-            let pd = m.pd_mut(PhysicalAddress::new(pd_pa).page()) as *mut _ as *mut u64;
+            let pd =
+                core::ptr::from_mut(m.pd_mut(PhysicalAddress::new(pd_pa).page())).cast::<u64>();
             let pe2 = pd.add(l2i(va));
             let mut e2 = core::ptr::read_volatile(pe2);
             // if 2MiB leaf, also clear NX here; else just as parent

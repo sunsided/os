@@ -100,7 +100,7 @@ impl TryFrom<u8> for Ring {
     #[inline]
     fn try_from(r: u8) -> Result<Self, Self::Error> {
         if r <= 3 {
-            Ok(unsafe { core::mem::transmute(r) })
+            Ok(unsafe { core::mem::transmute::<u8, Self>(r) })
         } else {
             Err(r)
         }

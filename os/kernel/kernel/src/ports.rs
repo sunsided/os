@@ -19,7 +19,7 @@
 ///   same device but is **not** a general memory fence. If you need ordering
 ///   with normal memory (e.g., MMIO buffers or shared memory), add an
 ///   appropriate compiler/CPU fence around calls.
-/// - **Environment:** Only use on x86/x86_64 with an I/O port bus. Never use
+/// - **Environment:** Only use on `x86/x86_64` with an I/O port bus. Never use
 ///   for **memory-mapped** devices (MMIO).
 #[inline]
 pub unsafe fn outb(port: u16, val: u8) {
@@ -48,7 +48,7 @@ pub unsafe fn outb(port: u16, val: u8) {
 ///   general memory fence. If you must order this read with normal memory
 ///   operations (e.g., reading a status port then consuming an MMIO buffer),
 ///   insert the appropriate compiler/CPU fence.
-/// - **Environment:** Only for x86/x86_64 I/O port space. Do not use for MMIO.
+/// - **Environment:** Only for `x86/x86_64` I/O port space. Do not use for MMIO.
 #[inline]
 pub unsafe fn inb(port: u16) -> u8 {
     let mut v: u8;

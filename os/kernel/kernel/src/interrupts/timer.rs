@@ -22,7 +22,7 @@ impl TimerInterrupt for Idt {
 
         let e = &self[LAPIC_TIMER_VECTOR as usize];
         debug_assert_eq!(e.selector.to_u16(), 0x08);
-        debug_assert_eq!((e.ist_type >> 0) & 7, 0);
+        debug_assert_eq!(e.ist_type & 7, 0);
         debug_assert_eq!(e.ist_type >> 8, 0x8E);
 
         self

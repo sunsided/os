@@ -31,14 +31,14 @@ impl Ist {
     #[inline]
     pub const fn from_bits(value: u8) -> Self {
         match value {
-            1 => Ist::Ist1,
-            2 => Ist::Ist2,
-            3 => Ist::Ist3,
-            4 => Ist::Ist4,
-            5 => Ist::Ist5,
-            6 => Ist::Ist6,
-            7 => Ist::Ist7,
-            _ => Ist::None,
+            1 => Self::Ist1,
+            2 => Self::Ist2,
+            3 => Self::Ist3,
+            4 => Self::Ist4,
+            5 => Self::Ist5,
+            6 => Self::Ist6,
+            7 => Self::Ist7,
+            _ => Self::None,
         }
     }
 
@@ -53,14 +53,14 @@ impl Ist {
     #[inline]
     pub const fn tss_index(self) -> Option<usize> {
         match self {
-            Ist::None => None,
-            Ist::Ist1 => Some(0),
-            Ist::Ist2 => Some(1),
-            Ist::Ist3 => Some(2),
-            Ist::Ist4 => Some(3),
-            Ist::Ist5 => Some(4),
-            Ist::Ist6 => Some(5),
-            Ist::Ist7 => Some(6),
+            Self::None => None,
+            Self::Ist1 => Some(0),
+            Self::Ist2 => Some(1),
+            Self::Ist3 => Some(2),
+            Self::Ist4 => Some(3),
+            Self::Ist5 => Some(4),
+            Self::Ist6 => Some(5),
+            Self::Ist7 => Some(6),
         }
     }
 

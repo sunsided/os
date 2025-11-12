@@ -23,7 +23,7 @@ impl CpuidRanges {
         let max_basic = b0.eax;
 
         let v = [b0.ebx, b0.edx, b0.ecx]; // e.g., "GenuineIntel", "AuthenticAMD"
-        let ptr: &[u8] = unsafe { core::slice::from_raw_parts(v.as_ptr() as *const u8, 12) };
+        let ptr: &[u8] = unsafe { core::slice::from_raw_parts(v.as_ptr().cast::<u8>(), 12) };
 
         let vendor = match unsafe { core::str::from_utf8_unchecked(ptr).trim_end_matches('\0') } {
             "GenuineIntel" => CpuVendor::Intel,
@@ -42,22 +42,22 @@ impl CpuidRanges {
     }
 
     #[inline]
-    pub fn has_basic(&self, leaf: u32) -> bool {
+    pub const fn has_basic(&self, leaf: u32) -> bool {
         leaf <= self.max_basic
     }
 
     #[inline]
-    pub fn has_ext(&self, leaf: u32) -> bool {
+    pub const fn has_ext(&self, leaf: u32) -> bool {
         leaf >= 0x8000_0000 && leaf <= self.max_extended
     }
 }
 
 impl CpuVendor {
-    pub const fn as_str(&self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
-            CpuVendor::Intel => "Intel",
-            CpuVendor::Amd => "AMD",
-            CpuVendor::Other => "Other",
+            Self::Intel => "Intel",
+            Self::Amd => "AMD",
+            Self::Other => "Other",
         }
     }
 }

@@ -4,6 +4,7 @@ use crate::interrupts::{GateType, Idt};
 /// Spurious interrupt vector for APIC.
 pub const SPURIOUS_INTERRUPT_VECTOR: u8 = 0xFF;
 
+#[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(SPURIOUS_INTERRUPT_VECTOR >= 0x10);
 
 pub trait SpuriousInterrupt {
@@ -22,6 +23,6 @@ impl SpuriousInterrupt for Idt {
     }
 }
 
-extern "C" fn spurious_handler() {
+const extern "C" fn spurious_handler() {
     // No EOI for spurious; just return
 }

@@ -4,8 +4,10 @@ use crate::{Mutex, MutexGuard, RawLock, RawUnlock};
 ///
 /// `IrqMutex` combines an interrupt guard with a regular [`MutexGuard`].
 /// When created via [`Mutex::lock_irq`], it:
-/// 1) saves the current interrupt state and disables interrupts, and
-/// 2) acquires the underlying mutex,
+///
+/// 1. saves the current interrupt state and disables interrupts, and
+/// 2. acquires the underlying mutex,
+///
 /// releasing them in reverse order on drop.
 ///
 /// This prevents interrupt handlers from preempting the critical section

@@ -49,12 +49,15 @@ pub fn boot_single_user_task(vmm: &mut KernelVmm) -> ! {
 
     // TODO: Remove this later! Manually patches the specific L4 entry to be user-accessible.
     //       A better solution might be to use a root page that is not already implicitly added as no-user, no-execute.
-    alloc::debug::promote_pml4_user_bit(&HhdmPhysMapper, VirtualAddress::new(0x0000000040000000));
+    alloc::debug::promote_pml4_user_bit(
+        &HhdmPhysMapper,
+        VirtualAddress::new(0x0000_0000_4000_0000),
+    );
     alloc::debug::clear_parent_xd_for_exec(
         &HhdmPhysMapper,
-        VirtualAddress::new(0x0000000040000000),
+        VirtualAddress::new(0x0000_0000_4000_0000),
     );
-    alloc::debug::dump_walk(&HhdmPhysMapper, VirtualAddress::new(0x0000000040000000));
+    alloc::debug::dump_walk(&HhdmPhysMapper, VirtualAddress::new(0x0000_0000_4000_0000));
 
     qemu_trace!("About to flush TLB ...\n");
     unsafe {
@@ -64,8 +67,9 @@ pub fn boot_single_user_task(vmm: &mut KernelVmm) -> ! {
     unsafe { enter_user_mode(entry, user_sp_top) } // iretq; never returns
 }
 
-fn map_user_demo<'m, M: PhysMapper, A: FrameAlloc>(
-    vmm: &mut Vmm<'m, M, A>,
+#[allow(clippy::similar_names)]
+fn map_user_demo<M: PhysMapper, A: FrameAlloc>(
+    vmm: &mut Vmm<'_, M, A>,
     code_va: VirtualAddress,
     ustack_top: VirtualAddress,
     blob: &[u8],

@@ -183,11 +183,12 @@ extern "C" fn syscall_int80_handler() {
 /// - Reads `sysno` from `tf.rax`, args from `tf.{rdi,rsi,rdx}` (kernel ABI).
 /// - Writes the return value to `tf.rax`.
 /// - Must not assume interrupts are enabled; they are not.
+#[allow(clippy::no_effect_underscore_binding)]
 extern "C" fn syscall_int80_rust(tf: &mut TrapFrame) {
     let sysno = tf.rax;
     let a0 = tf.rdi;
-    let _a1 = tf.rsi;
-    let _a2 = tf.rdx;
+    let _a1 = tf.rsi; // placeholder
+    let _a2 = tf.rdx; // placeholder
 
     tf.rax = match sysno {
         x if x == Sysno::DebugWriteByte as u64 => {

@@ -54,8 +54,8 @@ unsafe extern "C" {
 #[inline]
 pub fn user_demo_bytes() -> &'static [u8] {
     unsafe {
-        let start = &_user_demo_start as *const u8 as usize;
-        let end = &_user_demo_end as *const u8 as usize;
+        let start = &raw const _user_demo_start as usize;
+        let end = &raw const _user_demo_end as usize;
         core::slice::from_raw_parts(start as *const u8, end - start)
     }
 }
