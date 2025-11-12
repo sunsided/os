@@ -6,7 +6,9 @@ use crate::{gdt, interrupts, kernel_main};
 use kernel_info::boot::{FramebufferInfo, KernelBootInfo};
 use kernel_qemu::qemu_trace;
 
-use crate::alloc::{FlushTlb, init_kernel_vmm, init_pmm, try_with_kernel_vmm};
+use crate::alloc::{
+    FlushTlb, init_kernel_vmm, init_physical_memory_allocator_once, try_with_kernel_vmm,
+};
 use crate::apic::{init_lapic_and_set_cpu_id, start_lapic_timer};
 use crate::cpuid::CpuidRanges;
 use crate::framebuffer::VGA_LIKE_OFFSET;
@@ -150,17 +152,38 @@ pub extern "C" fn kernel_entry_on_boot_stack(boot_info: *const KernelBootInfo) -
     trace_boot_info(bi);
 
     qemu_trace!("Initializing Virtual Memory Manager ...\n");
+    initialize_memory_management();
+
+    qemu_trace!("Initializing Kernel stack ...\n");
+    let kstack_top = initialize_kernel_stack();
+
+    // Switch to the new stack (align already handled in map_kernel_stack)
+    qemu_trace!("Switching to boostrap processor kernel stack ...\n");
     unsafe {
+        stage_one_switch_to_stack_and_enter(
+            kstack_top,
+            stage_two_init_bootstrap_processor,
+            boot_info,
+        );
+    }
+}
+
+fn initialize_memory_management() {
+    unsafe {
+        // Initialize the bitmap allocator on the heap.
         // TODO: Restrict allocator to actual available RAM size.
-        let alloc = init_pmm();
+        let alloc = init_physical_memory_allocator_once();
         qemu_trace!(
             "Supporting {} MiB of physical RAM ...\n",
             alloc.manageable_size() / 1024 / 1024
         );
+
+        // Initialize the VMM with the allocator.
         init_kernel_vmm(HhdmPhysMapper, alloc);
     }
+}
 
-    // TODO: 3. Allocate & map a per-CPU kernel stack (with a guard page), compute its 16-byte–aligned top.
+fn initialize_kernel_stack() -> KernelStackTop {
     let kstack_cpu_slot = kstack_slot_for_cpu(0);
     qemu_trace!("Designated CPU-specific stack base at {kstack_cpu_slot}.\n");
     qemu_trace!("Allocating bootstrap processor kernel stack ...\n");
@@ -180,13 +203,7 @@ pub extern "C" fn kernel_entry_on_boot_stack(boot_info: *const KernelBootInfo) -
         let _ = core::ptr::read_volatile(probe);
     }
 
-    // Switch to the new stack (align already handled in map_kernel_stack)
-    qemu_trace!("Switching to boostrap processor kernel stack ...\n");
-    let entry: extern "C" fn(*const KernelBootInfo, VirtualAddress) -> ! =
-        stage_two_init_bootstrap_processor;
-    unsafe {
-        stage_one_switch_to_stack_and_enter(kstack_top, entry, boot_info);
-    }
+    kstack_top
 }
 
 /// Naked jump pad: set RSP and jump; no Rust frame, no locals.
@@ -260,36 +277,24 @@ static mut PER_CPU0: PerCpu = PerCpu::new();
 
 extern "C" fn stage_two_init_bootstrap_processor(
     boot_info: *const KernelBootInfo,
-    kstack_top: VirtualAddress,
+    kstack_top: KernelStackTop,
 ) -> ! {
     qemu_trace!("Trampolined onto the kernel stack. Observing kernel stack top at {kstack_top}.\n");
     let bi = unsafe { &*boot_info };
     trace_boot_info(bi);
 
     qemu_trace!("Allocating IST1 stack ..\n");
-    let (ist1_base, ist1_top) = try_with_kernel_vmm(FlushTlb::OnSuccess, |vmm| {
-        let slot = ist_slot_for_cpu(0, Ist::Ist1);
-        map_ist_stack(vmm, slot, IST1_SIZE)
-    })
-    .expect("map IST1");
-    qemu_trace!("IST1 mapped: base={ist1_base}, top={ist1_top}\n");
+    let ist1_top = allocate_ist1_stack();
 
     // Initialize per-CPU configuration
-    #[allow(static_mut_refs)]
-    let p = unsafe { &mut PER_CPU0 };
-    p.cpu_id = 0;
-    p.apic_id = 0; // will be set below by the APIC initialization.
-    p.kstack_top = kstack_top;
-    if let Some(idx) = Ist::Ist1.tss_index() {
-        p.ist_stacks[idx] = ist1_top;
-    }
+    let cpu = initialize_percpu_config_for_bsp(kstack_top, ist1_top);
 
     qemu_trace!("Initializing GDT and TSS ...\n");
-    gdt::init_gdt_and_tss(p, kstack_top, ist1_top);
+    gdt::init_gdt_and_tss(cpu, kstack_top, ist1_top);
 
     // Point GS.base to &PerCpu for fast access
     unsafe {
-        init_gs_bases(p);
+        init_gs_bases(cpu);
     }
 
     qemu_trace!("Remapping UEFI GOP framebuffer ...\n");
@@ -321,7 +326,7 @@ extern "C" fn stage_two_init_bootstrap_processor(
     trace_tsc_frequency(tsc_hz);
 
     // Init LAPIC, store LAPIC ID into per-CPU struct, then arm timer.
-    init_lapic_and_set_cpu_id(p);
+    init_lapic_and_set_cpu_id(cpu);
     start_lapic_timer(tsc_hz);
 
     qemu_trace!("Enabling interrupts ...\n");
@@ -329,6 +334,34 @@ extern "C" fn stage_two_init_bootstrap_processor(
 
     qemu_trace!("Kernel early init is done, jumping into kernel main loop ...\n");
     kernel_main(&fb_virt)
+}
+
+type Ist1StackTop = VirtualAddress;
+type KernelStackTop = VirtualAddress;
+
+fn allocate_ist1_stack() -> Ist1StackTop {
+    let (ist1_base, ist1_top) = try_with_kernel_vmm(FlushTlb::OnSuccess, |vmm| {
+        let slot = ist_slot_for_cpu(0, Ist::Ist1);
+        map_ist_stack(vmm, slot, IST1_SIZE)
+    })
+    .expect("map IST1");
+    qemu_trace!("IST1 mapped: base={ist1_base}, top={ist1_top}\n");
+    ist1_top
+}
+
+fn initialize_percpu_config_for_bsp(
+    kstack_top: KernelStackTop,
+    ist1_top: Ist1StackTop,
+) -> &'static mut PerCpu {
+    #[allow(static_mut_refs)]
+    let p = unsafe { &mut PER_CPU0 };
+    p.cpu_id = 0;
+    p.apic_id = 0; // will be set below by the APIC initialization.
+    p.kstack_top = kstack_top;
+    if let Some(idx) = Ist::Ist1.tss_index() {
+        p.ist_stacks[idx] = ist1_top;
+    }
+    p
 }
 
 #[allow(clippy::cast_precision_loss)]

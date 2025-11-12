@@ -17,8 +17,9 @@ pub struct KernelVm<M: PhysMapper, A: PhysFrameAlloc + 'static> {
 #[unsafe(link_section = ".bss.pmm")]
 static mut PMM: MaybeUninit<BitmapFrameAlloc> = MaybeUninit::uninit();
 
+#[doc(alias = "init_pmm_once")]
 #[allow(static_mut_refs)]
-pub unsafe fn init_pmm() -> &'static mut BitmapFrameAlloc {
+pub unsafe fn init_physical_memory_allocator_once() -> &'static mut BitmapFrameAlloc {
     // Construct in place; allowed because we're in early single-core init.
     unsafe {
         PMM.write(BitmapFrameAlloc::new());

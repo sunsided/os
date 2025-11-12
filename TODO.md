@@ -17,9 +17,8 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/init.rs](./os/kernel/kernel/src/init.rs)
 
-- Line [154](./os/kernel/kernel/src/init.rs#L154): Restrict allocator to actual available RAM size.
-- Line [163](./os/kernel/kernel/src/init.rs#L163): 3. Allocate & map a per-CPU kernel stack (with a guard page), compute its 16-byte–aligned top.
-- Line [309](./os/kernel/kernel/src/init.rs#L309): Use a different IST from PF
+- Line [174](./os/kernel/kernel/src/init.rs#L174): Restrict allocator to actual available RAM size.
+- Line [314](./os/kernel/kernel/src/init.rs#L314): Use a different IST from PF
 
 ## [os/kernel/kernel/src/interrupts/page_fault.rs](./os/kernel/kernel/src/interrupts/page_fault.rs)
 
