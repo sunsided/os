@@ -53,8 +53,8 @@ name = "kernel-alloc"
 version = "0.0.0"
 dependencies = [
  "kernel-info",
- "kernel-sync",
  "kernel-vmem",
+ "log",
  "thiserror",
 ]
 
@@ -79,6 +79,7 @@ version = "0.0.0"
 dependencies = [
  "bitfield-struct",
  "kernel-info",
+ "log",
  "thiserror",
  "utils-accessors-derive",
 ]

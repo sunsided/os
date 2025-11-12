@@ -1,17 +1,18 @@
 //! # GOP for the Kernel
 
 use kernel_info::boot::{BootPixelFormat, BootPixelMasks, FramebufferInfo};
+use log::{error, info};
 use uefi::boot::ScopedProtocol;
 use uefi::proto::console::gop::{GraphicsOutput, PixelFormat};
 use uefi::{Status, boot};
 
 /// Fetch an optimal framebuffer for the Kernel.
 pub fn get_framebuffer() -> Result<FramebufferInfo, Status> {
-    uefi::println!("Obtaining Graphics Output Protocol (GOP)");
+    info!("Obtaining Graphics Output Protocol (GOP)");
     let mut gop = match get_gop() {
         Ok(gop) => gop,
         Err(e) => {
-            uefi::println!("Failed to get GOP: {e:?}");
+            error!("Failed to get GOP: {e:?}");
             return Err(Status::UNSUPPORTED);
         }
     };
@@ -51,7 +52,7 @@ pub fn get_framebuffer() -> Result<FramebufferInfo, Status> {
             )
         }
         PixelFormat::BltOnly | PixelFormat::Bitmask => {
-            uefi::println!("Unsupported pixel format: Bitmask");
+            error!("Unsupported pixel format: Bitmask");
             return Err(Status::UNSUPPORTED);
         }
     };
@@ -77,12 +78,12 @@ pub fn get_framebuffer() -> Result<FramebufferInfo, Status> {
 /// Fetch the Graphics Output Protocol (GOP).
 fn get_gop() -> Result<ScopedProtocol<GraphicsOutput>, uefi::Error> {
     let handle = boot::get_handle_for_protocol::<GraphicsOutput>().map_err(|e| {
-        uefi::println!("Failed to get GOP handle: {e:?}");
+        error!("Failed to get GOP handle: {e:?}");
         uefi::Error::new(Status::ABORTED, ())
     })?;
 
     let gop = boot::open_protocol_exclusive::<GraphicsOutput>(handle).map_err(|e| {
-        uefi::println!("Failed to open GOP exclusively: {e:?}");
+        error!("Failed to open GOP exclusively: {e:?}");
         uefi::Error::new(Status::ABORTED, ())
     })?;
     Ok(gop)

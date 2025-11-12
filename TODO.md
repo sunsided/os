@@ -9,7 +9,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel-vmem/src/address_space.rs](./os/kernel/kernel-vmem/src/address_space.rs)
 
-- Line [172](./os/kernel/kernel-vmem/src/address_space.rs#L172): Refactor to error type
+- Line [177](./os/kernel/kernel-vmem/src/address_space.rs#L177): Refactor to error type
 
 ## [os/kernel/kernel/src/alloc/debug.rs](./os/kernel/kernel/src/alloc/debug.rs)
 
@@ -18,7 +18,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 ## [os/kernel/kernel/src/init.rs](./os/kernel/kernel/src/init.rs)
 
 - Line [179](./os/kernel/kernel/src/init.rs#L179): Restrict allocator to actual available RAM size.
-- Line [319](./os/kernel/kernel/src/init.rs#L319): Use a different IST from PF
+- Line [322](./os/kernel/kernel/src/init.rs#L322): Use a different IST from PF
 
 ## [os/kernel/kernel/src/interrupts/page_fault.rs](./os/kernel/kernel/src/interrupts/page_fault.rs)
 
@@ -34,9 +34,9 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
-- Line [34](./os/uefi/uefi-loader/src/main.rs#L34): Add proper documentation.
-- Line [166](./os/uefi/uefi-loader/src/main.rs#L166): Document this properly
-- Line [173](./os/uefi/uefi-loader/src/main.rs#L173): Handle properly
+- Line [35](./os/uefi/uefi-loader/src/main.rs#L35): Add proper documentation.
+- Line [170](./os/uefi/uefi-loader/src/main.rs#L170): Document this properly
+- Line [177](./os/uefi/uefi-loader/src/main.rs#L177): Handle properly
 
 ## [os/uefi/uefi-loader/src/memory.rs](./os/uefi/uefi-loader/src/memory.rs)
 

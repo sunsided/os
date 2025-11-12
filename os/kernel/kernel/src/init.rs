@@ -302,7 +302,10 @@ extern "C" fn stage_two_init_bootstrap_processor(
         init_gs_bases(cpu);
     }
 
-    info!("Remapping UEFI GOP framebuffer ...");
+    info!(
+        "Remapping UEFI GOP framebuffer ({size} bytes) ...",
+        size = bi.fb.framebuffer_size
+    );
     let fb_virt = remap_framebuffer_memory(bi);
 
     // Initialize the IDT once.

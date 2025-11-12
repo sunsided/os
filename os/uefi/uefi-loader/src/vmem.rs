@@ -2,6 +2,7 @@
 
 use crate::elf::loader::LoadedSegMap;
 use kernel_info::memory::{HHDM_BASE /*KERNEL_BASE,*/ /*PHYS_LOAD*/};
+use log::info;
 
 use kernel_vmem::{
     AddressSpace, PhysFrameAlloc, PhysMapper, PhysMapperExt,
@@ -86,6 +87,7 @@ pub fn create_kernel_pagetables(
         .with_writable(true);
 
     // Map each PT_LOAD segment
+    info!("Mapping kernel ELF PT_LOAD segments ...");
     for m in kernel_maps {
         let mut cur_va = m.vaddr_page.base(); // VirtualAddress (page-aligned)
         let end_u64 = m
@@ -137,6 +139,7 @@ pub fn create_kernel_pagetables(
     }
 
     // HHDM: map first 1 GiB VA = HHDM_BASE → PA = 0, NX + writable + global
+    info!("Mapping first 1 GiB VA = HHDM_BASE to PA=0 ...");
     {
         let hhdm_va = VirtualAddress::new(HHDM_BASE);
         let zero_pa = PhysicalAddress::new(0);
@@ -148,19 +151,8 @@ pub fn create_kernel_pagetables(
         aspace.map_one::<_, Size1G>(&mut alloc, hhdm_va, zero_pa, nonleaf_flags, leaf)?;
     }
 
-    // Identity map first 2 MiB of low VA so the trampoline keeps executing after mov cr3.
-    // Executable (i.e., NX not set), global, writable.
-    {
-        let va0 = VirtualAddress::new(0);
-        let pa0 = PhysicalAddress::new(0);
-        let leaf = VirtualMemoryPageBits::default()
-            .with_present(true)
-            .with_writable(true)
-            .with_global(true);
-        aspace.map_one::<_, Size2M>(&mut alloc, va0, pa0, nonleaf_flags, leaf)?;
-    }
-
     // Identity map the trampoline stack (4 KiB, NX)
+    info!("Identity map trampoline stack ...");
     {
         let start = tramp_stack_base_phys.as_u64() & !(Size4K::SIZE - 1);
         let end = align_up_u64(
@@ -186,6 +178,7 @@ pub fn create_kernel_pagetables(
     }
 
     // Identity map the trampoline code (4 KiB, executable)
+    info!("Identity map trampoline code ...");
     {
         let start = tramp_code_va.page::<Size4K>().base().as_u64();
         let end = align_up_u64(
@@ -211,6 +204,7 @@ pub fn create_kernel_pagetables(
     }
 
     // Identity map just the BootInfo pointer page (4 KiB, NX)
+    info!("Identity map bootinfo pointer ...");
     {
         let bi_page = boot_info_ptr_va.page::<Size4K>().base();
         let leaf = VirtualMemoryPageBits::default()

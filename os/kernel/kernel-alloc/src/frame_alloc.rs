@@ -28,6 +28,7 @@
 
 use kernel_vmem::PhysFrameAlloc;
 use kernel_vmem::addresses::{PageSize, PhysicalAddress, PhysicalPage, Size4K};
+use log::trace;
 
 const PHYS_MEM_START: u64 = 0x0010_0000; // 1 MiB, example
 const PHYS_MEM_SIZE: u64 = 512 * 1024 * 1024; // 512 MiB, example
@@ -140,7 +141,9 @@ impl PhysFrameAlloc for BitmapFrameAlloc {
 
                 *word |= 1 << bit;
                 let pa = self.base + (idx as u64) * FRAME_SIZE;
-                return Some(PhysicalPage::from_addr(PhysicalAddress::new(pa)));
+                let pa = PhysicalAddress::new(pa);
+                trace!("Allocated 4K frame at {pa}");
+                return Some(PhysicalPage::from_addr(pa));
             }
         }
         None
@@ -165,6 +168,7 @@ impl PhysFrameAlloc for BitmapFrameAlloc {
     /// allocator.free_4k(frame);
     /// ```
     fn free_4k(&mut self, pa: PhysicalPage<Size4K>) {
+        trace!("Freeing 4K frame at {pa}");
         let idx = ((pa.base().as_u64() - self.base) / FRAME_SIZE) as usize;
         self.mark_free(idx);
     }

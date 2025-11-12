@@ -40,6 +40,7 @@ use crate::page_table::pdpt::{L3Index, PageDirectoryPointerTable, PdptEntry, Pdp
 use crate::page_table::pml4::{L4Index, PageMapLevel4, Pml4Entry};
 use crate::page_table::pt::{L1Index, PageTable, PtEntry4k};
 use crate::{PhysFrameAlloc, PhysMapper, PhysMapperExt, read_cr3_phys};
+use log::{debug, warn};
 
 /// Handle to a single, concrete address space.
 pub struct AddressSpace<'m, M: PhysMapper> {
@@ -160,7 +161,11 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
         leaf_flags: VirtualMemoryPageBits,
     ) -> Result<(), AddressSpaceMapOneError> {
         debug_assert_eq!(pa.offset::<S>().as_u64(), 0, "physical address not aligned");
-        let leaf_tbl = S::ensure_chain_for(self, alloc, va, nonleaf_flags)?;
+        let leaf_tbl = S::ensure_chain_for(self, alloc, va, nonleaf_flags).inspect_err(|err| {
+            warn!("physical address mapping error: {err:?}");
+        })?;
+
+        debug!("Mapped one {} page at VA={va} -> PA={pa}", S::as_str());
         S::set_leaf(self, leaf_tbl, va, pa, leaf_flags);
         Ok(())
     }
@@ -176,6 +181,8 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
                 if !pte.present() {
                     return Err("missing: pte");
                 }
+
+                debug!("Unmapped VA={va}");
                 pt.set_zero(i1);
                 Ok(())
             }
