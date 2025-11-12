@@ -1,6 +1,6 @@
 //! # UEFI Loader Main Entry Point
 
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(any(test, doctest)), no_std)]
 #![no_main]
 #![allow(unsafe_code, dead_code)]
 extern crate alloc;

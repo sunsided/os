@@ -1,6 +1,6 @@
 //! # Kernel synchronization primitives
 
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(any(test, doctest)), no_std)]
 #![allow(unsafe_code)]
 
 pub mod irq;
@@ -19,6 +19,18 @@ pub use sync_once_cell::SyncOnceCell;
 
 pub type SpinMutex<T> = Mutex<T, RawSpin>;
 pub type TicketMutex<T> = Mutex<T, RawTicket>;
+
+impl<T> SpinMutex<T> {
+    pub fn new(value: T) -> Self {
+        Self::from_raw(RawSpin::new(), value)
+    }
+}
+
+impl<T> TicketMutex<T> {
+    pub fn new(value: T) -> Self {
+        Self::from_raw(RawTicket::new(), value)
+    }
+}
 
 pub trait RawLock {
     fn raw_lock(&self);

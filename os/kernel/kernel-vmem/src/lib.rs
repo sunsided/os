@@ -67,7 +67,7 @@
 //! virtual address space, using leaf pages of 1 GiB, 2 MiB, or 4 KiB depending
 //! on which level the translation stops.
 
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(any(test, doctest)), no_std)]
 #![allow(unsafe_code, clippy::inline_always)]
 
 pub mod address_space;

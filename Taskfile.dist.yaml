@@ -144,11 +144,15 @@ tasks:
 
   test:docs:
     desc: Run documentation tests only
+    aliases:
+      - test:doc
     cmds:
-      - cargo test --doc
+      - cargo test --doc --target {{.HOST_TARGET}}
 
   test:libs:
     desc: Run library tests (all targets)
+    aliases:
+      - test:lib
     cmds:
       - cargo test --all-features --lib --target {{.HOST_TARGET}}
 
