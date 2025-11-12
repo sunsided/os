@@ -6,8 +6,8 @@ use bitfield_struct::bitfield;
 use core::arch::naked_asm;
 use core::hint::spin_loop;
 use kernel_alloc::phys_mapper::HhdmPhysMapper;
-use kernel_qemu::qemu_trace;
 use kernel_vmem::addresses::VirtualAddress;
+use log::{error, info};
 
 pub const PAGE_FAULT_VECTOR: usize = 0x0E; // 14
 
@@ -64,7 +64,7 @@ pub extern "C" fn page_fault_handler() {
 
 #[unsafe(no_mangle)]
 extern "C" fn log_page_fault(cr2: VirtualAddress, err: PageFaultError) {
-    qemu_trace!(
+    error!(
         "page fault page fault page fault
        ⠀⠀⠀⠀⠀⠀⠀⠙⣿⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
         ⠀⠀⠀⠀⠀⠀⠀⠀⢺⣿⣿⡆⠀⠀⠀⠀⠀⠀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
@@ -89,20 +89,18 @@ extern "C" fn log_page_fault(cr2: VirtualAddress, err: PageFaultError) {
         ⠀⠜⢠⣿⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⢿⣿⣿⣿⣿⣿⣗⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⣿⣿⣿⣿⣿⣦⠄⣠⠀
         ⠠⢸⣿⣿⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣿⣿⣿⣿⣿⣿⣿
         ⠀⠛⣿⣿⣿⡿⠏⠀⠀⠀⠀⠀⠀⢳⣾⣿⣿⣿⣿⣿⣿⡶⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿
-        ⠀⢨⠀⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠙⣿⣿⡿⡿⠿⠛⠙⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⠏⠉⠻⠿⠟⠁\n"
+        ⠀⢨⠀⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠙⣿⣿⡿⡿⠿⠛⠙⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⠏⠉⠻⠿⠟⠁\n\
+        PAGE FAULT: cr2={cr2} err={raw:#x}\n\
+        {explained}\n\
+        {err:#?}",
+        raw = err.into_bits(),
+        explained = err.explain()
     );
 
-    qemu_trace!(
-        "PAGE FAULT: cr2={cr2} err={raw:#x}\n",
-        raw = err.into_bits()
-    );
-    qemu_trace!("{}\n\n", err.explain());
-    qemu_trace!("{err:#?}\n\n");
-
-    qemu_trace!("Control bits:\n");
+    info!("Control bits:");
     log_ctrl_bits();
 
-    qemu_trace!("\nTable walk at CR2:\n");
+    info!("Table walk at CR2:");
     alloc::debug::dump_walk(&HhdmPhysMapper, cr2);
 
     loop {

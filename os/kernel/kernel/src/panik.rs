@@ -1,9 +1,9 @@
 use core::hint::spin_loop;
-use kernel_qemu::qemu_trace;
+use log::info;
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    qemu_trace!(
+    info!(
         "panik panik panik
        ⠀⠀⠀⠀⠀⠀⠀⠙⣿⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
         ⠀⠀⠀⠀⠀⠀⠀⠀⢺⣿⣿⡆⠀⠀⠀⠀⠀⠀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
@@ -31,7 +31,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         ⠀⢨⠀⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠙⣿⣿⡿⡿⠿⠛⠙⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⠏⠉⠻⠿⠟⠁\n"
     );
 
-    qemu_trace!("{info}\n");
+    info!("{info}");
     loop {
         spin_loop();
     }

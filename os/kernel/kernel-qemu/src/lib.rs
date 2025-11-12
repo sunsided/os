@@ -2,7 +2,10 @@
 
 #![cfg_attr(not(any(test, doctest)), no_std)]
 #![allow(unsafe_code)]
-#![cfg_attr(not(feature = "enabled"), allow(unused_variables))]
+
+mod logger;
+
+pub use logger::QemuLogger;
 
 #[cfg(feature = "enabled")]
 #[doc(hidden)]
@@ -57,7 +60,7 @@ pub mod qemu_fmt {
     #[doc(hidden)]
     #[inline(always)]
     #[allow(clippy::inline_always)]
-    pub fn _qemu_write(args: fmt::Arguments) {
+    pub fn qemu_write(args: fmt::Arguments) {
         // Ignore errors; this is best-effort debug output.
         let _ = fmt::write(&mut QemuSink, args);
     }
@@ -79,6 +82,6 @@ pub mod qemu_fmt {
 macro_rules! qemu_trace {
     ($($arg:tt)*) => {{
         // No allocation: `format_args!` builds a lightweight `Arguments`.
-        $crate::qemu_fmt::_qemu_write(core::format_args!($($arg)*));
+        $crate::qemu_fmt::qemu_write(core::format_args!($($arg)*));
     }};
 }

@@ -33,7 +33,7 @@ use core::f32::consts::{PI, TAU};
 use core::hint::spin_loop;
 use core::sync::atomic::{AtomicU64, Ordering};
 use kernel_info::boot::FramebufferInfo;
-use kernel_qemu::qemu_trace;
+use log::info;
 
 /// Main kernel loop, running with all memory (including framebuffer) properly mapped.
 ///
@@ -57,7 +57,7 @@ use kernel_qemu::qemu_trace;
     clippy::cast_precision_loss
 )]
 fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
-    qemu_trace!("Kernel doing kernel things now ...\n");
+    info!("Kernel doing kernel things now ...");
 
     let cpu = PerCpu::current();
     let start = cpu.ticks.load(Ordering::Acquire);
@@ -66,7 +66,7 @@ fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
     if TIMER_HZ.load(Ordering::Acquire) == 0 {
         let hz = unsafe { measure_timer_hz(cpu) };
         TIMER_HZ.store(hz.max(1), Ordering::Release);
-        qemu_trace!("Observed timer rate ≈ {} Hz\n", hz);
+        info!("Observed timer rate ≈ {hz} Hz");
     }
 
     loop {
@@ -96,14 +96,14 @@ fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
         let seconds = ((ticks - start) as f32) / hz as f32;
         if (seconds as u32) > prev {
             prev = seconds as u32;
-            qemu_trace!("Kernel cycle: {prev} s\n");
+            info!("Kernel cycle: {prev} s");
         }
 
         unsafe { fill_solid(fb_virt, 72, 0, brightness) };
         spin_loop();
 
         if prev == 2 {
-            qemu_trace!("Jumping into userland code - will not refresh screen anymore\n");
+            info!("Jumping into userland code - will not refresh screen anymore");
             with_kernel_vmm(|vmm| {
                 boot_single_user_task(vmm);
             });

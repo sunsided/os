@@ -14,5 +14,8 @@ license.workspace = true
 default = ["enabled"]
 enabled = []
 
+[dependencies]
+log.workspace = true
+
 [lints]
 workspace = true

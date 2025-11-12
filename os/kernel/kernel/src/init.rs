@@ -4,7 +4,8 @@ use crate::interrupts::{Idt, Ist};
 use crate::tracing::trace_boot_info;
 use crate::{gdt, interrupts, kernel_main};
 use kernel_info::boot::{FramebufferInfo, KernelBootInfo};
-use kernel_qemu::qemu_trace;
+use kernel_qemu::QemuLogger;
+use log::{LevelFilter, info};
 
 use crate::alloc::{
     FlushTlb, init_kernel_vmm, init_physical_memory_allocator_once, try_with_kernel_vmm,
@@ -145,21 +146,24 @@ pub extern "C" fn _start_kernel(_boot_info: *const KernelBootInfo) {
 /// * The [`_start_kernel`] function keeps `boot_info` in `RDI`, matching C ABI expectations.
 #[unsafe(no_mangle)]
 pub extern "C" fn kernel_entry_on_boot_stack(boot_info: *const KernelBootInfo) -> ! {
-    qemu_trace!("Kernel reporting to QEMU! Initializing bootstrap processor now.\n");
+    let logger = QemuLogger::new(LevelFilter::Debug);
+    logger.init().expect("logger init");
+
+    info!("Kernel reporting to QEMU! Initializing bootstrap processor now.");
     let info = unsafe { CpuidRanges::read() };
-    qemu_trace!("Running on {}\n", info.vendor.as_str());
+    info!("Running on {}", info.vendor.as_str());
 
     let bi = unsafe { &*boot_info };
     trace_boot_info(bi);
 
-    qemu_trace!("Initializing Virtual Memory Manager ...\n");
+    info!("Initializing Virtual Memory Manager ...");
     initialize_memory_management();
 
-    qemu_trace!("Initializing Kernel stack ...\n");
+    info!("Initializing Kernel stack ...");
     let kstack_top = initialize_kernel_stack();
 
     // Switch to the new stack (align already handled in map_kernel_stack)
-    qemu_trace!("Switching to boostrap processor kernel stack ...\n");
+    info!("Switching to boostrap processor kernel stack ...");
     unsafe {
         stage_one_switch_to_stack_and_enter(
             kstack_top,
@@ -174,8 +178,8 @@ fn initialize_memory_management() {
         // Initialize the bitmap allocator on the heap.
         // TODO: Restrict allocator to actual available RAM size.
         let alloc = init_physical_memory_allocator_once();
-        qemu_trace!(
-            "Supporting {} MiB of physical RAM ...\n",
+        info!(
+            "Supporting {} MiB of physical RAM",
             alloc.manageable_size() / 1024 / 1024
         );
 
@@ -186,8 +190,8 @@ fn initialize_memory_management() {
 
 fn initialize_kernel_stack() -> KernelStackTop {
     let kstack_cpu_slot = kstack_slot_for_cpu(0);
-    qemu_trace!("Designated CPU-specific stack base at {kstack_cpu_slot}.\n");
-    qemu_trace!("Allocating bootstrap processor kernel stack ...\n");
+    info!("Designated CPU-specific stack base at {kstack_cpu_slot}.");
+    info!("Allocating bootstrap processor kernel stack ...");
     let CpuStack {
         base: _base,
         top: kstack_top,
@@ -197,7 +201,7 @@ fn initialize_kernel_stack() -> KernelStackTop {
     })
     .expect("map per-CPU kernel stack");
 
-    qemu_trace!("Probing new kernel stack at {kstack_top} ...\n");
+    info!("Probing new kernel stack at {kstack_top} ...");
     let probe = (kstack_top.as_u64() - 8) as *mut u64;
     unsafe {
         core::ptr::write_volatile(probe, 0xDEAD_BEEF_DEAD_BEEFu64);
@@ -280,17 +284,17 @@ extern "C" fn stage_two_init_bootstrap_processor(
     boot_info: *const KernelBootInfo,
     kstack_top: KernelStackTop,
 ) -> ! {
-    qemu_trace!("Trampolined onto the kernel stack. Observing kernel stack top at {kstack_top}.\n");
+    info!("Trampolined onto the kernel stack. Observing kernel stack top at {kstack_top}.");
     let bi = unsafe { &*boot_info };
     trace_boot_info(bi);
 
-    qemu_trace!("Allocating IST1 stack ..\n");
+    info!("Allocating IST1 stack ..");
     let ist1_top = allocate_ist1_stack();
 
     // Initialize per-CPU configuration
     let cpu = initialize_percpu_config_for_bsp(kstack_top, ist1_top);
 
-    qemu_trace!("Initializing GDT and TSS ...\n");
+    info!("Initializing GDT and TSS ...");
     gdt::init_gdt_and_tss(cpu, kstack_top, ist1_top);
 
     // Point GS.base to &PerCpu for fast access
@@ -298,11 +302,11 @@ extern "C" fn stage_two_init_bootstrap_processor(
         init_gs_bases(cpu);
     }
 
-    qemu_trace!("Remapping UEFI GOP framebuffer ...\n");
+    info!("Remapping UEFI GOP framebuffer ...");
     let fb_virt = remap_framebuffer_memory(bi);
 
     // Initialize the IDT once.
-    qemu_trace!("Initializing IDT ...\n");
+    info!("Initializing IDT ...");
 
     unsafe {
         init_idt_once(Idt::new());
@@ -310,7 +314,7 @@ extern "C" fn stage_two_init_bootstrap_processor(
 
     // Update the IDT. Enters a critical section and (re-)enables interrupts
     // when the function returns.
-    qemu_trace!("Installing interrupt handlers ...\n");
+    info!("Installing interrupt handlers ...");
     idt_update_in_place(|idt| {
         idt.init_df_gate_ist(interrupts::df::double_fault_handler, Ist::Ist1); // TODO: Use a different IST from PF
         idt.init_breakpoint_gate(interrupts::bp::bp_handler);
@@ -322,7 +326,7 @@ extern "C" fn stage_two_init_bootstrap_processor(
         idt.init_spurious_interrupt_gate();
     });
 
-    qemu_trace!("Estimating TSC frequency ...\n");
+    info!("Estimating TSC frequency ...");
     let tsc_hz = unsafe { estimate_tsc_hz() };
     trace_tsc_frequency(tsc_hz);
 
@@ -330,10 +334,10 @@ extern "C" fn stage_two_init_bootstrap_processor(
     init_lapic_and_set_cpu_id(cpu);
     start_lapic_timer(tsc_hz);
 
-    qemu_trace!("Enabling interrupts ...\n");
+    info!("Enabling interrupts ...");
     sti_enable_interrupts();
 
-    qemu_trace!("Kernel early init is done, jumping into kernel main loop ...\n");
+    info!("Kernel early init is done, jumping into kernel main loop ...");
     kernel_main(&fb_virt)
 }
 
@@ -346,7 +350,7 @@ fn allocate_ist1_stack() -> Ist1StackTop {
         map_ist_stack(vmm, slot, IST1_SIZE)
     })
     .expect("map IST1");
-    qemu_trace!("IST1 mapped: base={ist1_base}, top={ist1_top}\n");
+    info!("IST1 mapped: base={ist1_base}, top={ist1_top}");
     ist1_top
 }
 
@@ -367,8 +371,8 @@ fn initialize_percpu_config_for_bsp(
 
 #[allow(clippy::cast_precision_loss)]
 fn trace_tsc_frequency(tsc_hz: u64) {
-    qemu_trace!(
-        "TSC frequency = {tsc_hz} Hz ({ghz:0.2} GHz)\n",
+    info!(
+        "TSC frequency = {tsc_hz} Hz ({ghz:0.2} GHz)",
         ghz = (tsc_hz as f32) / 1000.0 / 1000.0 / 1000.0
     );
 }
@@ -405,6 +409,6 @@ fn remap_framebuffer_memory(bi: &KernelBootInfo) -> FramebufferInfo {
     // Return updated FramebufferInfo with new virtual address
     let mut fb_virt = bi.fb.clone();
     fb_virt.framebuffer_ptr = (va_base + (fb_pa.as_u64() & 0xFFF)).as_u64(); // preserve offset within page
-    qemu_trace!("Remapped frame buffer to {va_base}\n");
+    info!("Remapped frame buffer to {va_base}");
     fb_virt
 }

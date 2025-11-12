@@ -160,7 +160,6 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
         leaf_flags: VirtualMemoryPageBits,
     ) -> Result<(), AddressSpaceMapOneError> {
         debug_assert_eq!(pa.offset::<S>().as_u64(), 0, "physical address not aligned");
-
         let leaf_tbl = S::ensure_chain_for(self, alloc, va, nonleaf_flags)?;
         S::set_leaf(self, leaf_tbl, va, pa, leaf_flags);
         Ok(())

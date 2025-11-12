@@ -10,6 +10,10 @@ it makes even more sense to directly use dedicated VA bases for kernel and user 
 This doesn't solve the issue on its own (e.g. because of NX bits), but at least it
 avoids user-callable bit issues and makes reasoning about memory ranges a bit easier.
 
+Migrated to the `log` crate today. I'm hoping that this makes logging in the kernel
+crates a bit easier, so that I can then focus on identifying the page issue
+when not applying my debug patches to the user code.
+
 ## 2025-11-09
 
 Shot myself in the foot today: My spin mutex works, but it also silently blocks.

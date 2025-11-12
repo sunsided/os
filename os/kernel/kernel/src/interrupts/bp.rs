@@ -1,7 +1,7 @@
 use crate::gdt::KERNEL_CS_SEL;
 use crate::interrupts::{GateType, Idt};
 use core::arch::naked_asm;
-use kernel_qemu::qemu_trace;
+use log::warn;
 
 pub const BP_VECTOR: usize = 0x03;
 
@@ -53,5 +53,5 @@ pub extern "C" fn bp_handler() {
 }
 
 extern "C" fn bp_rust(cr3: u64) {
-    qemu_trace!("Breakpoint from user, CR3={:#x}", cr3);
+    warn!("Breakpoint from user, CR3={cr3:#x}");
 }

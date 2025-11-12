@@ -75,7 +75,7 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
     }
 
     /// Map **one** page of size `S` with `leaf_flags`, creating parents with `nonleaf_flags`.
-    #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
     pub fn map_one<S: MapSize>(
         &mut self,
         target: AllocationTarget,
@@ -99,6 +99,7 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
     ///
     /// # Errors
     /// Allocation fails, e.g. due to OOM.
+    #[allow(clippy::missing_panics_doc)]
     pub fn map_region(
         &mut self,
         target: AllocationTarget,
@@ -121,7 +122,7 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
     /// Convenience: map a **per-page** region using freshly allocated 4K frames (no PA contiguity).
     ///
     /// Leaves `guard` bytes at the beginning **unmapped** (for stacks).
-    #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
     pub fn map_anon_4k_pages(
         &mut self,
         target: AllocationTarget,
@@ -156,7 +157,7 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
     /// # Safety
     /// - `dst_user .. dst_user+src.len()` must be mapped and writable.
     /// - Same address space active (your current setup).
-    #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
     pub unsafe fn copy_to_mapped_user(
         &mut self,
         dst_user: VirtualAddress,

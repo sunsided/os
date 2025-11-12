@@ -1,12 +1,11 @@
 use crate::alloc::KernelVmm;
 use crate::gdt::{USER_CS, USER_DS};
 use crate::tracing::log_ctrl_bits;
-use crate::{alloc, userland_demo};
-use kernel_alloc::phys_mapper::HhdmPhysMapper;
+use crate::userland_demo;
 use kernel_alloc::vmm::{AllocationTarget, Vmm, VmmError};
-use kernel_qemu::qemu_trace;
 use kernel_vmem::addresses::{PageSize, Size4K, VirtualAddress};
 use kernel_vmem::{PhysFrameAlloc, PhysMapper, VirtualMemoryPageBits};
+use log::info;
 
 pub unsafe fn enter_user_mode(entry: VirtualAddress, user_sp: VirtualAddress) -> ! {
     let rip = entry.as_u64();
@@ -16,7 +15,7 @@ pub unsafe fn enter_user_mode(entry: VirtualAddress, user_sp: VirtualAddress) ->
     let rflags: u64 = 0x202;
 
     // prove we got here
-    qemu_trace!("Entering user mode ...\n");
+    info!("Entering user mode ...");
 
     unsafe {
         core::arch::asm!(
@@ -40,15 +39,16 @@ pub fn boot_single_user_task(vmm: &mut KernelVmm) -> ! {
 
     let blob = userland_demo::user_demo_bytes();
 
-    qemu_trace!("Mapping user demo ...\n");
+    info!("Mapping user demo ...");
     let (entry, user_sp_top) =
         map_user_demo(vmm, code_va, ustack_top, blob).expect("map user demo");
 
-    qemu_trace!("About to enter user mode ...\n");
+    info!("About to enter user mode ...");
     log_ctrl_bits();
 
     // TODO: Remove this later! Manually patches the specific L4 entry to be user-accessible.
     //       A better solution might be to use a root page that is not already implicitly added as no-user, no-execute.
+    /*
     alloc::debug::promote_pml4_user_bit(
         &HhdmPhysMapper,
         VirtualAddress::new(0x0000_0000_4000_0000),
@@ -58,8 +58,9 @@ pub fn boot_single_user_task(vmm: &mut KernelVmm) -> ! {
         VirtualAddress::new(0x0000_0000_4000_0000),
     );
     alloc::debug::dump_walk(&HhdmPhysMapper, VirtualAddress::new(0x0000_0000_4000_0000));
+    */
 
-    qemu_trace!("About to flush TLB ...\n");
+    info!("About to flush TLB ...");
     unsafe {
         vmm.local_tlb_flush_all();
     }

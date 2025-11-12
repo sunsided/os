@@ -24,8 +24,9 @@ use crate::uefi_mmap::exit_boot_services;
 use crate::vmem::create_kernel_pagetables;
 use alloc::boxed::Box;
 use kernel_info::boot::{KernelBootInfo, MemoryMapInfo};
-use kernel_qemu::qemu_trace;
+use kernel_qemu::QemuLogger;
 use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
+use log::{LevelFilter, info};
 use uefi::boot::PAGE_SIZE;
 use uefi::cstr16;
 use uefi::prelude::*;
@@ -41,7 +42,10 @@ fn efi_main() -> Status {
         return Status::UNSUPPORTED;
     }
 
-    qemu_trace!("UEFI Loader reporting to QEMU\n");
+    let logger = QemuLogger::new(LevelFilter::Debug);
+    logger.init().expect("logger init");
+
+    info!("UEFI Loader reporting to QEMU");
     uefi::println!("Attempting to load kernel.elf ...");
 
     let elf_bytes = match load_file(cstr16!("\\EFI\\Boot\\kernel.elf")) {
@@ -147,7 +151,7 @@ fn efi_main() -> Status {
 #[allow(clippy::items_after_statements)]
 unsafe fn enable_wp_nxe_pge() {
     // CR0.WP = 1 (write-protect in supervisor)
-    qemu_trace!("Enabling supervisor write protection ...\n");
+    info!("Enabling supervisor write protection ...");
     let mut cr0: u64;
     unsafe {
         core::arch::asm!("mov {}, cr0", out(reg) cr0, options(nomem, preserves_flags));
@@ -158,7 +162,7 @@ unsafe fn enable_wp_nxe_pge() {
     }
 
     // EFER.NXE = 1
-    qemu_trace!("Setting EFER.NXE ...\n");
+    info!("Setting EFER.NXE ...");
     const MSR_EFER: u32 = 0xC000_0080; // TODO: Document this properly
     let (mut lo, mut hi): (u32, u32);
     unsafe {
@@ -173,7 +177,7 @@ unsafe fn enable_wp_nxe_pge() {
     }
 
     // CR4.PGE = 1 (global pages)
-    qemu_trace!("Enabling global pages ...\n");
+    info!("Enabling global pages ...");
     let mut cr4: u64;
     unsafe {
         core::arch::asm!("mov {}, cr4", out(reg) cr4, options(nomem, preserves_flags));
@@ -201,7 +205,7 @@ unsafe fn switch_to_kernel(
     boot_info_ptr_va: BootInfoVirtualAddress,
     tramp_stack_top_va: TrampolineStackVirtualAddress,
 ) -> ! {
-    qemu_trace!("UEFI is about to jump into Kernel land. Ciao Kakao ...\n");
+    info!("UEFI is about to jump into Kernel land. Ciao Kakao ...");
     unsafe {
         core::arch::asm!(
             "cli",
