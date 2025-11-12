@@ -6,7 +6,7 @@ use kernel_alloc::phys_mapper::HhdmPhysMapper;
 use kernel_alloc::vmm::{Vmm, VmmError};
 use kernel_qemu::qemu_trace;
 use kernel_vmem::addresses::{PageSize, Size4K, VirtualAddress};
-use kernel_vmem::{FrameAlloc, PhysMapper, VirtualMemoryPageBits};
+use kernel_vmem::{PhysFrameAlloc, PhysMapper, VirtualMemoryPageBits};
 
 pub unsafe fn enter_user_mode(entry: VirtualAddress, user_sp: VirtualAddress) -> ! {
     let rip = entry.as_u64();
@@ -68,7 +68,7 @@ pub fn boot_single_user_task(vmm: &mut KernelVmm) -> ! {
 }
 
 #[allow(clippy::similar_names)]
-fn map_user_demo<M: PhysMapper, A: FrameAlloc>(
+fn map_user_demo<M: PhysMapper, A: PhysFrameAlloc>(
     vmm: &mut Vmm<'_, M, A>,
     code_va: VirtualAddress,
     ustack_top: VirtualAddress,

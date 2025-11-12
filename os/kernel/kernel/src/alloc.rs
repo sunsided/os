@@ -4,11 +4,11 @@ use kernel_alloc::frame_alloc::BitmapFrameAlloc;
 use kernel_alloc::phys_mapper::HhdmPhysMapper;
 use kernel_alloc::vmm::Vmm;
 use kernel_sync::{RawSpin, SpinMutex, SyncOnceCell};
-use kernel_vmem::{FrameAlloc, PhysMapper};
+use kernel_vmem::{PhysFrameAlloc, PhysMapper};
 
 pub type KernelVmm<'alloc> = Vmm<'alloc, HhdmPhysMapper, BitmapFrameAlloc>;
 
-pub struct KernelVm<M: PhysMapper, A: FrameAlloc> {
+pub struct KernelVm<M: PhysMapper, A: PhysFrameAlloc> {
     pub mapper: M,
     pub alloc: SpinMutex<A>,
 }

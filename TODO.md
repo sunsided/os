@@ -9,7 +9,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel-vmem/src/address_space.rs](./os/kernel/kernel-vmem/src/address_space.rs)
 
-- Line [151](./os/kernel/kernel-vmem/src/address_space.rs#L151): Refactor to error type
+- Line [173](./os/kernel/kernel-vmem/src/address_space.rs#L173): Refactor to error type
 
 ## [os/kernel/kernel/src/alloc/debug.rs](./os/kernel/kernel/src/alloc/debug.rs)
 

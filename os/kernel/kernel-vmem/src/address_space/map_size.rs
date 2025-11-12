@@ -17,7 +17,7 @@ use crate::page_table::pd::{L2Index, PdEntry, PdEntryKind};
 use crate::page_table::pdpt::{L3Index, PdptEntry, PdptEntryKind};
 use crate::page_table::pml4::{L4Index, Pml4Entry};
 use crate::page_table::pt::{L1Index, PtEntry4k};
-use crate::{AddressSpace, FrameAlloc, PhysMapper};
+use crate::{AddressSpace, PhysFrameAlloc, PhysMapper};
 
 /// # Page-size–directed mapping behavior
 ///
@@ -81,7 +81,7 @@ pub trait MapSize: PageSize {
     /// ### Errors
     /// - `"oom: pdpt" / "oom: pd" / "oom: pt"` if allocating an intermediate
     ///   table frame fails.
-    fn ensure_chain_for<A: FrameAlloc, M: PhysMapper>(
+    fn ensure_chain_for<A: PhysFrameAlloc, M: PhysMapper>(
         aspace: &AddressSpace<M>,
         alloc: &mut A,
         va: VirtualAddress,
@@ -120,7 +120,7 @@ pub enum MapSizeEnsureChainError {
 }
 
 impl MapSize for Size1G {
-    fn ensure_chain_for<A: FrameAlloc, M: PhysMapper>(
+    fn ensure_chain_for<A: PhysFrameAlloc, M: PhysMapper>(
         aspace: &AddressSpace<M>,
         alloc: &mut A,
         va: VirtualAddress,
@@ -134,6 +134,7 @@ impl MapSize for Size1G {
         if let Some(pdpt_page) = e4.next_table() {
             return Ok(pdpt_page);
         }
+
         let f = alloc.alloc_4k().ok_or(MapSizeEnsureChainError::OomPdpt)?;
         aspace.zero_pdpt(f);
         pml4.set(i4, Pml4Entry::present_with(nonleaf_flags, f));
@@ -157,7 +158,7 @@ impl MapSize for Size1G {
 }
 
 impl MapSize for Size2M {
-    fn ensure_chain_for<A: FrameAlloc, M: PhysMapper>(
+    fn ensure_chain_for<A: PhysFrameAlloc, M: PhysMapper>(
         aspace: &AddressSpace<M>,
         alloc: &mut A,
         va: VirtualAddress,
@@ -208,7 +209,7 @@ impl MapSize for Size2M {
 }
 
 impl MapSize for Size4K {
-    fn ensure_chain_for<A: FrameAlloc, M: PhysMapper>(
+    fn ensure_chain_for<A: PhysFrameAlloc, M: PhysMapper>(
         aspace: &AddressSpace<M>,
         alloc: &mut A,
         va: VirtualAddress,

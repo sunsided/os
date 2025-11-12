@@ -39,7 +39,7 @@ use crate::page_table::pd::{L2Index, PageDirectory, PdEntry, PdEntryKind};
 use crate::page_table::pdpt::{L3Index, PageDirectoryPointerTable, PdptEntry, PdptEntryKind};
 use crate::page_table::pml4::{L4Index, PageMapLevel4, Pml4Entry};
 use crate::page_table::pt::{L1Index, PageTable, PtEntry4k};
-use crate::{FrameAlloc, PhysMapper, PhysMapperExt, read_cr3_phys};
+use crate::{PhysFrameAlloc, PhysMapper, PhysMapperExt, read_cr3_phys};
 
 /// Handle to a single, concrete address space.
 pub struct AddressSpace<'m, M: PhysMapper> {
@@ -47,10 +47,32 @@ pub struct AddressSpace<'m, M: PhysMapper> {
     mapper: &'m M,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum AddressSpaceError {
+    #[error("Failed to create a new address space due to OOM in the allocator")]
+    OutOfMemory,
+}
+
 /// The PML4 root page for an [`AddressSpace`].
 pub type RootPage = PhysicalPage<Size4K>;
 
 impl<'m, M: PhysMapper> AddressSpace<'m, M> {
+    #[allow(clippy::missing_errors_doc)]
+    pub fn new(mapper: &'m M, alloc: &mut impl PhysFrameAlloc) -> Result<Self, AddressSpaceError> {
+        let pml4 = alloc.alloc_4k().ok_or(AddressSpaceError::OutOfMemory)?;
+        unsafe {
+            let table = mapper.phys_to_mut::<PageMapLevel4>(pml4.base());
+            *table = PageMapLevel4::zeroed();
+        }
+
+        let mut me = Self::from_root(mapper, pml4);
+
+        // Copy kernel half PML4 entries from current kernel PML4
+        let kern = unsafe { AddressSpace::from_current(mapper) };
+        me.clone_upper_half_from(&kern);
+        Ok(me)
+    }
+
     /// View the **currently active** address space by reading CR3.
     ///
     /// # Safety
@@ -93,7 +115,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
 
     /// Borrow a [`PageTable`] (PT) in this frame.
     ///
-    /// Convenience wrapper for [`PhysMapper::pt_mut`.
+    /// Convenience wrapper for [`PhysMapper::pt_mut`].
     #[inline]
     pub(crate) fn pt_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageTable {
         self.mapper.pt_mut(page)
@@ -129,7 +151,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
     ///
     /// # Errors
     /// - An Out of Memory error occurred in one of the tables.
-    pub fn map_one<A: FrameAlloc, S: MapSize>(
+    pub fn map_one<A: PhysFrameAlloc, S: MapSize>(
         &self,
         alloc: &mut A,
         va: VirtualAddress,
@@ -172,7 +194,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
     ///
     /// # Errors
     /// - Propagates OOMs from intermediate table allocation.
-    pub fn map_region<A: FrameAlloc>(
+    pub fn map_region<A: PhysFrameAlloc>(
         &self,
         alloc: &mut A,
         virt_start: VirtualAddress,
@@ -256,7 +278,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
 
     /// Walks the whole tree and frees empty tables (PT/PD/PDPT). Does not merge leaves.
     #[allow(clippy::similar_names)]
-    pub fn collapse_empty_tables<F: FrameAlloc>(&self, free: &mut F) {
+    pub fn collapse_empty_tables<F: PhysFrameAlloc>(&self, free: &mut F) {
         let pml4 = self.pml4_mut();
 
         // For every L4 entry:
@@ -402,6 +424,26 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
     #[inline]
     pub(crate) fn zero_pt(&self, page: PhysicalPage<Size4K>) {
         self.mapper.zero_pt(page);
+    }
+
+    /// Copy kernel upper-half PML4 entries (slots 256..=511) from `src` into `self`,
+    /// aliasing the same kernel page-table subtrees. Does not touch lower levels.
+    fn clone_upper_half_from(&mut self, src: &Self) {
+        let dst_pa = self.root_page();
+        let src_pa = src.root_page();
+
+        // Map both PML4 pages via HHDM
+        let dst_l4: &mut PageMapLevel4 = unsafe { self.mapper.phys_to_mut(dst_pa.base()) };
+        let src_l4: &mut PageMapLevel4 = unsafe { self.mapper.phys_to_mut(src_pa.base()) };
+
+        // Kernel half: indices 256..=511 (works for 48-bit and LA57)
+        for i in (256..512).map(L4Index::new) {
+            let e = src_l4.get(i);
+            if e.present() {
+                debug_assert!(!e.user(), "kernel PML4E must have US=0");
+            }
+            dst_l4.set(i, e);
+        }
     }
 }
 

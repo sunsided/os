@@ -4,7 +4,7 @@ use crate::elf::loader::LoadedSegMap;
 use kernel_info::memory::{HHDM_BASE /*KERNEL_BASE,*/ /*PHYS_LOAD*/};
 
 use kernel_vmem::{
-    AddressSpace, FrameAlloc, PhysMapper, PhysMapperExt,
+    AddressSpace, PhysFrameAlloc, PhysMapper, PhysMapperExt,
     addresses::{PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress},
 };
 
@@ -22,7 +22,7 @@ const fn align_up_u64(x: u64, a: u64) -> u64 {
 /// UEFI-backed frame allocator: hands out zeroed 4 KiB frames.
 struct BsFrameAlloc;
 
-impl FrameAlloc for BsFrameAlloc {
+impl PhysFrameAlloc for BsFrameAlloc {
     fn alloc_4k(&mut self) -> Option<PhysicalPage<Size4K>> {
         let pages = 1usize;
         let mem_type = MemoryType::LOADER_DATA;
