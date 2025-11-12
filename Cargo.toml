@@ -15,6 +15,7 @@ publish = false
 
 [workspace.dependencies]
 bitfield-struct = { version = "0.12.0", default-features = false }
+log = { version = "0.4", default-features = false }
 quote = { version = "1", default-features = false }
 syn = { version = "2", default-features = false }
 thiserror = { version = "2.0.17", default-features = false }

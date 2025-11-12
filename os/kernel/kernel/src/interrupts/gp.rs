@@ -2,8 +2,8 @@ use crate::gdt::KERNEL_CS_SEL;
 use crate::interrupts::{GateType, Idt};
 use core::arch::naked_asm;
 use core::hint::spin_loop;
-use kernel_qemu::qemu_trace;
 use kernel_vmem::addresses::VirtualAddress;
+use log::error;
 
 pub const GP_FAULT_VECTOR: usize = 0x0D; // 13
 
@@ -55,7 +55,8 @@ pub extern "C" fn gp_fault_handler() {
 }
 
 extern "C" fn log_gp_fault(rip: VirtualAddress, selector: u64) {
-    qemu_trace!(
+    let info = decode_gp_error(selector);
+    error!(
         "general protection fault general protection fault page
        ⠀⠀⠀⠀⠀⠀⠀⠙⣿⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
         ⠀⠀⠀⠀⠀⠀⠀⠀⢺⣿⣿⡆⠀⠀⠀⠀⠀⠀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
@@ -80,16 +81,10 @@ extern "C" fn log_gp_fault(rip: VirtualAddress, selector: u64) {
         ⠀⠜⢠⣿⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⢿⣿⣿⣿⣿⣿⣗⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⣿⣿⣿⣿⣿⣦⠄⣠⠀
         ⠠⢸⣿⣿⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣿⣿⣿⣿⣿⣿⣿
         ⠀⠛⣿⣿⣿⡿⠏⠀⠀⠀⠀⠀⠀⢳⣾⣿⣿⣿⣿⣿⣿⡶⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿
-        ⠀⢨⠀⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠙⣿⣿⡿⡿⠿⠛⠙⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⠏⠉⠻⠿⠟⠁\n"
-    );
-
-    qemu_trace!("GENERAL PROTECTION FAULT: rip=0x{rip} selector={selector:#x}\n");
-    let info = decode_gp_error(selector);
-    qemu_trace!(
-        "  selector_idx={} ti={} ext={}\n",
-        info.selector_index,
-        info.ti_ldt,
-        info.external
+        ⠀⢨⠀⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠙⣿⣿⡿⡿⠿⠛⠙⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⠏⠉⠻⠿⠟⠁\n\
+        GENERAL PROTECTION FAULT: rip=0x{rip} selector={selector:#x}\
+          selector_idx={} ti={} ext={}\n",
+        info.selector_index, info.ti_ldt, info.external
     );
 
     loop {

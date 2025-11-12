@@ -8,6 +8,7 @@ extern crate alloc;
 mod elf;
 mod file_system;
 mod framebuffer;
+mod logger;
 mod memory;
 mod rsdp;
 mod tracing;
@@ -17,6 +18,7 @@ mod vmem;
 use crate::elf::parser::ElfHeader;
 use crate::file_system::load_file;
 use crate::framebuffer::get_framebuffer;
+use crate::logger::UefiLogger;
 use crate::memory::alloc_trampoline_stack;
 use crate::rsdp::find_rsdp_addr;
 use crate::tracing::trace_boot_info;
@@ -24,8 +26,8 @@ use crate::uefi_mmap::exit_boot_services;
 use crate::vmem::create_kernel_pagetables;
 use alloc::boxed::Box;
 use kernel_info::boot::{KernelBootInfo, MemoryMapInfo};
-use kernel_qemu::qemu_trace;
 use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
+use log::{LevelFilter, debug, info};
 use uefi::boot::PAGE_SIZE;
 use uefi::cstr16;
 use uefi::prelude::*;
@@ -41,33 +43,36 @@ fn efi_main() -> Status {
         return Status::UNSUPPORTED;
     }
 
-    qemu_trace!("UEFI Loader reporting to QEMU\n");
-    uefi::println!("Attempting to load kernel.elf ...");
+    let logger = UefiLogger::new(LevelFilter::Debug);
+    let logger = logger.init().expect("logger init");
+
+    info!("UEFI Loader reporting to QEMU");
+    info!("Attempting to load kernel.elf ...");
 
     let elf_bytes = match load_file(cstr16!("\\EFI\\Boot\\kernel.elf")) {
         Ok(bytes) => bytes,
         Err(status) => {
-            uefi::println!("Failed to load kernel.elf. Exiting.");
+            info!("Failed to load kernel.elf. Exiting.");
             return status;
         }
     };
 
     // Parse ELF64, collect PT_LOAD segments and entry address
     let Ok(parsed) = ElfHeader::parse_elf64(&elf_bytes) else {
-        uefi::println!("kernel.elf is not a valid x86_64 ELF64");
+        info!("kernel.elf is not a valid x86_64 ELF64");
         return Status::UNSUPPORTED;
     };
 
-    uefi::println!("Loading kernel segments into memory ...");
+    info!("Loading kernel segments into memory ...");
     let kernel_segments = match elf::loader::load_pt_load_segments_hi(&elf_bytes, &parsed) {
         Ok(segments) => segments,
         Err(e) => {
-            uefi::println!("Failed to load PT_LOAD segments: {e:?}");
+            info!("Failed to load PT_LOAD segments: {e:?}");
             return e.into();
         }
     };
 
-    uefi::println!(
+    info!(
         "kernel.elf loaded successfully: entry={}, segments={}",
         parsed.entry,
         parsed.segments.len()
@@ -97,7 +102,7 @@ fn efi_main() -> Status {
 
     // Heap-allocate and leak the boot info.
     let boot_info = Box::leak(Box::new(boot_info));
-    uefi::println!("Kernel boot info: {:#?}", core::ptr::from_ref(boot_info));
+    info!("Kernel boot info: {:#?}", core::ptr::from_ref(boot_info));
 
     // The trampoline code must also be mapped, otherwise we won't be able to execute it
     // when switching the CR3 page tables.
@@ -105,6 +110,9 @@ fn efi_main() -> Status {
     let tramp_code_len: usize = PAGE_SIZE; // should be enough
 
     // Allocate a trampoline stack (with guard page)
+    debug!(
+        "Allocating trampoline stack for Kernel ({tramp_code_va}, {TRAMPOLINE_STACK_SIZE_BYTES} bytes)"
+    );
     let (tramp_stack_base_phys, tramp_stack_top_va) =
         alloc_trampoline_stack(TRAMPOLINE_STACK_SIZE_BYTES, true);
 
@@ -112,6 +120,7 @@ fn efi_main() -> Status {
     let bi_ptr_va = VirtualAddress::from_ptr(core::ptr::from_ref::<KernelBootInfo>(boot_info));
 
     // Build page tables
+    info!("Creating initial kernel page tables ...");
     let Ok(pml4_phys) = create_kernel_pagetables(
         &kernel_segments,
         tramp_code_va,
@@ -124,6 +133,7 @@ fn efi_main() -> Status {
         return Status::OUT_OF_RESOURCES;
     };
 
+    logger.exit_boot_services();
     boot_info.mmap = match exit_boot_services() {
         Ok(value) => value,
         Err(value) => return value,
@@ -147,7 +157,7 @@ fn efi_main() -> Status {
 #[allow(clippy::items_after_statements)]
 unsafe fn enable_wp_nxe_pge() {
     // CR0.WP = 1 (write-protect in supervisor)
-    qemu_trace!("Enabling supervisor write protection ...\n");
+    info!("Enabling supervisor write protection ...");
     let mut cr0: u64;
     unsafe {
         core::arch::asm!("mov {}, cr0", out(reg) cr0, options(nomem, preserves_flags));
@@ -158,7 +168,7 @@ unsafe fn enable_wp_nxe_pge() {
     }
 
     // EFER.NXE = 1
-    qemu_trace!("Setting EFER.NXE ...\n");
+    info!("Setting EFER.NXE ...");
     const MSR_EFER: u32 = 0xC000_0080; // TODO: Document this properly
     let (mut lo, mut hi): (u32, u32);
     unsafe {
@@ -173,7 +183,7 @@ unsafe fn enable_wp_nxe_pge() {
     }
 
     // CR4.PGE = 1 (global pages)
-    qemu_trace!("Enabling global pages ...\n");
+    info!("Enabling global pages ...");
     let mut cr4: u64;
     unsafe {
         core::arch::asm!("mov {}, cr4", out(reg) cr4, options(nomem, preserves_flags));
@@ -201,7 +211,7 @@ unsafe fn switch_to_kernel(
     boot_info_ptr_va: BootInfoVirtualAddress,
     tramp_stack_top_va: TrampolineStackVirtualAddress,
 ) -> ! {
-    qemu_trace!("UEFI is about to jump into Kernel land. Ciao Kakao ...\n");
+    info!("UEFI is about to jump into Kernel land. Ciao Kakao ...");
     unsafe {
         core::arch::asm!(
             "cli",

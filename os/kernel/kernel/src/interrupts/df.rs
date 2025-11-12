@@ -1,5 +1,6 @@
 use crate::gdt::KERNEL_CS_SEL;
 use crate::interrupts::{GateType, Idt, Ist};
+use log::error;
 
 pub const DF_VECTOR: usize = 0x08;
 
@@ -35,5 +36,5 @@ pub extern "C" fn double_fault_handler() {
 }
 
 extern "C" fn df_rust(cr2: u64) {
-    kernel_qemu::qemu_trace!("#DF cr2={:#x}", cr2);
+    error!("#DF cr2={cr2:#x}");
 }

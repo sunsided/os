@@ -14,84 +14,134 @@
 //! ```
 
 use core::ptr::copy_nonoverlapping;
+use kernel_info::memory::{LAST_USERSPACE_ADDRESS, USERSPACE_END};
 use kernel_vmem::address_space::{AddressSpaceMapOneError, AddressSpaceMapRegionError, MapSize};
 use kernel_vmem::addresses::{PageSize, PhysicalAddress, Size4K, VirtualAddress, VirtualPage};
-use kernel_vmem::{AddressSpace, FrameAlloc, PhysMapper};
+use kernel_vmem::{AddressSpace, PhysFrameAlloc, PhysMapper};
 use kernel_vmem::{VirtualMemoryPageBits, invalidate_tlb_page};
 
+/// Indicates for whom to allocate.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum AllocationTarget {
+    /// This allocation is for usermode programs.
+    /// Allows allocation up to [`LAST_USERSPACE_ADDRESS`](`kernel_info::memory::LAST_USERSPACE_ADDRESS`).
+    User,
+    /// This allocation is for kernelspace programs.
+    /// Allows allocation after (but not before) [`LAST_USERSPACE_ADDRESS`](`kernel_info::memory::LAST_USERSPACE_ADDRESS`),
+    /// typically after [`KERNEL_BASE`](kernel_info::memory::HHDM_BASE).
+    Kernel,
+}
+
+impl AllocationTarget {
+    #[must_use]
+    pub const fn from(va: VirtualAddress) -> Self {
+        if va.as_u64() >= USERSPACE_END {
+            Self::Kernel
+        } else {
+            Self::User
+        }
+    }
+
+    #[must_use]
+    pub fn matches(&self, va: VirtualAddress) -> bool {
+        Self::from(va).eq(self)
+    }
+}
+
 /// Minimal kernel virtual memory manager.
-pub struct Vmm<'m, M: PhysMapper, A: FrameAlloc> {
-    aspace: AddressSpace<'m, M>,
+pub struct Vmm<'m, M: PhysMapper, A: PhysFrameAlloc> {
+    /// The page tables.
+    ptables: AddressSpace<'m, M>,
+    /// The allocator; hands out pages to work with.
     alloc: &'m mut A,
 }
 
-impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
+impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
     /// # Safety
     /// - Must run at CPL0 with paging enabled.
     /// - Assumes CR3 points at a valid PML4 frame.
     pub unsafe fn from_current(mapper: &'m M, alloc: &'m mut A) -> Self {
         let aspace = unsafe { AddressSpace::from_current(mapper) };
-        Self { aspace, alloc }
+        Self {
+            ptables: aspace,
+            alloc,
+        }
+    }
+
+    /// # Safety
+    /// This completely unmaps all lower-half PML4 records of the page table
+    /// without walking, nor actively unmapping PDPT, PD and PT records. This
+    /// is meant to be used exactly once after the kernel is set up, and never again.
+    pub unsafe fn clear_lower_half(&mut self) {
+        self.ptables.clear_lower_half();
     }
 
     /// Translate VA→PA if mapped (handles 1G/2M/4K leaves with offset).
     #[must_use]
     pub fn query(&self, va: VirtualAddress) -> Option<PhysicalAddress> {
-        self.aspace.query(va)
+        self.ptables.query(va)
     }
 
     /// Map **one** page of size `S` with `leaf_flags`, creating parents with `nonleaf_flags`.
-    #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
     pub fn map_one<S: MapSize>(
         &mut self,
+        target: AllocationTarget,
         va: VirtualAddress,
         pa: PhysicalAddress,
         nonleaf_flags: VirtualMemoryPageBits,
         leaf_flags: VirtualMemoryPageBits,
     ) -> Result<(), AddressSpaceMapOneError> {
-        self.aspace
+        assert!(target.matches(va));
+        self.ptables
             .map_one::<A, S>(self.alloc, va, pa, nonleaf_flags, leaf_flags)
     }
 
     /// Unmap a single **4 KiB** page at `va`. Returns Err if not a 4K mapping.
     #[allow(clippy::missing_errors_doc)]
     pub fn unmap_one_4k(&mut self, va: VirtualAddress) -> Result<(), &'static str> {
-        self.aspace.unmap_one(va)
+        self.ptables.unmap_one(va)
     }
 
     /// Greedy region map: tiles `[va .. va+len)` to `[pa .. pa+len)` with 1G/2M/4K leaves.
     ///
     /// # Errors
     /// Allocation fails, e.g. due to OOM.
+    #[allow(clippy::missing_panics_doc)]
     pub fn map_region(
         &mut self,
+        target: AllocationTarget,
         va: VirtualAddress,
         pa: PhysicalAddress,
         len: u64,
         nonleaf: VirtualMemoryPageBits,
         leaf: VirtualMemoryPageBits,
     ) -> Result<(), VmmError> {
+        assert!(target.matches(va));
         Ok(self
-            .aspace
+            .ptables
             .map_region(self.alloc, va, pa, len, nonleaf, leaf)?)
     }
 
     pub fn unmap_region(&mut self, va: VirtualAddress, len: u64) {
-        self.aspace.unmap_region(va, len);
+        self.ptables.unmap_region(va, len);
     }
 
     /// Convenience: map a **per-page** region using freshly allocated 4K frames (no PA contiguity).
     ///
     /// Leaves `guard` bytes at the beginning **unmapped** (for stacks).
-    #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
     pub fn map_anon_4k_pages(
         &mut self,
+        target: AllocationTarget,
         va_start: VirtualAddress,
         guard: u64,
         bytes: u64,
         nonleaf: VirtualMemoryPageBits,
         leaf: VirtualMemoryPageBits,
     ) -> Result<(), VmmError> {
+        assert!(target.matches(va_start));
+        assert!(target.matches(va_start + bytes));
         debug_assert!(guard.is_multiple_of(Size4K::SIZE) && bytes.is_multiple_of(Size4K::SIZE));
 
         let base = VirtualAddress::new(va_start.as_u64() + guard);
@@ -103,7 +153,7 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
                 return Err(VmmError::OutOfMemory);
             };
             let pa = pp.base();
-            self.aspace
+            self.ptables
                 .map_one::<A, Size4K>(self.alloc, va, pa, nonleaf, leaf)?;
         }
 
@@ -115,12 +165,17 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
     /// # Safety
     /// - `dst_user .. dst_user+src.len()` must be mapped and writable.
     /// - Same address space active (your current setup).
-    #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
     pub unsafe fn copy_to_mapped_user(
         &mut self,
         dst_user: VirtualAddress,
         src: &[u8],
     ) -> Result<(), VmmError> {
+        assert!(
+            dst_user.as_u64() <= LAST_USERSPACE_ADDRESS,
+            "attempted to copy user code into kernel space"
+        );
+
         // Optional simple mapping check: walk each page boundary
         let start = dst_user.as_u64();
         let end = start
@@ -161,9 +216,16 @@ impl<'m, M: PhysMapper, A: FrameAlloc> Vmm<'m, M, A> {
                 return Err(VmmError::Unmapped);
             };
 
-            // Ensure 4K mapping
+            // Recreate the target. This is safe to do here because we
+            // are not moving the memory, so we just recreate the original argument
+            // to ensure the check passes when re-mapping.
+            let target = AllocationTarget::from(va);
+
+            // Ensure 4K mapping. We unmap first since otherwise the mapping call would
+            // fail with the page already in use.
+
             self.unmap_one_4k(va).map_err(VmmError::UnmapFailed)?;
-            self.map_one::<Size4K>(va, pa_aligned_4k(pa), nonleaf, leaf_rx)?;
+            self.map_one::<Size4K>(target, va, pa_aligned_4k(pa), nonleaf, leaf_rx)?;
             self.invlpg(VirtualPage::<Size4K>::containing_address(va));
         }
         Ok(())

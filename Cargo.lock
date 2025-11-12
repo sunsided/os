@@ -41,6 +41,7 @@ dependencies = [
  "kernel-qemu",
  "kernel-sync",
  "kernel-vmem",
+ "log",
 ]
 
 [[package]]
@@ -52,8 +53,8 @@ name = "kernel-alloc"
 version = "0.0.0"
 dependencies = [
  "kernel-info",
- "kernel-sync",
  "kernel-vmem",
+ "log",
  "thiserror",
 ]
 
@@ -64,6 +65,9 @@ version = "0.0.0"
 [[package]]
 name = "kernel-qemu"
 version = "0.0.0"
+dependencies = [
+ "log",
+]
 
 [[package]]
 name = "kernel-sync"
@@ -75,6 +79,7 @@ version = "0.0.0"
 dependencies = [
  "bitfield-struct",
  "kernel-info",
+ "log",
  "thiserror",
  "utils-accessors-derive",
 ]
@@ -187,6 +192,7 @@ dependencies = [
  "kernel-info",
  "kernel-qemu",
  "kernel-vmem",
+ "log",
  "thiserror",
  "uefi",
 ]

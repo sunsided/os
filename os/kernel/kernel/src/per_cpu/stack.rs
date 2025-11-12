@@ -1,5 +1,5 @@
 use crate::alloc::KernelVmm;
-use kernel_alloc::vmm::VmmError;
+use kernel_alloc::vmm::{AllocationTarget, VmmError};
 use kernel_vmem::VirtualMemoryPageBits;
 use kernel_vmem::addresses::{PageSize, Size4K, VirtualAddress, VirtualPage};
 
@@ -72,7 +72,14 @@ pub fn map_kernel_stack(
 
     // Leave one page as guard, map `stack_bytes` above it from fresh 4K frames.
     let guard_bytes = Size4K::SIZE;
-    vmm.map_anon_4k_pages(slot.base(), guard_bytes, stack_bytes, nonleaf, leaf)?;
+    vmm.map_anon_4k_pages(
+        AllocationTarget::Kernel,
+        slot.base(),
+        guard_bytes,
+        stack_bytes,
+        nonleaf,
+        leaf,
+    )?;
 
     let base = VirtualAddress::new(slot.base().as_u64() + Size4K::SIZE);
     let top = VirtualAddress::new((base.as_u64() + stack_bytes) & !0xFu64);
@@ -101,7 +108,14 @@ pub fn map_ist_stack(
         .with_global(true);
 
     let guard_bytes = Size4K::SIZE;
-    vmm.map_anon_4k_pages(slot.base(), guard_bytes, ist_bytes, nonleaf, leaf)?;
+    vmm.map_anon_4k_pages(
+        AllocationTarget::Kernel,
+        slot.base(),
+        guard_bytes,
+        ist_bytes,
+        nonleaf,
+        leaf,
+    )?;
 
     let base = VirtualAddress::new(slot.base().as_u64() + Size4K::SIZE);
     let top = VirtualAddress::new((base.as_u64() + ist_bytes) & !0xFu64);

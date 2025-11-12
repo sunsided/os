@@ -3,10 +3,10 @@ use crate::gdt::{USER_CS, USER_DS};
 use crate::tracing::log_ctrl_bits;
 use crate::{alloc, userland_demo};
 use kernel_alloc::phys_mapper::HhdmPhysMapper;
-use kernel_alloc::vmm::{Vmm, VmmError};
-use kernel_qemu::qemu_trace;
+use kernel_alloc::vmm::{AllocationTarget, Vmm, VmmError};
 use kernel_vmem::addresses::{PageSize, Size4K, VirtualAddress};
-use kernel_vmem::{FrameAlloc, PhysMapper, VirtualMemoryPageBits};
+use kernel_vmem::{PhysFrameAlloc, PhysMapper, VirtualMemoryPageBits};
+use log::info;
 
 pub unsafe fn enter_user_mode(entry: VirtualAddress, user_sp: VirtualAddress) -> ! {
     let rip = entry.as_u64();
@@ -16,7 +16,7 @@ pub unsafe fn enter_user_mode(entry: VirtualAddress, user_sp: VirtualAddress) ->
     let rflags: u64 = 0x202;
 
     // prove we got here
-    qemu_trace!("Entering user mode ...\n");
+    info!("Entering user mode ...");
 
     unsafe {
         core::arch::asm!(
@@ -40,26 +40,17 @@ pub fn boot_single_user_task(vmm: &mut KernelVmm) -> ! {
 
     let blob = userland_demo::user_demo_bytes();
 
-    qemu_trace!("Mapping user demo ...\n");
+    info!("Mapping user demo ...");
     let (entry, user_sp_top) =
         map_user_demo(vmm, code_va, ustack_top, blob).expect("map user demo");
 
-    qemu_trace!("About to enter user mode ...\n");
+    info!("About to enter user mode ...");
     log_ctrl_bits();
 
-    // TODO: Remove this later! Manually patches the specific L4 entry to be user-accessible.
-    //       A better solution might be to use a root page that is not already implicitly added as no-user, no-execute.
-    alloc::debug::promote_pml4_user_bit(
-        &HhdmPhysMapper,
-        VirtualAddress::new(0x0000_0000_4000_0000),
-    );
-    alloc::debug::clear_parent_xd_for_exec(
-        &HhdmPhysMapper,
-        VirtualAddress::new(0x0000_0000_4000_0000),
-    );
+    // TODO: Remove later
     alloc::debug::dump_walk(&HhdmPhysMapper, VirtualAddress::new(0x0000_0000_4000_0000));
 
-    qemu_trace!("About to flush TLB ...\n");
+    info!("About to flush TLB ...");
     unsafe {
         vmm.local_tlb_flush_all();
     }
@@ -68,14 +59,14 @@ pub fn boot_single_user_task(vmm: &mut KernelVmm) -> ! {
 }
 
 #[allow(clippy::similar_names)]
-fn map_user_demo<M: PhysMapper, A: FrameAlloc>(
+fn map_user_demo<M: PhysMapper, A: PhysFrameAlloc>(
     vmm: &mut Vmm<'_, M, A>,
     code_va: VirtualAddress,
     ustack_top: VirtualAddress,
     blob: &[u8],
 ) -> Result<(VirtualAddress, VirtualAddress), VmmError> {
     // non-leaf: allow user traversal (U/S=1), WB, Present, Write=1 (harmless), NX don't-care
-    let nonleaf = VirtualMemoryPageBits::user_table_wb_noexec(); // must set US=1
+    let nonleaf = VirtualMemoryPageBits::user_table_wb_exec(); // must set US=1
 
     // leaf for CODE (RX): Present=1, User=1, Write=0, NX=0
     let leaf_rx = VirtualMemoryPageBits::user_leaf_code_wb(); // NX=0, US=1
@@ -88,6 +79,7 @@ fn map_user_demo<M: PhysMapper, A: FrameAlloc>(
     let code_len_4k = (code_len + Size4K::SIZE - 1) & !(Size4K::SIZE - 1);
 
     vmm.map_anon_4k_pages(
+        AllocationTarget::User,
         code_va,
         0,           // no guard for code
         code_len_4k, // whole pages
@@ -108,8 +100,12 @@ fn map_user_demo<M: PhysMapper, A: FrameAlloc>(
     let stack_base = VirtualAddress::new(ustack_top.as_u64() - guard - stack_size);
 
     vmm.map_anon_4k_pages(
-        stack_base, guard, // leave guard unmapped (fault on underflow)
-        stack_size, nonleaf, leaf_rw, // writable, NX
+        AllocationTarget::User,
+        stack_base,
+        guard, // leave guard unmapped (fault on underflow)
+        stack_size,
+        nonleaf,
+        leaf_rw, // writable, NX
     )?;
 
     Ok((code_va, ustack_top))

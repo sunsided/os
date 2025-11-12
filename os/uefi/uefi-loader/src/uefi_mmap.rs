@@ -5,7 +5,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use kernel_info::boot::MemoryMapInfo;
-use kernel_qemu::qemu_trace;
+use log::info;
 use uefi::boot::MemoryType;
 use uefi::mem::memory_map::MemoryMap;
 use uefi::{Status, boot};
@@ -13,7 +13,7 @@ use uefi::{Status, boot};
 /// Exist the UEFI boot services and retain a copy of the UEFI memory map.
 pub fn exit_boot_services() -> Result<MemoryMapInfo, Status> {
     uefi::println!("Exiting boot services ...");
-    qemu_trace!("Exiting boot services ...\n");
+    info!("Exiting boot services ...");
 
     // Pre-allocate a buffer while UEFI allocator is still alive.
     let mut mmap_copy = match allocate_mmap_buffer() {
@@ -33,7 +33,7 @@ pub fn exit_boot_services() -> Result<MemoryMapInfo, Status> {
 
     // Safety: ensure the buffer is large enough (or bail/panic in dev builds).
     if mmap_length > mmap_copy.len() {
-        qemu_trace!(
+        info!(
             "Memory map size assertion failed: Expected {}, got {}",
             mmap_copy.len(),
             mmap_length
@@ -54,7 +54,7 @@ pub fn exit_boot_services() -> Result<MemoryMapInfo, Status> {
     // Ensure the memory map copy continues to exist.
     core::mem::forget(mmap_copy);
 
-    qemu_trace!("Boot services exited, we're now flying by instruments.\n");
+    info!("Boot services exited, we're now flying by instruments.");
     Ok(mmap)
 }
 

@@ -13,6 +13,7 @@ license.workspace = true
 [dependencies]
 bitfield-struct.workspace = true
 kernel-info = { path = "../kernel-info" }
+log.workspace = true
 thiserror.workspace = true
 utils-accessors-derive = { path = "../../utils/utils-accessors-derive" }
 

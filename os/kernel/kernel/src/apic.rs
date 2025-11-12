@@ -3,7 +3,7 @@ use crate::interrupts::spurious::SPURIOUS_INTERRUPT_VECTOR;
 use crate::interrupts::timer::LAPIC_TIMER_VECTOR;
 use crate::per_cpu::PerCpu;
 use crate::tsc::rdtsc;
-use kernel_qemu::qemu_trace;
+use log::info;
 
 // IA32_APIC_BASE MSR and bits
 pub const IA32_APIC_BASE: u32 = 0x1B;
@@ -125,12 +125,12 @@ pub unsafe fn mask_timer_x2apic(mask: bool) {
 
 /// Bring up x2APIC on the BSP and record the APIC ID in `PerCpu`.
 pub fn init_lapic_and_set_cpu_id(percpu: &mut PerCpu) {
-    qemu_trace!("Initializing LAPIC (x2APIC)…\n");
+    info!("Initializing LAPIC (x2APIC)…");
     let apic_id = unsafe { enable_and_read_id_x2apic() };
     percpu.apic_id = apic_id;
 
     lapic_enable_spurious_vector();
-    qemu_trace!("x2APIC enabled; APIC ID = {:#x}\n", apic_id);
+    info!("x2APIC enabled; APIC ID = {apic_id:#x}");
 }
 
 fn lapic_enable_spurious_vector() {
@@ -156,7 +156,7 @@ pub fn start_lapic_timer(tsc_hz: u64) {
     // Make sure: SVR enabled, TPR=0, IF=1, IDT has the gate.
     unsafe {
         // Calibrate once (cache result).
-        qemu_trace!("Calibrating LAPIC timer via TSC ...\n");
+        info!("Calibrating LAPIC timer via TSC ...");
         let lapic_hz = calibrate_lapic_hz_via_tsc(tsc_hz, 100_000, lapic_div::DIV_16); // 50ms, /16
 
         // Choose rate & compute initial

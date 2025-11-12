@@ -1,8 +1,10 @@
+#![allow(dead_code)]
+
 use core::ptr::read_volatile;
-use kernel_qemu::qemu_trace;
 use kernel_vmem::PhysMapperExt;
 use kernel_vmem::addresses::{PageSize, Size4K, VirtualAddress};
 use kernel_vmem::addresses::{PhysicalAddress, PhysicalPage};
+use log::info;
 
 // TODO: Review whether the default type can be used
 #[repr(transparent)]
@@ -71,8 +73,8 @@ pub fn dump_walk<M: PhysMapperExt>(mapper: &M, va: VirtualAddress) {
         // L4
         let pml4 = core::ptr::from_mut(mapper.pml4_mut(phys_to_page4k(pml4_pa))) as *const u64;
         let pml4e = Pte(read_table_u64(pml4, l4i));
-        qemu_trace!(
-            "L4[{:3}]={:016x} P={} RW={} US={} NX={}\n",
+        info!(
+            "L4[{:3}]={:016x} P={} RW={} US={} NX={}",
             l4i,
             pml4e.0,
             pml4e.p(),
@@ -81,7 +83,7 @@ pub fn dump_walk<M: PhysMapperExt>(mapper: &M, va: VirtualAddress) {
             pml4e.nx()
         );
         if !pml4e.p() {
-            qemu_trace!("-- not present at L4\n");
+            info!("-- not present at L4");
             return;
         }
 
@@ -89,8 +91,8 @@ pub fn dump_walk<M: PhysMapperExt>(mapper: &M, va: VirtualAddress) {
         let pdpt_pa = pml4e.addr();
         let pdpt = core::ptr::from_mut(mapper.pdpt_mut(phys_to_page4k(pdpt_pa))) as *const u64;
         let pdpte = Pte(read_table_u64(pdpt, l3i));
-        qemu_trace!(
-            "L3[{:3}]={:016x} P={} RW={} US={} PS={} NX={}\n",
+        info!(
+            "L3[{:3}]={:016x} P={} RW={} US={} PS={} NX={}",
             l3i,
             pdpte.0,
             pdpte.p(),
@@ -100,11 +102,11 @@ pub fn dump_walk<M: PhysMapperExt>(mapper: &M, va: VirtualAddress) {
             pdpte.nx()
         );
         if !pdpte.p() {
-            qemu_trace!("-- not present at L3\n");
+            info!("-- not present at L3");
             return;
         }
         if pdpte.ps() {
-            qemu_trace!("-- 1GiB leaf: US={} NX={}\n", pdpte.us(), pdpte.nx());
+            info!("-- 1GiB leaf: US={} NX={}\n", pdpte.us(), pdpte.nx());
             return;
         }
 
@@ -112,8 +114,8 @@ pub fn dump_walk<M: PhysMapperExt>(mapper: &M, va: VirtualAddress) {
         let pd_pa = pdpte.addr();
         let pd = core::ptr::from_mut(mapper.pd_mut(phys_to_page4k(pd_pa))) as *const u64;
         let pde = Pte(read_table_u64(pd, l2i));
-        qemu_trace!(
-            "L2[{:3}]={:016x} P={} RW={} US={} PS={} NX={}\n",
+        info!(
+            "L2[{:3}]={:016x} P={} RW={} US={} PS={} NX={}",
             l2i,
             pde.0,
             pde.p(),
@@ -123,11 +125,11 @@ pub fn dump_walk<M: PhysMapperExt>(mapper: &M, va: VirtualAddress) {
             pde.nx()
         );
         if !pde.p() {
-            qemu_trace!("-- not present at L2\n");
+            info!("-- not present at L2");
             return;
         }
         if pde.ps() {
-            qemu_trace!("-- 2MiB leaf: US={} NX={}\n", pde.us(), pde.nx());
+            info!("-- 2MiB leaf: US={} NX={}\n", pde.us(), pde.nx());
             return;
         }
 
@@ -135,8 +137,8 @@ pub fn dump_walk<M: PhysMapperExt>(mapper: &M, va: VirtualAddress) {
         let pt_pa = pde.addr();
         let pt = core::ptr::from_mut(mapper.pt_mut(phys_to_page4k(pt_pa))) as *const u64;
         let pte = Pte(read_table_u64(pt, l1i));
-        qemu_trace!(
-            "L1[{:3}]={:016x} P={} RW={} US={} NX={}\n",
+        info!(
+            "L1[{:3}]={:016x} P={} RW={} US={} NX={}",
             l1i,
             pte.0,
             pte.p(),
@@ -166,15 +168,15 @@ pub fn promote_pml4_user_bit<M: PhysMapperExt>(mapper: &M, target_va: VirtualAdd
         let ents: *mut u64 = core::ptr::from_mut(pml4).cast::<u64>();
         let cur = read_volatile(ents.add(slot));
         if (cur & 1) == 0 {
-            qemu_trace!("promote_pml4_user_bit: slot {} not present", slot);
+            info!("promote_pml4_user_bit: slot {slot} not present");
             return;
         }
         let new = cur | (1 << 2); // US=1
         if new == cur {
-            qemu_trace!("PML4E[{}] already US=1", slot);
+            info!("PML4E[{slot}] already US=1");
         } else {
             core::ptr::write_volatile(ents.add(slot), new);
-            qemu_trace!("PML4E[{}]: {:016x} -> {:016x} (US=1)", slot, cur, new);
+            info!("PML4E[{slot}]: {cur:016x} -> {new:016x} (US=1)");
         }
     }
 }

@@ -8,7 +8,7 @@
 //! - A [`PageSize`](addresses::PageSize) enum for 4 KiB / 2 MiB / 1 GiB mappings.
 //! - x86-64 page-table [`VirtualMemoryPageBits`] with practical explanations.
 //! - A 4 KiB-aligned [`PageTable`] wrapper and index helpers.
-//! - A tiny allocator/mapper interface ([`FrameAlloc`], [`PhysMapper`]).
+//! - A tiny allocator/mapper interface ([`PhysFrameAlloc`], [`PhysMapper`]).
 //!
 //! ## x86-64 Virtual Address → Physical Address Walk
 //!
@@ -86,7 +86,7 @@ use crate::page_table::pt::PageTable;
 pub use kernel_info::memory as info;
 
 /// Minimal allocator that hands out **4 KiB** page-table frames.
-pub trait FrameAlloc {
+pub trait PhysFrameAlloc {
     /// Allocate a zeroed 4 KiB page suitable for a page-table.
     fn alloc_4k(&mut self) -> Option<PhysicalPage<Size4K>>;
 
