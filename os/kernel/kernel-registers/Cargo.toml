@@ -1,0 +1,24 @@
+[package]
+name = "kernel-registers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = ["asm", "cr4", "efer"]
+uefi = ["asm", "cr4", "efer"]
+asm = []
+cr4 = []
+efer = []
+
+[dependencies]
+bitfield-struct.workspace = true
+
+[lints]
+workspace = true

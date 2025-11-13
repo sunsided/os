@@ -70,6 +70,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "kernel-registers"
+version = "0.0.0"
+dependencies = [
+ "bitfield-struct",
+]
+
+[[package]]
 name = "kernel-sync"
 version = "0.0.0"
 
@@ -191,6 +198,7 @@ dependencies = [
  "bitfield-struct",
  "kernel-info",
  "kernel-qemu",
+ "kernel-registers",
  "kernel-vmem",
  "log",
  "thiserror",

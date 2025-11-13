@@ -91,7 +91,7 @@ pub mod kernel_stacks;
 pub mod stack;
 
 use crate::gdt::{Gdt, Selectors};
-use crate::msr::gs_base_ptr;
+use crate::msr::Ia32GsBaseMsr;
 use crate::tss::Tss64;
 use kernel_vmem::addresses::VirtualAddress;
 
@@ -160,8 +160,6 @@ impl PerCpu {
     #[inline(always)]
     #[allow(clippy::inline_always)]
     pub fn current() -> &'static Self {
-        let ptr = gs_base_ptr();
-        debug_assert!(!ptr.is_null(), "Per-CPU instance pointer is unset");
-        unsafe { &*ptr }
+        Ia32GsBaseMsr::current()
     }
 }

@@ -235,6 +235,8 @@ use crate::uefi_mmap::exit_boot_services;
 use crate::vmem::create_kernel_pagetables;
 use alloc::boxed::Box;
 use kernel_info::boot::{KernelBootInfo, MemoryMapInfo};
+use kernel_registers::cr4::Cr4;
+use kernel_registers::{LoadRegister, StoreRegister, efer::Efer};
 use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
 use log::{LevelFilter, debug, info};
 use uefi::boot::PAGE_SIZE;
@@ -378,28 +380,14 @@ unsafe fn enable_wp_nxe_pge() {
 
     // EFER.NXE = 1
     info!("Setting EFER.NXE ...");
-    const MSR_EFER: u32 = 0xC000_0080; // TODO: Document this properly
-    let (mut lo, mut hi): (u32, u32);
     unsafe {
-        core::arch::asm!("rdmsr", in("ecx") MSR_EFER, out("eax") lo, out("edx") hi, options(nomem, preserves_flags));
-    }
-    let mut efer = u64::from(hi) << 32 | u64::from(lo);
-    efer |= 1 << 11;
-    lo = u32::try_from(efer).expect("failed to cast efer to u32"); // TODO: Handle properly
-    hi = (efer >> 32) as u32;
-    unsafe {
-        core::arch::asm!("wrmsr", in("ecx") MSR_EFER, in("eax") lo, in("edx") hi, options(nomem, preserves_flags));
+        Efer::load().with_nxe(true).store();
     }
 
     // CR4.PGE = 1 (global pages)
     info!("Enabling global pages ...");
-    let mut cr4: u64;
     unsafe {
-        core::arch::asm!("mov {}, cr4", out(reg) cr4, options(nomem, preserves_flags));
-    }
-    cr4 |= 1 << 7;
-    unsafe {
-        core::arch::asm!("mov cr4, {}", in(reg) cr4, options(nomem, preserves_flags));
+        Cr4::load().with_pge(true).store();
     }
 }
 

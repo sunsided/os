@@ -34,9 +34,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
-- Line [244](./os/uefi/uefi-loader/src/main.rs#L244): Add proper documentation.
-- Line [381](./os/uefi/uefi-loader/src/main.rs#L381): Document this properly
-- Line [388](./os/uefi/uefi-loader/src/main.rs#L388): Handle properly
+- Line [246](./os/uefi/uefi-loader/src/main.rs#L246): Add proper documentation.
 
 ## [os/uefi/uefi-loader/src/memory.rs](./os/uefi/uefi-loader/src/memory.rs)
 
