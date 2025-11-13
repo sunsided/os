@@ -69,7 +69,6 @@ pub struct Tss64 {
     /// following `rsp0` field on an 8-byte boundary.
     _reserved0: u32,
 
-    /* ─────────────── Privilege Stack Table (PST) ─────────────── */
     /// **Ring-0 stack pointer (RSP0)** used on privilege elevation.
     ///
     /// When the CPU delivers an interrupt/exception/trap to a gate that changes
@@ -96,7 +95,6 @@ pub struct Tss64 {
     /// Must be zero. Reserved by the architecture.
     _reserved1: u64,
 
-    /* ─────────────── Interrupt Stack Table (IST) ─────────────── */
     /// **IST1**: optional dedicated stack for an IDT entry.
     ///
     /// If an IDT gate has its IST index field set to 1, the CPU loads RSP from

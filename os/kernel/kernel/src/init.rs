@@ -277,7 +277,7 @@ unsafe extern "C" fn stage_one_switch_to_stack_and_enter(
 /// Per-CPU configuration (GDT, IST, stack, ...)
 ///
 /// Currently only one static configuration exists due to early single-core development.
-/// Later on this might be changed into a vector. See [`slot_for_cpu`] for calculating
+/// Later on this might be changed into a vector. See [`kstack_slot_for_cpu`] for calculating
 /// per-CPU stack offsets.
 static mut PER_CPU0: PerCpu = PerCpu::new();
 

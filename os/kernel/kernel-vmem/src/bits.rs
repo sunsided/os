@@ -180,7 +180,7 @@ impl VirtualMemoryPageBits {
             .with_pat_bit2(false)
     }
 
-    /// Alias for [`with_user_table_wb_exec_ok`]: non-leaf, WB-cached, NX=false.
+    /// Alias for [`user_table_wb_exec`](Self::user_table_wb_exec): non-leaf, WB-cached, NX=false.
     #[inline]
     #[must_use]
     pub const fn with_user_table_wb_code_ok() -> Self {

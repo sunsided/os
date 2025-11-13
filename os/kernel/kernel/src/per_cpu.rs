@@ -26,7 +26,7 @@ pub struct PerCpu {
 
     /// Interrupt Stack Table entries (alternate hard stacks, e.g., NMI/#DF).
     ///
-    /// **Slot 0:** [`IST1`](Ist::Ist1)
+    /// **Slot 0:** [`IST1`](super::interrupts::Ist::Ist1)
     pub ist_stacks: [VirtualAddress; 7],
 
     /// GDT storage

@@ -24,7 +24,7 @@ pub struct TssDescLow {
     pub base_hi: u8, // [63:56]
 }
 
-/// High 8 bytes of a 64-bit TSS descriptor: base[63:32], reserved=0.
+/// High 8 bytes of a 64-bit TSS descriptor: `base[63:32]`, reserved=0.
 #[bitfield(u64)]
 pub struct TssDescHigh {
     pub base_upper: u32, // [31:0]  base[63:32]

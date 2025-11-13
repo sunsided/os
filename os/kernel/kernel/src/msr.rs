@@ -74,7 +74,7 @@ impl Msr {
 /// Write a 64-bit value to the given **Model-Specific Register (MSR)**.
 ///
 /// # Parameters
-/// - `msr`: the MSR index (e.g., [`IA32_GS_BASE`]).
+/// - `msr`: the MSR index (e.g., [`Msr::IA32_GS_BASE`]).
 /// - `val`: the 64-bit value to write.
 ///
 /// # Safety
@@ -87,19 +87,9 @@ impl Msr {
 ///   interfere with the semantics of the written MSR (e.g., writing GS base
 ///   while `swapgs` is in flight).
 ///
-/// # Example
-/// ```no_run
-/// use crate::arch::x86_64::msr::{write_msr, IA32_GS_BASE};
-///
-/// unsafe {
-///     // Point GS base to the current per-CPU structure.
-///     write_msr(IA32_GS_BASE, per_cpu_ptr as u64);
-/// }
-/// ```
-///
 /// # See Also
-/// - [`IA32_GS_BASE`]
-/// - [`IA32_KERNEL_GS_BASE`]
+/// - [`Msr::IA32_GS_BASE`]
+/// - [`Msr::IA32_KERNEL_GS_BASE`]
 #[inline]
 #[allow(clippy::cast_possible_truncation)]
 unsafe fn write_model_specific_register(msr: Msr, val: u64) {

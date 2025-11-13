@@ -20,11 +20,11 @@
 //! Index | Selector | Meaning
 //! ------|----------|--------
 //! 0     | 0x00     | Null
-//! 1     | 0x08     | Kernel code (64-bit, DPL=0; [`KERNEL_CS_SEL`](selectors::KERNEL_CS_SEL))
-//! 2     | 0x10     | Kernel data (DPL=0; [`KERNEL_DS_SEL`](selectors::KERNEL_DS_SEL))
-//! 3     | 0x18     | User   code (64-bit, DPL=3) → with RPL=3: **0x1b** ([`USER_CS_SEL`](selectors::USER_CS_SEL))
-//! 4     | 0x20     | User   data (DPL=3)         → with RPL=3: **0x23** ([`USER_DS_SEL`](selectors::USER_DS_SEL))
-//! 5/6   | 0x28     | TSS (16-byte system descriptor; [`TSS_SYS_SEL`](selectors::TSS_SYS_SEL))
+//! 1     | 0x08     | Kernel code (64-bit, DPL=0; [`KERNEL_CS_SEL`])
+//! 2     | 0x10     | Kernel data (DPL=0; [`KERNEL_DS_SEL`]
+//! 3     | 0x18     | User   code (64-bit, DPL=3) → with RPL=3: **0x1b** ([`USER_CS_SEL`])
+//! 4     | 0x20     | User   data (DPL=3)         → with RPL=3: **0x23** ([`USER_DS_SEL`])
+//! 5/6   | 0x28     | TSS (16-byte system descriptor; [`TSS_SYS_SEL`])
 //!
 //! This module builds a typed GDT, loads it with `lgdt`, refreshes the data
 //! segments, and loads the Task Register (`ltr`) with the TSS selector.

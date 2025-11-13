@@ -48,9 +48,6 @@ use log::info;
 ///
 /// # Arguments
 /// * `fb_virt` - [`FramebufferInfo`] with a valid, mapped virtual address.
-///
-/// # Safety
-/// Assumes that [`remap_boot_memory`] has been called and all required mappings are in place.
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,

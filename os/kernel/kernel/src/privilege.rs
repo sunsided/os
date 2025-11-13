@@ -34,7 +34,7 @@
 //! - [`Ring`] — enumeration of privilege rings (`Ring0` … `Ring3`).
 //! - [`Rpl`] — requested privilege level plus helpers for selectors.
 //! - [`Dpl`] — descriptor privilege level plus access-check predicates.
-//! - [`KERNEL_RPL`]/[`USER_RPL`] — constants for common use.
+//! - [`KERNEL_RPL`](rpl::KERNEL_RPL)/[`USER_RPL`](rpl::USER_RPL) — constants for common use.
 //!
 //! Together, these types provide a clear, type-safe way to reason about
 //! privilege levels in descriptor and selector code, such as when building a

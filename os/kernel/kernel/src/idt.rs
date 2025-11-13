@@ -15,7 +15,7 @@
 //! - If an IDT entry uses an **IST** (Interrupt Stack Table) slot, the CPU will switch
 //!   to the corresponding `istN` stack from the **TSS** before entering the handler.
 //!   This is how you can make double-fault or NMI handlers robust even if the
-//!   current stack is corrupted. See [`crate::gdt::Tss64`] and your TSS initialization.
+//!   current stack is corrupted. See [`Tss64`](super::tss::Tss64) and the TSS initialization.
 //!
 //! > In short: **load the GDT and TSS first**, then `lidt`, then enable interrupts.
 //!
