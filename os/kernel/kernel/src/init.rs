@@ -1,3 +1,85 @@
+//! # Kernel Initialization and Bootstrap
+//!
+//! This module handles the critical early boot sequence that transforms the kernel
+//! from its initial UEFI-loaded state into a fully functional operating system.
+//! It orchestrates the complex multi-phase initialization process required to
+//! establish a complete runtime environment.
+//!
+//! ## Boot Sequence Overview
+//!
+//! The kernel initialization follows a carefully ordered sequence to safely
+//! transition from UEFI firmware control to autonomous kernel operation:
+//!
+//! 1. **UEFI Handoff** ([`_start_kernel`]) - Naked assembly entry point
+//! 2. **Boot Stack Setup** - Temporary stack for early initialization
+//! 3. **Memory Management** - Physical allocator and virtual memory initialization
+//! 4. **Stack Migration** - Transition to properly allocated kernel stack
+//! 5. **CPU Configuration** - GDT, TSS, IDT, and per-CPU structure setup
+//! 6. **Hardware Initialization** - APIC, timers, and interrupt controllers
+//! 7. **Final Handoff** - Transfer control to main kernel loop
+//!
+//! ## Critical Components
+//!
+//! ### Entry Points
+//! * [`_start_kernel`] - Raw assembly entry point called directly by UEFI loader
+//! * [`kernel_entry_on_boot_stack`] - First Rust code executed on temporary stack
+//! * [`stage_two_init_bootstrap_processor`] - Main initialization on proper kernel stack
+//!
+//! ### Stack Management
+//! * [`BOOT_STACK`] - 64KiB temporary stack in dedicated BSS section
+//! * [`Aligned16`] - 16-byte aligned buffer wrapper for ABI compliance
+//! * [`stage_one_switch_to_stack_and_enter`] - Naked stack switching trampoline
+//!
+//! ### Subsystem Initialization
+//! * [`initialize_memory_management`] - Sets up physical and virtual memory management
+//! * [`initialize_kernel_stack`] - Allocates and maps per-CPU kernel stack
+//! * [`allocate_ist1_stack`] - Creates IST1 stack for exception handling
+//! * [`remap_framebuffer_memory`] - Maps UEFI GOP framebuffer into kernel space
+//!
+//! ## Architecture Details
+//!
+//! ### ABI Compliance
+//! The initialization sequence carefully maintains x86-64 System V ABI requirements:
+//! - 16-byte stack alignment at function entry points
+//! - Proper register usage for parameter passing
+//! - Red-zone avoidance in kernel space
+//!
+//! ### Memory Layout
+//! ```text
+//! UEFI Loader → _start_kernel (naked asm)
+//!                   ↓
+//!               BOOT_STACK (temporary, .bss.boot section)
+//!                   ↓
+//!           kernel_entry_on_boot_stack (early Rust init)
+//!                   ↓
+//!               Kernel Stack (properly allocated via VMM)
+//!                   ↓
+//!       stage_two_init_bootstrap_processor (full initialization)
+//! ```
+//!
+//! ### Privilege and Control Flow
+//! - **Ring 0**: All initialization occurs in kernel mode with full privileges
+//! - **Interrupts**: Disabled during critical initialization phases
+//! - **Virtual Memory**: Higher-half kernel mapped at `0xffffffff80000000`
+//! - **Stack Safety**: Multiple stack transitions with careful alignment management
+//!
+//! ## Safety Considerations
+//!
+//! This module contains extensive unsafe code for:
+//! - Naked assembly functions for low-level CPU control
+//! - Direct memory manipulation and stack switching
+//! - Hardware register programming and MSR access
+//! - Static mutable global state management
+//!
+//! All unsafe operations are carefully isolated and documented, with safety
+//! invariants clearly established for each phase of initialization.
+//!
+//! ## Error Handling
+//!
+//! Early boot failures are generally unrecoverable and result in kernel panic.
+//! The initialization sequence uses `.expect()` patterns to provide meaningful
+//! error messages for debugging boot failures.
+
 use crate::idt::{idt_update_in_place, init_idt_once};
 use crate::interrupts::syscall::SyscallInterrupt;
 use crate::interrupts::{Idt, Ist};
