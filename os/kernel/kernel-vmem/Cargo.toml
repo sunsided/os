@@ -13,6 +13,8 @@ license.workspace = true
 [dependencies]
 bitfield-struct.workspace = true
 kernel-info = { path = "../kernel-info" }
+kernel-memory-addresses = { path = "../../kernel/kernel-memory-addresses" }
+kernel-registers = { path = "../../kernel/kernel-registers", default-features = false, features = ["asm", "cr3"] }
 log.workspace = true
 thiserror.workspace = true
 utils-accessors-derive = { path = "../../utils/utils-accessors-derive" }

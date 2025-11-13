@@ -5,7 +5,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core::mem::size_of;
 use core::ptr::read_unaligned;
-use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
+use kernel_memory_addresses::{PhysicalAddress, VirtualAddress};
 use uefi::Status;
 
 // Minimal ELF64 definitions

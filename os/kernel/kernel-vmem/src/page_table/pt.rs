@@ -20,8 +20,8 @@
 //! - After modifying active mappings, the caller must perform any required TLB maintenance.
 
 use crate::VirtualMemoryPageBits;
-use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualAddress};
 use bitfield_struct::bitfield;
+use kernel_memory_addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualAddress};
 
 /// L1 **PTE (4 KiB leaf)** — maps a single 4 KiB page (bit 7 is **PAT**).
 ///
@@ -217,7 +217,7 @@ impl PageTable {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::addresses::PhysicalAddress;
+    use kernel_memory_addresses::PhysicalAddress;
 
     #[test]
     fn pte_4k_leaf() {

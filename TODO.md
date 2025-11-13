@@ -13,7 +13,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/alloc/debug.rs](./os/kernel/kernel/src/alloc/debug.rs)
 
-- Line [9](./os/kernel/kernel/src/alloc/debug.rs#L9): Review whether the default type can be used
+- Line [8](./os/kernel/kernel/src/alloc/debug.rs#L8): Review whether the default type can be used
 
 ## [os/kernel/kernel/src/init.rs](./os/kernel/kernel/src/init.rs)
 
@@ -34,7 +34,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
-- Line [246](./os/uefi/uefi-loader/src/main.rs#L246): Add proper documentation.
+- Line [245](./os/uefi/uefi-loader/src/main.rs#L245): Add proper documentation.
 
 ## [os/uefi/uefi-loader/src/memory.rs](./os/uefi/uefi-loader/src/memory.rs)
 

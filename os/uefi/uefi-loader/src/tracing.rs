@@ -2,7 +2,7 @@
 
 use crate::TrampolineStackVirtualAddress;
 use kernel_info::boot::KernelBootInfo;
-use kernel_vmem::addresses::VirtualAddress;
+use kernel_memory_addresses::VirtualAddress;
 
 pub fn trace_boot_info(
     boot_info: &KernelBootInfo,

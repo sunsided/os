@@ -93,7 +93,7 @@ pub mod stack;
 use crate::gdt::{Gdt, Selectors};
 use crate::msr::Ia32GsBaseMsr;
 use crate::tss::Tss64;
-use kernel_vmem::addresses::VirtualAddress;
+use kernel_memory_addresses::VirtualAddress;
 
 #[repr(C, align(64))] // avoid false sharing; nice for future SMP
 pub struct PerCpu {

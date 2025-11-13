@@ -71,12 +71,10 @@
 #![allow(unsafe_code, clippy::inline_always)]
 
 pub mod address_space;
-pub mod addresses;
 mod bits;
 pub mod page_table;
 
 pub use crate::address_space::AddressSpace;
-use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualPage};
 pub use crate::bits::VirtualMemoryPageBits;
 use crate::page_table::pd::PageDirectory;
 use crate::page_table::pdpt::PageDirectoryPointerTable;
@@ -84,6 +82,9 @@ use crate::page_table::pml4::PageMapLevel4;
 use crate::page_table::pt::PageTable;
 /// Re-export constants as info module.
 pub use kernel_info::memory as info;
+use kernel_memory_addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualPage};
+use kernel_registers::LoadRegisterUnsafe;
+use kernel_registers::cr3::Cr3;
 
 /// Minimal allocator that hands out **4 KiB** page-table frames.
 pub trait PhysFrameAlloc {
@@ -246,17 +247,18 @@ impl<T> PhysMapperExt for T where T: PhysMapper {}
 #[inline(always)]
 #[must_use]
 pub unsafe fn read_cr3_phys() -> PhysicalAddress {
-    let mut cr3: u64;
-    unsafe {
-        core::arch::asm!("mov {}, cr3", out(reg) cr3, options(nomem, nostack, preserves_flags));
-    }
-
-    // In 4- and 5-level paging, CR3[51:12] is the base. Upper bits should be zero.
-    debug_assert_eq!(cr3 >> 52, 0, "CR3 has nonzero high bits: {cr3:#018x}");
+    let cr3 = unsafe { Cr3::load_unsafe() };
+    let phys_base = cr3.pml4_phys();
 
     // Clear PCID / low bits by turning it into a 4K page base and back to an address.
-    let page = PhysicalAddress::from(cr3).page::<Size4K>(); // drop low 12 bits
-    PhysicalAddress::from(page)
+    let page = PhysicalAddress::new(phys_base).page::<Size4K>(); // drop low 12 bits
+    debug_assert_eq!(
+        phys_base,
+        page.base().as_u64(),
+        "PML4 phys base is not 4 KiB aligned"
+    );
+
+    PhysicalAddress::new(phys_base)
 }
 
 /// Invalidate one page in the TLB on the **current CPU** for the **current** address space.

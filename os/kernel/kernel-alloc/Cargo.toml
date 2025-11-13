@@ -12,6 +12,8 @@ license.workspace = true
 
 [dependencies]
 kernel-info = { path = "../kernel-info" }
+kernel-memory-addresses = { path = "../../kernel/kernel-memory-addresses" }
+kernel-registers = { path = "../../kernel/kernel-registers", default-features = false, features = ["asm", "cr3"] }
 kernel-vmem = { path = "../kernel-vmem" }
 log.workspace = true
 thiserror.workspace = true

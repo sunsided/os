@@ -1,9 +1,8 @@
 #![allow(dead_code)]
 
 use core::ptr::read_volatile;
+use kernel_memory_addresses::{PageSize, PhysicalAddress, PhysicalPage, Size4K, VirtualAddress};
 use kernel_vmem::PhysMapperExt;
-use kernel_vmem::addresses::{PageSize, Size4K, VirtualAddress};
-use kernel_vmem::addresses::{PhysicalAddress, PhysicalPage};
 use log::info;
 
 // TODO: Review whether the default type can be used

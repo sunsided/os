@@ -26,8 +26,8 @@
 //! - The user must ensure that reserved/used frames (e.g., kernel, bootloader) are marked as used before allocation.
 //! - No synchronization is provided; not thread-safe.
 
+use kernel_memory_addresses::{PageSize, PhysicalAddress, PhysicalPage, Size4K};
 use kernel_vmem::PhysFrameAlloc;
-use kernel_vmem::addresses::{PageSize, PhysicalAddress, PhysicalPage, Size4K};
 use log::trace;
 
 const PHYS_MEM_START: u64 = 0x0010_0000; // 1 MiB, example

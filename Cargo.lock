@@ -38,7 +38,9 @@ dependencies = [
  "bitfield-struct",
  "kernel-alloc",
  "kernel-info",
+ "kernel-memory-addresses",
  "kernel-qemu",
+ "kernel-registers",
  "kernel-sync",
  "kernel-vmem",
  "log",
@@ -53,6 +55,8 @@ name = "kernel-alloc"
 version = "0.0.0"
 dependencies = [
  "kernel-info",
+ "kernel-memory-addresses",
+ "kernel-registers",
  "kernel-vmem",
  "log",
  "thiserror",
@@ -60,6 +64,10 @@ dependencies = [
 
 [[package]]
 name = "kernel-info"
+version = "0.0.0"
+
+[[package]]
+name = "kernel-memory-addresses"
 version = "0.0.0"
 
 [[package]]
@@ -86,6 +94,8 @@ version = "0.0.0"
 dependencies = [
  "bitfield-struct",
  "kernel-info",
+ "kernel-memory-addresses",
+ "kernel-registers",
  "log",
  "thiserror",
  "utils-accessors-derive",
@@ -197,6 +207,7 @@ version = "0.0.0"
 dependencies = [
  "bitfield-struct",
  "kernel-info",
+ "kernel-memory-addresses",
  "kernel-qemu",
  "kernel-registers",
  "kernel-vmem",

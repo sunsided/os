@@ -2,7 +2,7 @@ use crate::gdt::KERNEL_CS_SEL;
 use crate::interrupts::{GateType, Idt};
 use core::arch::naked_asm;
 use core::hint::spin_loop;
-use kernel_vmem::addresses::VirtualAddress;
+use kernel_memory_addresses::VirtualAddress;
 use log::error;
 
 pub const GP_FAULT_VECTOR: usize = 0x0D; // 13

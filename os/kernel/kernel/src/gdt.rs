@@ -50,7 +50,7 @@ use crate::per_cpu::PerCpu;
 use crate::privilege::{Dpl, Rpl};
 use crate::tss::{Tss64, init_tss};
 use core::mem::size_of;
-use kernel_vmem::addresses::VirtualAddress;
+use kernel_memory_addresses::VirtualAddress;
 
 #[allow(dead_code)]
 pub struct Selectors {

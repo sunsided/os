@@ -40,7 +40,7 @@
 //! ## Typical Usage
 //!
 //! ```rust
-//! # use kernel_vmem::addresses::*;
+//! # use kernel_memory_addresses::*;
 //! // Create a virtual address
 //! let va = VirtualAddress::new(0xFFFF_FFFF_8000_1234);
 //!
@@ -68,6 +68,9 @@
 //!
 //! This forms the foundation for paging, virtual memory mapping, and kernel
 //! address-space management code.
+
+#![cfg_attr(not(any(test, doctest)), no_std)]
+#![allow(unsafe_code, clippy::inline_always)]
 
 use core::fmt;
 use core::hash::Hash;
@@ -451,7 +454,7 @@ impl<S: PageSize> From<MemoryAddress> for MemoryAddressOffset<S> {
 ///
 /// ### Examples
 /// ```rust
-/// # use kernel_vmem::addresses::*;
+/// # use kernel_memory_addresses::*;
 /// let va = VirtualAddress::new(0xFFFF_FFFF_8000_1234);
 /// let (vp, off) = va.split::<Size4K>();
 /// assert_eq!(vp.base().as_u64() & (Size4K::SIZE - 1), 0);
@@ -557,7 +560,7 @@ impl AddAssign<u64> for VirtualAddress {
 ///
 /// ### Examples
 /// ```rust
-/// # use kernel_vmem::addresses::*;
+/// # use kernel_memory_addresses::*;
 /// let pa = PhysicalAddress::new(0x0000_0010_2000_0042);
 /// let (pp, off) = pa.split::<Size4K>();
 /// assert_eq!(pp.base().as_u64() & (Size4K::SIZE - 1), 0);
@@ -654,7 +657,7 @@ impl AddAssign<u64> for PhysicalAddress {
 ///
 /// ### Examples
 /// ```rust
-/// # use kernel_vmem::addresses::*;
+/// # use kernel_memory_addresses::*;
 /// let va = VirtualAddress::new(0xFFFF_FFFF_8000_1234);
 /// let vp = va.page::<Size4K>();
 /// assert_eq!(vp.base().as_u64() & (Size4K::SIZE - 1), 0);
@@ -741,7 +744,7 @@ impl<S: PageSize> TryFrom<VirtualAddress> for VirtualPage<S> {
 ///
 /// ### Examples
 /// ```rust
-/// # use kernel_vmem::addresses::*;
+/// # use kernel_memory_addresses::*;
 /// let pa = PhysicalAddress::new(0x0000_0008_1234_5678);
 /// let pp = pa.page::<Size2M>();
 /// assert_eq!(pp.base().as_u64() & (Size2M::SIZE - 1), 0);

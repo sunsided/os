@@ -23,7 +23,7 @@
 
 use crate::per_cpu::PerCpu;
 use core::mem::size_of;
-use kernel_vmem::addresses::VirtualAddress;
+use kernel_memory_addresses::VirtualAddress;
 
 /// 64-bit Task State Segment (TSS) as used by x86-64 long mode.
 ///

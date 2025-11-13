@@ -4,14 +4,12 @@ use crate::elf::loader::LoadedSegMap;
 use kernel_info::memory::{HHDM_BASE /*KERNEL_BASE,*/ /*PHYS_LOAD*/};
 use log::info;
 
-use kernel_vmem::{
-    AddressSpace, PhysFrameAlloc, PhysMapper, PhysMapperExt,
-    addresses::{PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress},
+use kernel_memory_addresses::{
+    PageSize, PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress,
 };
-
 use kernel_vmem::VirtualMemoryPageBits;
 use kernel_vmem::address_space::AddressSpaceMapOneError;
-use kernel_vmem::addresses::PageSize;
+use kernel_vmem::{AddressSpace, PhysFrameAlloc, PhysMapper, PhysMapperExt};
 use uefi::boot;
 use uefi::boot::{AllocateType, MemoryType};
 

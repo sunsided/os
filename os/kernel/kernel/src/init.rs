@@ -112,9 +112,9 @@ use crate::tsc::estimate_tsc_hz;
 use kernel_alloc::phys_mapper::HhdmPhysMapper;
 use kernel_alloc::vmm::AllocationTarget;
 use kernel_info::memory::{HHDM_BASE, KERNEL_STACK_SIZE};
+use kernel_memory_addresses::{PhysicalAddress, VirtualAddress};
 use kernel_sync::irq::sti_enable_interrupts;
 use kernel_vmem::VirtualMemoryPageBits;
-use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
 
 /// Earliest boot stack size. This stack is used only when handing over from UEFI
 /// to the Kernel, and then immediately changed for a properly allocated stack.

@@ -6,7 +6,7 @@ use bitfield_struct::bitfield;
 use core::arch::naked_asm;
 use core::hint::spin_loop;
 use kernel_alloc::phys_mapper::HhdmPhysMapper;
-use kernel_vmem::addresses::VirtualAddress;
+use kernel_memory_addresses::VirtualAddress;
 use log::{error, info};
 
 pub const PAGE_FAULT_VECTOR: usize = 0x0E; // 14

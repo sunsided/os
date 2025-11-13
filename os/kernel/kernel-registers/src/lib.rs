@@ -6,6 +6,9 @@
 #[cfg(feature = "efer")]
 pub mod efer;
 
+#[cfg(feature = "cr3")]
+pub mod cr3;
+
 #[cfg(feature = "cr4")]
 pub mod cr4;
 

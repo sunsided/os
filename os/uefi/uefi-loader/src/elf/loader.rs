@@ -6,7 +6,7 @@ use crate::elf::parser::{ElfHeader, PFlags};
 use alloc::vec::Vec;
 use core::ptr;
 use kernel_info::memory::{KERNEL_BASE, PHYS_LOAD};
-use kernel_vmem::addresses::{
+use kernel_memory_addresses::{
     MemoryAddress, PageSize, PhysicalAddress, PhysicalPage, Size4K, VirtualPage,
 };
 use uefi::Status;

@@ -21,9 +21,9 @@
 //! - TLB maintenance is the caller’s responsibility after mutating active mappings.
 
 use crate::VirtualMemoryPageBits;
-use crate::addresses::{PhysicalAddress, PhysicalPage, Size2M, Size4K, VirtualAddress};
 use crate::page_table::{PRESENT_BIT, PS_BIT};
 use bitfield_struct::bitfield;
+use kernel_memory_addresses::{PhysicalAddress, PhysicalPage, Size2M, Size4K, VirtualAddress};
 
 /// **Borrowed view** into an L2 PDE.
 ///
@@ -459,7 +459,7 @@ impl PageDirectory {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::addresses::PhysicalAddress;
+    use kernel_memory_addresses::PhysicalAddress;
 
     #[test]
     fn pd_table_vs_2m() {

@@ -4,7 +4,7 @@ use crate::tracing::log_ctrl_bits;
 use crate::{alloc, userland_demo};
 use kernel_alloc::phys_mapper::HhdmPhysMapper;
 use kernel_alloc::vmm::{AllocationTarget, Vmm, VmmError};
-use kernel_vmem::addresses::{PageSize, Size4K, VirtualAddress};
+use kernel_memory_addresses::{PageSize, Size4K, VirtualAddress};
 use kernel_vmem::{PhysFrameAlloc, PhysMapper, VirtualMemoryPageBits};
 use log::info;
 

@@ -1,8 +1,8 @@
-use crate::addresses::{PhysicalPage, Size1G, Size2M, Size4K};
 use crate::page_table::pd::{Pde, Pde2M};
 use crate::page_table::pdpt::{Pdpte, Pdpte1G};
 use crate::page_table::pml4::Pml4Entry;
 use crate::page_table::pt::PtEntry4k;
+use kernel_memory_addresses::{PhysicalPage, Size1G, Size2M, Size4K};
 use utils_accessors_derive::Setters;
 
 /// Unified, ergonomic view over x86-64 paging entries (all levels / forms).

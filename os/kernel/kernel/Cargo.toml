@@ -18,7 +18,9 @@ qemu = ["kernel-qemu/enabled"]
 bitfield-struct.workspace = true
 kernel-alloc = { path = "../kernel-alloc" }
 kernel-info = { path = "../kernel-info" }
+kernel-memory-addresses = { path = "../../kernel/kernel-memory-addresses" }
 kernel-qemu = { path = "../../kernel/kernel-qemu", default-features = false }
+kernel-registers = { path = "../../kernel/kernel-registers", default-features = false, features = ["kernel"] }
 kernel-sync = { path = "../../kernel/kernel-sync" }
 kernel-vmem = { path = "../../kernel/kernel-vmem" }
 log.workspace = true

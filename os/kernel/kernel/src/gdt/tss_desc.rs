@@ -1,5 +1,5 @@
 use bitfield_struct::bitfield;
-use kernel_vmem::addresses::VirtualAddress;
+use kernel_memory_addresses::VirtualAddress;
 
 /// Low 8 bytes of a 64-bit *Available TSS* descriptor (type = 0x9, S=0).
 #[bitfield(u64)]

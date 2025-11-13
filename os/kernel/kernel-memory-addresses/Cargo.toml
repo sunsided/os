@@ -1,26 +1,16 @@
 [package]
-name = "kernel-registers"
+name = "kernel-memory-addresses"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 repository.workspace = true
+publish.workspace = true
 keywords.workspace = true
 categories.workspace = true
 license.workspace = true
-publish.workspace = true
-
-[features]
-default = ["kernel"]
-kernel = ["asm", "cr3", "cr4", "efer"]
-uefi = ["asm", "cr4", "efer"]
-asm = []
-cr3 = []
-cr4 = []
-efer = []
 
 [dependencies]
-bitfield-struct.workspace = true
 
 [lints]
 workspace = true

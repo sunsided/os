@@ -108,7 +108,7 @@ impl LoadRegisterUnsafe for Efer {
 
 #[cfg(feature = "asm")]
 impl StoreRegisterUnsafe for Efer {
-    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::clippy::cast_possible_truncation)]
     unsafe fn store_unsafe(self) {
         let efer = self.into_bits();
         let lo = efer as u32;
