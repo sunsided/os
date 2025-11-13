@@ -38,7 +38,7 @@
 //! ## Initialization Sequence
 //!
 //! 1. **Capability Check**: Verify x2APIC support via CPUID
-//! 2. **Mode Enable**: Set APIC_EN and APIC_EXTD bits in IA32_APIC_BASE MSR
+//! 2. **Mode Enable**: Set `APIC_EN` and `APIC_EXTD` bits in `IA32_APIC_BASE` MSR
 //! 3. **ID Assignment**: Read and store Local APIC ID in per-CPU structure
 //! 4. **Spurious Vector**: Configure spurious interrupt handling
 //! 5. **Timer Setup**: Calibrate and configure periodic timer operation

@@ -114,15 +114,6 @@ impl PhysFrameAlloc for BitmapFrameAlloc {
     /// # Returns
     /// - `Some(PhysicalPage<Size4K>)` if a free frame was found.
     /// - `None` if all frames are already allocated.
-    ///
-    /// # Example
-    /// ```
-    /// if let Some(frame) = allocator.alloc_4k() {
-    ///     println!("Allocated frame at: {:?}", frame.base());
-    /// } else {
-    ///     println!("Out of physical memory!");
-    /// }
-    /// ```
     fn alloc_4k(&mut self) -> Option<PhysicalPage<Size4K>> {
         for (i, word) in self.bitmap.iter_mut().enumerate() {
             if *word == u64::MAX {
@@ -161,12 +152,6 @@ impl PhysFrameAlloc for BitmapFrameAlloc {
     /// The caller must ensure that:
     /// - The frame being freed was previously allocated by this allocator.
     /// - The frame is not in active use.
-    ///
-    /// # Example
-    /// ```
-    /// let frame = allocator.alloc_4k().unwrap();
-    /// allocator.free_4k(frame);
-    /// ```
     fn free_4k(&mut self, pa: PhysicalPage<Size4K>) {
         trace!("Freeing 4K frame at {pa}");
         let idx = ((pa.base().as_u64() - self.base) / FRAME_SIZE) as usize;
