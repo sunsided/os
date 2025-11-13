@@ -89,7 +89,7 @@ pub struct Cr4 {
 
 #[cfg(feature = "asm")]
 impl LoadRegisterUnsafe for Cr4 {
-    unsafe fn load() -> Self {
+    unsafe fn load_unsafe() -> Self {
         let mut cr4: u64;
         unsafe {
             core::arch::asm!("mov {}, cr4", out(reg) cr4, options(nomem, preserves_flags));
@@ -101,7 +101,7 @@ impl LoadRegisterUnsafe for Cr4 {
 #[cfg(feature = "asm")]
 impl StoreRegisterUnsafe for Cr4 {
     #[allow(clippy::cast_precision_loss)]
-    unsafe fn store(self) {
+    unsafe fn store_unsafe(self) {
         let cr4 = self.into_bits();
         unsafe {
             core::arch::asm!("mov cr4, {}", in(reg) cr4, options(nomem, preserves_flags));

@@ -90,7 +90,7 @@ impl Efer {
 
 #[cfg(feature = "asm")]
 impl LoadRegisterUnsafe for Efer {
-    unsafe fn load() -> Self {
+    unsafe fn load_unsafe() -> Self {
         let (mut lo, mut hi): (u32, u32);
         unsafe {
             core::arch::asm!(
@@ -109,7 +109,7 @@ impl LoadRegisterUnsafe for Efer {
 #[cfg(feature = "asm")]
 impl StoreRegisterUnsafe for Efer {
     #[allow(clippy::cast_precision_loss)]
-    unsafe fn store(self) {
+    unsafe fn store_unsafe(self) {
         let efer = self.into_bits();
         let lo = efer as u32;
         let hi = (efer >> 32) as u32;

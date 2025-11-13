@@ -381,13 +381,13 @@ unsafe fn enable_wp_nxe_pge() {
     // EFER.NXE = 1
     info!("Setting EFER.NXE ...");
     unsafe {
-        Efer::load().with_nxe(true).store();
+        Efer::load_unsafe().with_nxe(true).store_unsafe();
     }
 
     // CR4.PGE = 1 (global pages)
     info!("Enabling global pages ...");
     unsafe {
-        Cr4::load().with_pge(true).store();
+        Cr4::load_unsafe().with_pge(true).store_unsafe();
     }
 }
 
