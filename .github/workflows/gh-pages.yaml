@@ -26,6 +26,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: x86_64-unknown-none,x86_64-unknown-uefi
 
       - name: Build Rust Documentation
         # run: cargo doc --workspace --document-private-items --no-deps
