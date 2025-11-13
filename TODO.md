@@ -4,8 +4,8 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel-qemu/src/lib.rs](./os/kernel/kernel-qemu/src/lib.rs)
 
-- Line [39](./os/kernel/kernel-qemu/src/lib.rs#L39): Model this as an actual sink for arbitrary port write
-- Line [80](./os/kernel/kernel-qemu/src/lib.rs#L80): Model this as a regular trace macro optionally backed by the QWEMU sink
+- Line [216](./os/kernel/kernel-qemu/src/lib.rs#L216): Model this as an actual sink for arbitrary port write
+- Line [257](./os/kernel/kernel-qemu/src/lib.rs#L257): Model this as a regular trace macro optionally backed by the QWEMU sink
 
 ## [os/kernel/kernel-vmem/src/address_space.rs](./os/kernel/kernel-vmem/src/address_space.rs)
 
@@ -34,9 +34,9 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
-- Line [35](./os/uefi/uefi-loader/src/main.rs#L35): Add proper documentation.
-- Line [172](./os/uefi/uefi-loader/src/main.rs#L172): Document this properly
-- Line [179](./os/uefi/uefi-loader/src/main.rs#L179): Handle properly
+- Line [244](./os/uefi/uefi-loader/src/main.rs#L244): Add proper documentation.
+- Line [381](./os/uefi/uefi-loader/src/main.rs#L381): Document this properly
+- Line [388](./os/uefi/uefi-loader/src/main.rs#L388): Handle properly
 
 ## [os/uefi/uefi-loader/src/memory.rs](./os/uefi/uefi-loader/src/memory.rs)
 
