@@ -65,6 +65,9 @@ dependencies = [
 [[package]]
 name = "kernel-info"
 version = "0.0.0"
+dependencies = [
+ "kernel-memory-addresses",
+]
 
 [[package]]
 name = "kernel-memory-addresses"

@@ -1,29 +1,31 @@
 //! # Memory Layout
 
-/// End of userspace VA range after which Kernel space begins.
-pub const USERSPACE_END: u64 = 0xffff_0000_0000_0000;
+use kernel_memory_addresses::{PhysicalAddress, VirtualAddress};
 
 /// End of userspace VA range after which Kernel space begins.
-pub const LAST_USERSPACE_ADDRESS: u64 = USERSPACE_END - 1;
+pub const USERSPACE_END: VirtualAddress = VirtualAddress::new(0xffff_0000_0000_0000);
+
+/// End of userspace VA range after which Kernel space begins.
+pub const LAST_USERSPACE_ADDRESS: VirtualAddress = VirtualAddress::new(0x0000_ffff_ffff_ffff);
 
 /// A simple Higher Half Direct Map (HHDM) base.
 /// Anything you map at [`HHDM_BASE`] + `pa` lets the kernel
 /// access physical memory via a fixed offset.
-pub const HHDM_BASE: u64 = 0xffff_8880_0000_0000;
+pub const HHDM_BASE: VirtualAddress = VirtualAddress::new(0xffff_8880_0000_0000);
 
 /// Where the kernel executes (VMA), matches your linker script.
 ///
 /// # Kernel Build
 /// This information is sourced in the kernel's `build.rs` to configure
 /// the linker.
-pub const KERNEL_BASE: u64 = 0xffff_ffff_8000_0000;
+pub const KERNEL_BASE: VirtualAddress = VirtualAddress::new(0xffff_ffff_8000_0000);
 
 /// Where you place the bytes in *physical* memory (LMA) before paging.
 ///
 /// # Kernel Build
 /// This information is sourced in the kernel's `build.rs` to configure
 /// the linker.
-pub const PHYS_LOAD: u64 = 0x0010_0000; // 1 MiB
+pub const PHYS_LOAD: PhysicalAddress = PhysicalAddress::new(0x0010_0000); // 1 MiB
 
 /// Keep a tiny identity map so the paging switch code remains executable
 /// right after CR3 reload (and to let you pass low pointers if you want).
@@ -39,6 +41,6 @@ pub const KERNEL_STACK_SIZE: usize = 32 * 1024;
 
 const _: () = {
     assert!(KERNEL_STACK_SIZE.is_multiple_of(4096));
-    assert!(HHDM_BASE >= LAST_USERSPACE_ADDRESS);
-    assert!(KERNEL_BASE > HHDM_BASE);
+    assert!(HHDM_BASE.as_u64() >= LAST_USERSPACE_ADDRESS.as_u64());
+    assert!(KERNEL_BASE.as_u64() > HHDM_BASE.as_u64());
 };

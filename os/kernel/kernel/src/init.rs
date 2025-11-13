@@ -476,7 +476,7 @@ fn remap_framebuffer_memory(bi: &KernelBootInfo) -> FramebufferInfo {
     // Map framebuffer
     let fb_pa = PhysicalAddress::new(bi.fb.framebuffer_ptr);
     let fb_len = bi.fb.framebuffer_size;
-    let va_base = VirtualAddress::new(HHDM_BASE) + VGA_LIKE_OFFSET;
+    let va_base = HHDM_BASE + VGA_LIKE_OFFSET;
     let fb_flags = VirtualMemoryPageBits::default()
         .with_writable(true)
         .with_write_combining()

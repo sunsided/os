@@ -151,8 +151,8 @@
 //! // In build.rs
 //! use kernel_info::memory::{KERNEL_BASE, PHYS_LOAD};
 //!
-//! println!("cargo:rustc-link-arg=--defsym=KERNEL_BASE={:#x}", KERNEL_BASE);
-//! println!("cargo:rustc-link-arg=--defsym=PHYS_LOAD={:#x}", PHYS_LOAD);
+//! println!("cargo:rustc-link-arg=--defsym=KERNEL_BASE={:#x}", KERNEL_BASE.as_u64());
+//! println!("cargo:rustc-link-arg=--defsym=PHYS_LOAD={:#x}", PHYS_LOAD.as_u64());
 //! ```
 //!
 //! ### Bootloader Integration

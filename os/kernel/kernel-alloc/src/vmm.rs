@@ -37,7 +37,7 @@ pub enum AllocationTarget {
 impl AllocationTarget {
     #[must_use]
     pub const fn from(va: VirtualAddress) -> Self {
-        if va.as_u64() >= USERSPACE_END {
+        if va.as_u64() >= USERSPACE_END.as_u64() {
             Self::Kernel
         } else {
             Self::User
@@ -174,7 +174,7 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
         src: &[u8],
     ) -> Result<(), VmmError> {
         assert!(
-            dst_user.as_u64() <= LAST_USERSPACE_ADDRESS,
+            dst_user.as_u64() <= LAST_USERSPACE_ADDRESS.as_u64(),
             "attempted to copy user code into kernel space"
         );
 

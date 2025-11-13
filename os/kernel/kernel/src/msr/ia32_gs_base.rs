@@ -37,7 +37,7 @@ impl Ia32GsBaseMsr {
         }
     }
 
-    /// Get the [`PerCpu`] pointer from the current [`IA32_GS_BASE`](Msr::IA32_GS_BASE).
+    /// Get the [`PerCpu`] pointer from the current [`IA32_GS_BASE`](Self::IA32_GS_BASE).
     #[inline(always)]
     #[allow(clippy::inline_always)]
     #[doc(alias = "gs_base_ptr")]
@@ -45,7 +45,7 @@ impl Ia32GsBaseMsr {
         unsafe { Self::new().read_raw() as *const PerCpu }
     }
 
-    /// Get the [`PerCpu`] reference from the current [`IA32_GS_BASE`](Msr::IA32_GS_BASE).
+    /// Get the [`PerCpu`] reference from the current [`IA32_GS_BASE`](Self::IA32_GS_BASE).
     #[inline(always)]
     #[allow(clippy::inline_always)]
     #[doc(alias = "gs_base_ptr")]

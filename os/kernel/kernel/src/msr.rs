@@ -58,7 +58,7 @@ impl Msr {
     /// Write a 64-bit value to the given **Model-Specific Register (MSR)**.
     ///
     /// # Parameters
-    /// - `msr`: the MSR index (e.g., [`Msr::IA32_GS_BASE`]).
+    /// - `msr`: the MSR index (e.g., [`Ia32GsBaseMsr::IA32_GS_BASE`]).
     /// - `val`: the 64-bit value to write.
     ///
     /// # Safety
@@ -72,8 +72,8 @@ impl Msr {
     ///   while `swapgs` is in flight).
     ///
     /// # See Also
-    /// - [`Msr::IA32_GS_BASE`]
-    /// - [`Msr::IA32_KERNEL_GS_BASE`]
+    /// - [`Ia32GsBaseMsr::IA32_GS_BASE`]
+    /// - [`Ia32KernelGsBaseMsr::IA32_KERNEL_GS_BASE`]
     #[inline]
     #[allow(clippy::cast_possible_truncation)]
     #[doc(alias = "write_model_specific_register")]
@@ -117,7 +117,7 @@ impl Msr {
 /// (common during early boot so a later `swapgs` is a no-op).
 ///
 /// # Safety
-/// Same as [`set_gs_base`] and [`set_kernel_gs_base`].
+/// Same as [`set_gs_base`](Ia32GsBaseMsr::set_gs_base) and [`set_kernel_gs_base`](Ia32KernelGsBaseMsr::set_kernel_gs_base).
 #[inline]
 pub unsafe fn init_gs_bases(percpu: &PerCpu) {
     unsafe {

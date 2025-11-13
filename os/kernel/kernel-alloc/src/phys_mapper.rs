@@ -61,7 +61,7 @@ pub struct HhdmPhysMapper;
 
 impl PhysMapper for HhdmPhysMapper {
     unsafe fn phys_to_mut<T>(&self, pa: PhysicalAddress) -> &mut T {
-        let va = (HHDM_BASE + pa.as_u64()) as *mut T;
+        let va = (HHDM_BASE.as_u64() + pa.as_u64()) as *mut T;
         // SAFETY: Caller must ensure the physical address is valid and mapped via HHDM.
         unsafe { &mut *va }
     }

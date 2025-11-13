@@ -41,7 +41,7 @@ impl Ia32KernelGsBaseMsr {
         }
     }
 
-    /// Get the [`PerCpu`] pointer from the current [`IA32_GS_BASE`](Msr::IA32_GS_BASE).
+    /// Get the [`PerCpu`] pointer from the current [`IA32_KERNEL_GS_BASE`](Self::IA32_KERNEL_GS_BASE).
     #[inline(always)]
     #[allow(clippy::inline_always)]
     #[allow(dead_code)]

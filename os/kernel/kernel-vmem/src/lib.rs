@@ -4,8 +4,8 @@
 //!
 //! ## What you get
 //! - An [`address space`](address_space) describing a `PML4` root page table.
-//! - Tiny [`PhysicalAddress`]/[`VirtualAddress`](addresses::VirtualAddress) newtypes (u64) to avoid mixing address kinds.
-//! - A [`PageSize`](addresses::PageSize) enum for 4 KiB / 2 MiB / 1 GiB mappings.
+//! - Tiny [`PhysicalAddress`]/[`VirtualAddress`](kernel_memory_addresses::VirtualAddress) newtypes (u64) to avoid mixing address kinds.
+//! - A [`PageSize`](kernel_memory_addresses::PageSize) enum for 4 KiB / 2 MiB / 1 GiB mappings.
 //! - x86-64 page-table [`VirtualMemoryPageBits`] with practical explanations.
 //! - A 4 KiB-aligned [`PageTable`] wrapper and index helpers.
 //! - A tiny allocator/mapper interface ([`PhysFrameAlloc`], [`PhysMapper`]).

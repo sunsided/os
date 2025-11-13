@@ -11,6 +11,7 @@ categories.workspace = true
 license.workspace = true
 
 [dependencies]
+kernel-memory-addresses = { path = "../../kernel/kernel-memory-addresses" }
 
 [lints]
 workspace = true

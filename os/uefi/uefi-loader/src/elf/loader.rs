@@ -52,10 +52,11 @@ pub fn load_pt_load_segments_hi(
         let seg_vaddr = seg.vaddr;
         let lma = seg_vaddr
             .as_u64()
-            .checked_sub(KERNEL_BASE)
+            .checked_sub(KERNEL_BASE.as_u64())
             .ok_or(ElfLoaderError::PointerArithmetic)?;
 
         let phys_start = PHYS_LOAD
+            .as_u64()
             .checked_add(lma)
             .ok_or(ElfLoaderError::PointerArithmetic)?;
         let phys_end = phys_start

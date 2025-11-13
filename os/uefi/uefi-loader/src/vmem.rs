@@ -139,8 +139,8 @@ pub fn create_kernel_pagetables(
     // HHDM: map first 1 GiB VA = HHDM_BASE → PA = 0, NX + writable + global
     info!("Mapping first 1 GiB VA = HHDM_BASE to PA=0 ...");
     {
-        let hhdm_va = VirtualAddress::new(HHDM_BASE);
-        let zero_pa = PhysicalAddress::new(0);
+        let hhdm_va = HHDM_BASE;
+        let zero_pa = PhysicalAddress::zero();
         let leaf = VirtualMemoryPageBits::default()
             .with_present(true)
             .with_writable(true)
