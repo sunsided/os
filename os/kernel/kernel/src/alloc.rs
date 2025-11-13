@@ -1,3 +1,60 @@
+//! # Kernel Memory Management
+//!
+//! This module provides the core memory management infrastructure for the kernel,
+//! including physical frame allocation, virtual memory management, and page table
+//! manipulation. It serves as the central interface between the kernel and the
+//! underlying memory management subsystems.
+//!
+//! ## Architecture
+//!
+//! The memory management system is built on three key components:
+//!
+//! * **Physical Frame Allocator**: [`BitmapFrameAlloc`] manages 4KiB physical frames
+//!   using a bitmap-based approach for tracking free/used pages
+//! * **Physical Mapper**: [`HhdmPhysMapper`] provides Higher Half Direct Mapping (HHDM)
+//!   for efficient access to physical memory from kernel virtual addresses
+//! * **Virtual Memory Manager**: [`Vmm`] handles page table manipulation, mapping/unmapping
+//!   operations, and address space management
+//!
+//! ## Key Types
+//!
+//! * [`KernelVmm`] - Type alias for the kernel's Virtual Memory Manager configured
+//!   with HHDM mapper and bitmap allocator
+//! * [`KernelVm`] - Container holding the mapper and allocator with thread-safe access
+//! * [`FlushTlb`] - Policy enum controlling when TLB flushes occur during operations
+//!
+//! ## Initialization
+//!
+//! Memory management is initialized in two phases:
+//!
+//! 1. **Physical Allocator Setup**: [`init_physical_memory_allocator_once`] creates
+//!    the bitmap allocator in a dedicated BSS section (`.bss.pmm`)
+//! 2. **VMM Initialization**: [`init_kernel_vmm`] combines the allocator and mapper
+//!    into a globally accessible kernel VMM instance
+//!
+//! ## Usage Patterns
+//!
+//! The module provides two primary access patterns:
+//!
+//! * [`with_kernel_vmm`] - Execute operations with automatic VMM lifecycle management
+//! * [`try_with_kernel_vmm`] - Execute fallible operations with configurable TLB flushing
+//!
+//! ## Safety
+//!
+//! This module contains extensive unsafe code for:
+//! - Direct physical memory access via HHDM
+//! - Page table manipulation and TLB management
+//! - Static initialization of allocator structures
+//! - Raw pointer operations for memory mapping
+//!
+//! All unsafe operations are carefully isolated behind safe abstractions and
+//! documented for their safety requirements.
+//!
+//! ## Debugging
+//!
+//! The [`debug`] submodule provides utilities for inspecting page table state,
+//! walking virtual address translations, and debugging memory management issues.
+
 pub mod debug;
 
 use core::mem::MaybeUninit;
