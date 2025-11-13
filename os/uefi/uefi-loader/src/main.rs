@@ -236,7 +236,7 @@ use crate::vmem::create_kernel_pagetables;
 use alloc::boxed::Box;
 use kernel_info::boot::{KernelBootInfo, MemoryMapInfo};
 use kernel_registers::cr4::Cr4;
-use kernel_registers::{LoadRegister, StoreRegister, efer::Efer};
+use kernel_registers::{LoadRegisterUnsafe, StoreRegisterUnsafe, efer::Efer};
 use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
 use log::{LevelFilter, debug, info};
 use uefi::boot::PAGE_SIZE;

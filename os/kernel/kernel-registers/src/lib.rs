@@ -9,13 +9,13 @@ pub mod efer;
 #[cfg(feature = "cr4")]
 pub mod cr4;
 
-pub trait LoadRegister {
+pub trait LoadRegisterUnsafe {
     /// # Safety
     /// The caller must uphold the implementation-specific safety requirements.
     unsafe fn load() -> Self;
 }
 
-pub trait StoreRegister {
+pub trait StoreRegisterUnsafe {
     /// # Safety
     /// The caller must uphold the implementation-specific safety requirements.
     unsafe fn store(self);

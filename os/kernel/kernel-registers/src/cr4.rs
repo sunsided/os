@@ -1,4 +1,4 @@
-use crate::{LoadRegister, StoreRegister};
+use crate::{LoadRegisterUnsafe, StoreRegisterUnsafe};
 use bitfield_struct::bitfield;
 
 /// CR4 — Control Register 4 (x86-64).
@@ -88,7 +88,7 @@ pub struct Cr4 {
 }
 
 #[cfg(feature = "asm")]
-impl LoadRegister for Cr4 {
+impl LoadRegisterUnsafe for Cr4 {
     unsafe fn load() -> Self {
         let mut cr4: u64;
         unsafe {
@@ -99,7 +99,7 @@ impl LoadRegister for Cr4 {
 }
 
 #[cfg(feature = "asm")]
-impl StoreRegister for Cr4 {
+impl StoreRegisterUnsafe for Cr4 {
     #[allow(clippy::cast_precision_loss)]
     unsafe fn store(self) {
         let cr4 = self.into_bits();
