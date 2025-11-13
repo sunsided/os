@@ -1,3 +1,125 @@
+//! # Time Stamp Counter (TSC) Management
+//!
+//! This module provides comprehensive TSC (Time Stamp Counter) frequency detection
+//! and measurement capabilities for the kernel's timing subsystem. The TSC is a
+//! critical timing source in modern x86-64 systems, offering high-resolution
+//! timestamps for kernel scheduling, profiling, and time-sensitive operations.
+//!
+//! ## Overview
+//!
+//! The Time Stamp Counter is a 64-bit register that increments at a fixed frequency
+//! (typically the CPU's crystal oscillator frequency) on modern processors. This
+//! module implements multiple strategies to accurately determine the TSC frequency,
+//! enabling precise timing calculations throughout the kernel.
+//!
+//! ## TSC Frequency Detection Strategy
+//!
+//! The module employs a fallback hierarchy to determine TSC frequency with maximum
+//! accuracy and compatibility:
+//!
+//! ### 1. CPUID Leaf 15H (Primary Method)
+//! - **Source**: Architectural frequency information from processor
+//! - **Accuracy**: Exact crystal oscillator frequency and ratio
+//! - **Requirements**: TSC/CORE crystal ratio and crystal frequency both non-zero
+//! - **Formula**: `TSC_Hz = crystal_hz × (numerator / denominator)`
+//! - **Availability**: Modern Intel processors, some AMD processors
+//!
+//! ### 2. CPUID Leaf 16H (Secondary Method)
+//! - **Source**: Processor base frequency information
+//! - **Accuracy**: Good approximation assuming TSC runs at base frequency
+//! - **Requirements**: Base frequency must be reported (non-zero)
+//! - **Formula**: `TSC_Hz = base_mhz × 1,000,000`
+//! - **Availability**: Intel processors with frequency reporting
+//!
+//! ### 3. PIT Calibration (Fallback Method)
+//! - **Source**: Measurement against Programmable Interval Timer (PIT)
+//! - **Accuracy**: Limited by measurement window and system noise
+//! - **Requirements**: Functional PIT hardware and stable timing
+//! - **Method**: Measure TSC delta over known PIT countdown period
+//! - **Availability**: Universal (all x86 systems have PIT)
+//!
+//! ## Key Functions
+//!
+//! ### TSC Reading
+//! * [`rdtsc`] - Read current TSC value with serialization fence
+//!
+//! ### Frequency Detection
+//! * [`estimate_tsc_hz`] - Multi-method TSC frequency detection
+//! * [`cpuid_leaf_15_tsc_hz`] - CPUID.15H crystal-based frequency
+//! * [`cpuid_leaf_16_base_mhz_hz`] - CPUID.16H base frequency estimation
+//! * [`pit_measure_tsc_hz`] - PIT-based measurement calibration
+//!
+//! ## PIT Calibration Details
+//!
+//! When CPUID methods fail, the module falls back to PIT-based measurement:
+//!
+//! ### Calibration Process
+//! 1. **PIT Setup**: Configure Channel 0 in Mode 2 (rate generator)
+//! 2. **Window Selection**: Use configurable measurement window (typically 50ms)
+//! 3. **Synchronization**: Read TSC before and after PIT countdown
+//! 4. **Calculation**: Convert TSC delta to frequency using known time window
+//!
+//! ### PIT Configuration
+//! ```text
+//! Channel 0: Rate generator mode (Mode 2)
+//! Input Frequency: 1,193,182 Hz (standard PIT frequency)
+//! Reload Value: Calculated for desired measurement window
+//! Access Mode: Low byte, then high byte
+//! ```
+//!
+//! ## Timing Accuracy Considerations
+//!
+//! ### Measurement Quality
+//! * **Serialization**: `lfence` instruction ensures TSC read ordering
+//! * **Interrupt Masking**: Caller should mask interrupts during calibration
+//! * **Window Size**: Larger measurement windows improve accuracy
+//! * **System Load**: Reduced system activity during measurement improves precision
+//!
+//! ### Error Sources
+//! * **CPU Power Management**: Frequency scaling can affect measurements
+//! * **Virtualization**: VMs may report inaccurate or unstable frequencies
+//! * **Hardware Variations**: Manufacturing tolerances in crystal oscillators
+//! * **Thermal Effects**: Temperature changes can affect oscillator frequency
+//!
+//! ## Usage Patterns
+//!
+//! ### Basic Frequency Detection
+//! ```rust
+//! let tsc_hz = unsafe { estimate_tsc_hz() };
+//! println!("TSC frequency: {} Hz", tsc_hz);
+//! ```
+//!
+//! ### High-Resolution Timing
+//! ```rust
+//! let start = rdtsc();
+//! // ... timed operation ...
+//! let end = rdtsc();
+//! let cycles = end - start;
+//! let nanoseconds = (cycles * 1_000_000_000) / tsc_hz;
+//! ```
+//!
+//! ## Safety Considerations
+//!
+//! All TSC operations are marked unsafe due to:
+//! * **Hardware Access**: Direct interaction with CPU counters and PIT hardware
+//! * **I/O Port Usage**: PIT calibration requires port I/O operations
+//! * **Timing Sensitivity**: Measurement accuracy depends on execution environment
+//! * **Privilege Requirements**: Some operations require kernel-level access
+//!
+//! ## Architectural Notes
+//!
+//! ### TSC Properties (Modern CPUs)
+//! * **Constant Rate**: TSC increments at fixed frequency regardless of CPU frequency
+//! * **Non-Stop**: Continues incrementing during sleep states
+//! * **Synchronized**: Same frequency across all cores in SMP systems
+//! * **64-bit Range**: Extremely long rollover period (centuries at GHz frequencies)
+//!
+//! ### Compatibility
+//! * **Intel**: Full support for all detection methods
+//! * **AMD**: Partial CPUID support, PIT fallback available
+//! * **Virtual Machines**: Variable support, often requires PIT calibration
+//! * **Legacy Systems**: PIT calibration provides universal compatibility
+
 #![allow(dead_code)]
 
 use crate::cpuid::{CpuidRanges, Leaf15h, Leaf16};

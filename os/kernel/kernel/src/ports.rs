@@ -1,3 +1,108 @@
+//! # x86 I/O Port Access
+//!
+//! This module provides low-level access to the x86/x86-64 I/O port address space,
+//! offering safe wrappers around the `in` and `out` assembly instructions for
+//! legacy device communication. It enables kernel drivers to interact with
+//! hardware that uses port-mapped I/O rather than memory-mapped I/O (MMIO).
+//!
+//! ## Overview
+//!
+//! The x86 architecture provides two distinct address spaces for device communication:
+//! - **I/O Port Space**: Legacy 16-bit address space (0x0000-0xFFFF) accessed via
+//!   special `in`/`out` instructions
+//! - **Memory Space**: Normal memory addresses accessed via standard load/store
+//!   instructions (MMIO)
+//!
+//! This module handles the I/O port space, which is primarily used by legacy
+//! devices and some system controllers that maintain backward compatibility.
+//!
+//! ## Architecture Details
+//!
+//! ### I/O Port Space Characteristics
+//! * **16-bit Addressing**: Port numbers range from 0x0000 to 0xFFFF
+//! * **Separate Address Space**: Completely distinct from physical memory
+//! * **Special Instructions**: Requires `in`/`out` instructions, not memory loads/stores
+//! * **Privilege Controlled**: Access controlled by CPL, IOPL, and I/O permission bitmap
+//!
+//! ### Common Port Ranges
+//! ```text
+//! 0x0000-0x001F   DMA Controllers
+//! 0x0020-0x0021   Programmable Interrupt Controller (PIC) #1
+//! 0x0040-0x0043   Programmable Interval Timer (PIT)
+//! 0x0060-0x0064   Keyboard Controller
+//! 0x0070-0x0071   CMOS/RTC
+//! 0x00A0-0x00A1   PIC #2
+//! 0x00F0-0x00FF   Math Coprocessor
+//! 0x0170-0x0177   Secondary IDE Controller
+//! 0x01F0-0x01F7   Primary IDE Controller
+//! 0x0278-0x027A   Parallel Port #2
+//! 0x02E8-0x02EF   Serial Port #4
+//! 0x02F8-0x02FF   Serial Port #2
+//! 0x0378-0x037A   Parallel Port #1
+//! 0x03E8-0x03EF   Serial Port #3
+//! 0x03F0-0x03F7   Floppy Disk Controller
+//! 0x03F8-0x03FF   Serial Port #1
+//! ```
+//!
+//! ## Available Operations
+//!
+//! ### Byte Operations
+//! * [`outb`] - Write a single byte to an I/O port
+//! * [`inb`] - Read a single byte from an I/O port
+//!
+//! ### Usage Example
+//! ```rust
+//! use crate::ports::{inb, outb};
+//!
+//! // Read keyboard status (port 0x64)
+//! let status = unsafe { inb(0x64) };
+//!
+//! // Write to serial port (port 0x3F8)
+//! unsafe { outb(0x3F8, b'H') };
+//! ```
+//!
+//! ## Safety Requirements
+//!
+//! All I/O port operations are inherently unsafe due to their direct hardware
+//! interaction and potential system impact. Callers must ensure:
+//!
+//! ### Privilege Requirements
+//! * **Ring 0 Execution**: Most secure when running in kernel mode (CPL 0)
+//! * **I/O Permission**: If not in ring 0, IOPL bits or I/O permission bitmap
+//!   must allow access to the specific port
+//!
+//! ### Hardware Safety
+//! * **Correct Port**: Target the intended device register, not arbitrary addresses
+//! * **Device Presence**: Ensure the device exists and is properly initialized
+//! * **Protocol Compliance**: Follow device-specific communication protocols
+//! * **Timing Requirements**: Respect device timing constraints and handshakes
+//!
+//! ### Concurrency Safety
+//! * **Mutual Exclusion**: Coordinate with interrupt handlers and other threads
+//! * **Atomic Sequences**: Protect multi-step device interactions from interruption
+//! * **Driver Coordination**: Ensure only one driver controls each device
+//!
+//! ### Memory Ordering
+//! * **I/O Ordering**: `in`/`out` instructions are ordered relative to each other
+//! * **Memory Barriers**: Insert appropriate fences when coordinating with MMIO
+//! * **Compiler Barriers**: Prevent unwanted optimization of I/O sequences
+//!
+//! ## Design Philosophy
+//!
+//! This module follows a minimal, explicit approach:
+//! * **Thin Wrappers**: Direct exposure of hardware capabilities without abstraction
+//! * **Safety Documentation**: Comprehensive safety requirements rather than runtime checks
+//! * **Performance Focus**: Zero-overhead inline assembly with optimal instruction selection
+//! * **Explicit Unsafe**: All hardware interaction requires explicit acknowledgment of risks
+//!
+//! ## Future Extensions
+//!
+//! Additional I/O operations may be added as needed:
+//! * 16-bit operations (`inw`/`outw`) for word-sized transfers
+//! * 32-bit operations (`inl`/`outl`) for double-word transfers
+//! * String operations (`insb`/`outsb`) for bulk transfers
+//! * I/O delay helpers for timing-sensitive devices
+
 /// Write one byte to an I/O port (x86).
 ///
 /// Low-level helper for devices that live in the legacy **I/O port space**
