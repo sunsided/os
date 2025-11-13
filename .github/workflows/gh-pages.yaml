@@ -19,6 +19,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      TARGET: x86_64-unknown-none
 
     steps:
       - name: Checkout code
@@ -27,17 +29,17 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
         with:
-          targets: x86_64-unknown-none,x86_64-unknown-uefi
+          targets: ${{ env.TARGET }}
 
       - name: Build Rust Documentation
         # run: cargo doc --workspace --document-private-items --no-deps
         env:
           RUSTDOCFLAGS: --enable-index-page -Zunstable-options
-        run: cargo +nightly doc --workspace --document-private-items --no-deps
+        run: cargo +nightly doc --workspace --document-private-items --no-deps --target=${{ env.TARGET }}
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./target/doc
+          publish_dir: ./target/${{ env.TARGET }}/doc
           force_orphan: true

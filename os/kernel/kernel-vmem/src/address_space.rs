@@ -116,7 +116,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
 
     /// Borrow a [`PageTable`] (PT) in this frame.
     ///
-    /// Convenience wrapper for [`PhysMapper::pt_mut`].
+    /// Convenience wrapper for [`PhysMapperExt::pt_mut`].
     #[inline]
     pub(crate) fn pt_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageTable {
         self.mapper.pt_mut(page)
@@ -386,7 +386,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
 
     /// Borrow the [`PageMapLevel4`] (PML4) as a typed table.
     ///
-    /// Convenience wrapper for [`PhysMapper::pml4_mut`] at the [`root_page`](Self::root_page).
+    /// Convenience wrapper for [`PhysMapperExt::pml4_mut`] at the [`root_page`](Self::root_page).
     #[inline]
     pub(crate) fn pml4_mut(&self) -> &mut PageMapLevel4 {
         self.mapper.pml4_mut(self.root)
@@ -394,7 +394,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
 
     /// Borrow a [`PageDirectoryPointerTable`] (PDPT) in this frame
     ///
-    /// Convenience wrapper for [`PhysMapper::pdpt_mut`].
+    /// Convenience wrapper for [`PhysMapperExt::pdpt_mut`].
     #[inline]
     pub(crate) fn pdpt_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageDirectoryPointerTable {
         self.mapper.pdpt_mut(page)
@@ -402,7 +402,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
 
     /// Borrow a [`PageDirectory`] (PD) in this frame
     ///
-    /// Convenience wrapper for [`PhysMapper::pd_mut`].
+    /// Convenience wrapper for [`PhysMapperExt::pd_mut`].
     #[inline]
     pub(crate) fn pd_mut(&self, page: PhysicalPage<Size4K>) -> &mut PageDirectory {
         self.mapper.pd_mut(page)
@@ -410,7 +410,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
 
     /// Zeroes the [`PageDirectoryPointerTable`] (PDPT) in this frame
     ///
-    /// Convenience wrapper for [`PhysMapper::zero_pdpt`].
+    /// Convenience wrapper for [`PhysMapperExt::zero_pdpt`].
     #[inline]
     pub(crate) fn zero_pdpt(&self, page: PhysicalPage<Size4K>) {
         self.mapper.zero_pdpt(page);
@@ -418,7 +418,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
 
     /// Zeroes the [`PageDirectory`] (PD) in this frame
     ///
-    /// Convenience wrapper for [`PhysMapper::zero_pd`].
+    /// Convenience wrapper for [`PhysMapperExt::zero_pd`].
     #[inline]
     pub(crate) fn zero_pd(&self, page: PhysicalPage<Size4K>) {
         self.mapper.zero_pd(page);
@@ -426,7 +426,7 @@ impl<'m, M: PhysMapper> AddressSpace<'m, M> {
 
     /// Zeroes the [`PageTable`] (PD) in this frame
     ///
-    /// Convenience wrapper for [`PhysMapper::zero_pt`].
+    /// Convenience wrapper for [`PhysMapperExt::zero_pt`].
     #[inline]
     pub(crate) fn zero_pt(&self, page: PhysicalPage<Size4K>) {
         self.mapper.zero_pt(page);
