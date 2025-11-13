@@ -212,6 +212,7 @@ tasks:
     cmds:
       - cargo build --bin kernel --target '{{.NONE_TARGET_TRIPLE}}' {{.PROFILE_FLAG}}
       - task: kernel:elf
+      - task: kernel:obj
     generates:
       - '{{.KERNEL_BIN_PATH}}'
 
@@ -225,6 +226,22 @@ tasks:
             - release
     cmds:
       - readelf -l {{.KERNEL_BIN_PATH}}
+    preconditions:
+      - sh: 'test -f "{{.KERNEL_BIN_PATH}}"'
+        msg: '{{.KERNEL_BIN_PATH}} is missing; run task build:kernel'
+
+  kernel:obj:
+    desc: Prints OBJ information about {{.KERNEL_BIN_PATH}}
+    aliases:
+      - kernel:objdump
+    requires:
+      vars:
+        - name: PROFILE
+          enum:
+            - debug
+            - release
+    cmds:
+      - objdump -h {{.KERNEL_BIN_PATH}}
     preconditions:
       - sh: 'test -f "{{.KERNEL_BIN_PATH}}"'
         msg: '{{.KERNEL_BIN_PATH}} is missing; run task build:kernel'

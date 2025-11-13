@@ -1,4 +1,56 @@
-//! # The main Kernel
+//! # x86-64 Higher-Half Kernel
+//!
+//! A bare-metal x86-64 kernel implementing a modern operating system foundation with
+//! virtual memory management, interrupt handling, and basic userland support.
+//!
+//! ## Overview
+//!
+//! This kernel is designed as a higher-half kernel loaded at `0xffffffff80000000` with
+//! physical load address at 1 MiB. It boots from UEFI and implements essential OS
+//! services including:
+//!
+//! * **Memory Management**: Virtual memory manager (VMM) with page tables, physical
+//!   frame allocator, and HHDM (Higher Half Direct Mapping) for kernel space
+//! * **Interrupt Handling**: IDT setup with handlers for exceptions, page faults,
+//!   timer interrupts, and system calls
+//! * **APIC Integration**: Local APIC timer calibrated against TSC (Time Stamp Counter)
+//! * **Process Management**: Basic userland task creation and privilege level switching
+//! * **Graphics**: UEFI GOP framebuffer support with basic rendering capabilities
+//!
+//! ## Boot Process
+//!
+//! 1. **UEFI Entry**: [`_start_kernel`](init::_start_kernel) receives control from UEFI loader
+//! 2. **Stack Setup**: Establishes boot stack and switches to kernel stack
+//! 3. **Memory Init**: Initializes physical allocator and virtual memory manager
+//! 4. **CPU Setup**: Configures GDT, TSS, IDT, and per-CPU data structures
+//! 5. **APIC Config**: Sets up Local APIC and calibrates timer frequency
+//! 6. **Framebuffer**: Maps UEFI GOP framebuffer into kernel virtual space
+//! 7. **Main Loop**: Enters [`kernel_main`] for ongoing operation
+//!
+//! ## Architecture
+//!
+//! The kernel follows a monolithic design with modular components:
+//!
+//! * `alloc`: Memory allocation and virtual memory management
+//! * `interrupts`: Exception and interrupt handling subsystem
+//! * `apic`: Advanced Programmable Interrupt Controller support
+//! * `gdt`/`tss`: Global Descriptor Table and Task State Segment
+//! * `userland`: User mode task creation and privilege switching
+//! * `framebuffer`: Graphics and display management
+//!
+//! ## Main Loop Behavior
+//!
+//! The kernel's main loop demonstrates a breathing LED effect by:
+//! - Measuring timer frequency against TSC
+//! - Calculating sinusoidal brightness values over 2-second periods
+//! - Updating framebuffer with computed brightness
+//! - Transitioning to userland after 2 seconds
+//!
+//! ## Safety
+//!
+//! This kernel operates in a `no_std` environment with extensive use of `unsafe` code
+//! for low-level hardware interaction, memory management, and privilege level changes.
+//! All unsafe operations are carefully isolated and documented.
 
 #![cfg_attr(not(any(test, doctest)), no_std)]
 #![no_main]
