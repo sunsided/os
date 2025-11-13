@@ -1,3 +1,65 @@
+//! # Advanced Programmable Interrupt Controller (APIC) Support
+//!
+//! This module provides x2APIC (Extended x86 Advanced Programmable Interrupt Controller)
+//! functionality for modern x86-64 systems. It handles Local APIC initialization,
+//! timer configuration, and interrupt management for the kernel.
+//!
+//! ## Overview
+//!
+//! The x2APIC is the modern successor to the legacy xAPIC, providing improved performance
+//! and scalability through MSR-based register access instead of memory-mapped I/O.
+//! This implementation focuses on single-core operation with the Bootstrap Processor (BSP).
+//!
+//! ## Key Features
+//!
+//! * **x2APIC Mode**: Enables and configures x2APIC mode for improved performance
+//! * **Timer Management**: Configures periodic LAPIC timer for kernel scheduling
+//! * **Interrupt Handling**: Manages spurious interrupts and End-of-Interrupt (EOI) signaling
+//! * **Calibration**: TSC-based timer frequency calibration for accurate timing
+//!
+//! ## Architecture
+//!
+//! The module operates through several key components:
+//!
+//! ### MSR Interface
+//! - [`rdmsr`]/[`wrmsr`] - Low-level Model-Specific Register access functions
+//! - Direct manipulation of x2APIC MSRs (0x800-0x8FF range)
+//!
+//! ### APIC Management
+//! - [`enable_and_read_id_x2apic`] - Initializes x2APIC mode and reads APIC ID
+//! - [`write_svr_x2apic`] - Configures Spurious Interrupt Vector Register
+//! - [`eoi_x2apic`] - Signals End-of-Interrupt for completed interrupt processing
+//!
+//! ### Timer Subsystem
+//! - [`program_timer_periodic_x2apic`] - Configures LAPIC timer in periodic mode
+//! - [`calibrate_lapic_hz_via_tsc`] - Calibrates timer frequency against TSC
+//! - [`lapic_div`] - Timer divider constants for frequency scaling
+//!
+//! ## Initialization Sequence
+//!
+//! 1. **Capability Check**: Verify x2APIC support via CPUID
+//! 2. **Mode Enable**: Set APIC_EN and APIC_EXTD bits in IA32_APIC_BASE MSR
+//! 3. **ID Assignment**: Read and store Local APIC ID in per-CPU structure
+//! 4. **Spurious Vector**: Configure spurious interrupt handling
+//! 5. **Timer Setup**: Calibrate and configure periodic timer operation
+//!
+//! ## Timer Operation
+//!
+//! The LAPIC timer operates in periodic mode at 1 kHz frequency:
+//! - Uses TSC-based calibration for accurate frequency measurement
+//! - Supports configurable clock dividers (1, 2, 4, 8, 16, 32, 64, 128)
+//! - Generates timer interrupts for kernel tick processing
+//!
+//! ## Safety
+//!
+//! This module contains extensive unsafe code for:
+//! - Direct MSR manipulation via `rdmsr`/`wrmsr` instructions
+//! - Hardware register configuration and timing-critical operations
+//! - Interrupt controller programming and state management
+//!
+//! All unsafe operations are necessary for hardware control and are carefully
+//! isolated with documented safety requirements.
+
 use crate::cpuid::Leaf01h;
 use crate::interrupts::spurious::SPURIOUS_INTERRUPT_VECTOR;
 use crate::interrupts::timer::LAPIC_TIMER_VECTOR;
