@@ -17,8 +17,8 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/init.rs](./os/kernel/kernel/src/init.rs)
 
-- Line [262](./os/kernel/kernel/src/init.rs#L262): Restrict allocator to actual available RAM size.
-- Line [405](./os/kernel/kernel/src/init.rs#L405): Use a different IST from PF
+- Line [266](./os/kernel/kernel/src/init.rs#L266): Restrict allocator to actual available RAM size.
+- Line [414](./os/kernel/kernel/src/init.rs#L414): Use a different IST from PF
 
 ## [os/kernel/kernel/src/interrupts/page_fault.rs](./os/kernel/kernel/src/interrupts/page_fault.rs)
 
@@ -26,7 +26,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/interrupts/syscall.rs](./os/kernel/kernel/src/interrupts/syscall.rs)
 
-- Line [97](./os/kernel/kernel/src/interrupts/syscall.rs#L97): Validate the CPU frame is indeed in the correct location here.
+- Line [90](./os/kernel/kernel/src/interrupts/syscall.rs#L90): Validate the CPU frame is indeed in the correct location here.
 
 ## [os/kernel/kernel/src/userland.rs](./os/kernel/kernel/src/userland.rs)
 

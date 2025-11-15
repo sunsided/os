@@ -103,16 +103,20 @@ use crate::interrupts::page_fault::PageFaultInterrupt;
 use crate::interrupts::spurious::SpuriousInterrupt;
 use crate::interrupts::ss::SegmentFaultInterrupt;
 use crate::interrupts::timer::TimerInterrupt;
-use crate::msr::init_gs_bases;
+use crate::msr::{Ia32StarExt, init_gs_bases};
 use crate::per_cpu::PerCpu;
 use crate::per_cpu::ist_stacks::{IST1_SIZE, ist_slot_for_cpu};
 use crate::per_cpu::kernel_stacks::kstack_slot_for_cpu;
 use crate::per_cpu::stack::{CpuStack, map_ist_stack, map_kernel_stack};
+use crate::syscall::syscall_entry_stub;
 use crate::tsc::estimate_tsc_hz;
 use kernel_alloc::phys_mapper::HhdmPhysMapper;
 use kernel_alloc::vmm::AllocationTarget;
 use kernel_info::memory::{HHDM_BASE, KERNEL_STACK_SIZE};
 use kernel_memory_addresses::{PhysicalAddress, VirtualAddress};
+use kernel_registers::efer::Efer;
+use kernel_registers::msr::{Ia32Fmask, Ia32LStar, Ia32Star};
+use kernel_registers::{LoadRegisterUnsafe, StoreRegisterUnsafe};
 use kernel_sync::irq::sti_enable_interrupts;
 use kernel_vmem::VirtualMemoryPageBits;
 
@@ -385,6 +389,11 @@ extern "C" fn stage_two_init_bootstrap_processor(
         init_gs_bases(cpu);
     }
 
+    // Enable syscall
+    unsafe {
+        init_syscall(cpu);
+    }
+
     info!(
         "Remapping UEFI GOP framebuffer ({size} bytes) ...",
         size = bi.fb.framebuffer_size
@@ -428,6 +437,27 @@ extern "C" fn stage_two_init_bootstrap_processor(
 
     info!("Kernel early init is done, jumping into kernel main loop ...");
     kernel_main(&fb_virt)
+}
+
+unsafe fn init_syscall(cpu: &PerCpu) {
+    // Set STAR kernel / user CS bases.
+    unsafe {
+        Ia32Star::from_selectors(&cpu.selectors);
+    }
+
+    // Set LSTAR to syscall entry stub.
+    let addr = VirtualAddress::from_ptr(&syscall_entry_stub);
+    unsafe {
+        Ia32LStar::new().with_syscall_rip(addr).store_unsafe();
+    }
+
+    // Set FMASK to clear dangerous RFLAGS on syscall entry.
+    unsafe {
+        Ia32Fmask::new_kernel_defaults().store_unsafe();
+    }
+
+    // Enable EFER.SCE (System Call Extensions)
+    unsafe { Efer::load_unsafe().with_sce(true).store_unsafe() }
 }
 
 type Ist1StackTop = VirtualAddress;

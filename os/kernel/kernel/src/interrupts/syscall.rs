@@ -43,6 +43,7 @@
 use crate::gdt::KERNEL_CS_SEL;
 use crate::interrupts::{GateType, Idt};
 use crate::ports::outb;
+use crate::syscall::Sysno;
 use kernel_registers::rflags::Rflags;
 
 pub const SYSCALL_VECTOR: usize = 0x80; // 128
@@ -61,14 +62,6 @@ impl SyscallInterrupt for Idt {
             .gate_type(GateType::InterruptGate);
         self
     }
-}
-
-#[repr(u64)]
-pub enum Sysno {
-    /// Write a single byte to a kernel-chosen “debug” sink.
-    DebugWriteByte = 1,
-    /// Just return a made-up number to prove plumbing.
-    Bogus = 2,
 }
 
 /// Saved register/interrupt context for an INT 0x80 syscall.

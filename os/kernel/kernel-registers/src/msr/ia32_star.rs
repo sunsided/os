@@ -55,7 +55,7 @@ impl Ia32Star {
     /// Helper to build a STAR value for a pure 64-bit kernel.
     ///
     /// `kernel_cs` and `user_cs` are the *selectors* (e.g. `0x08` and `0x1b`).
-    pub fn new_64bit(kernel_cs: u16, user_cs: u16) -> Self {
+    pub fn new_64bit_raw(kernel_cs: u16, user_cs: u16) -> Self {
         // Assumption:
         // kcode -> kdata -> udata -> ucode
 

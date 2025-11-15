@@ -168,7 +168,7 @@ impl Ia32Fmask {
     pub const MSR: Msr = Msr::new(Self::IA32_FMASK);
 
     /// Reasonable default: clear TF/IF/DF/IOPL/NT/RF/VM/AC/VIF/VIP.
-    pub const fn linux_like_default() -> Self {
+    pub const fn new_kernel_defaults() -> Self {
         Self::new()
             .with_tf_trap(true)
             .with_if_interrupt_enable(true)

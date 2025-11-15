@@ -30,6 +30,7 @@ mod ia32_star;
 
 pub use crate::msr::ia32_gs_base::Ia32GsBaseMsrExt;
 pub use crate::msr::ia32_kernel_gs_base::Ia32KernelGsBaseMsrExt;
+pub use crate::msr::ia32_star::Ia32StarExt;
 use crate::per_cpu::PerCpu;
 use kernel_registers::msr::{Ia32GsBaseMsr, Ia32KernelGsBaseMsr};
 

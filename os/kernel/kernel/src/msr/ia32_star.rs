@@ -1,6 +1,7 @@
 use crate::gdt::Selectors;
 use crate::gdt::selectors::{CodeSel, SegmentSelector};
 use crate::privilege::Rpl;
+use core::borrow::Borrow;
 use kernel_registers::msr::Ia32Star;
 
 /// `IA32_STAR` — System Call Target & Segment Selectors (MSR `0xC000_0081`).
@@ -13,9 +14,9 @@ use kernel_registers::msr::Ia32Star;
 ///
 /// In compatibility mode, `IA32_STAR`[31:0] holds the 32-bit EIP target for `syscall`.
 pub trait Ia32StarExt {
-    fn from<T>(selector: T) -> Self
+    fn from_selectors<T>(selector: T) -> Self
     where
-        T: AsRef<Selectors>;
+        T: Borrow<Selectors>;
 
     /// Helper to build a STAR value for a pure 64-bit kernel.
     ///
@@ -24,11 +25,11 @@ pub trait Ia32StarExt {
 }
 
 impl Ia32StarExt for Ia32Star {
-    fn from<T>(selector: T) -> Self
+    fn from_selectors<T>(selector: T) -> Self
     where
-        T: AsRef<Selectors>,
+        T: Borrow<Selectors>,
     {
-        let selector = selector.as_ref();
+        let selector = selector.borrow();
         <Self as Ia32StarExt>::new_64bit(selector.kernel_cs, selector.user_cs)
     }
 
@@ -50,6 +51,6 @@ impl Ia32StarExt for Ia32Star {
         debug_assert_eq!(kernel_cs.rpl(), Rpl::Ring0);
         debug_assert_ne!(uidx, 0, "User CS selector at GDT index 0 is invalid");
 
-        Self::new_64bit(kernel_cs.into_bits(), user_cs.into_bits())
+        Self::new_64bit_raw(kernel_cs.into_bits(), user_cs.into_bits())
     }
 }

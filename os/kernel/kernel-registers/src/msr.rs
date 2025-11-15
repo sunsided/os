@@ -1,4 +1,4 @@
-//! # Model-Specific Registers (MSR) utilities
+//! # Model-Specific Registers (MSR)
 //!
 //! This module provides low-level access to CPU **Model-Specific Registers (MSRs)**,
 //! particularly those related to segment base addresses used in 64-bit mode.
@@ -88,11 +88,11 @@ impl Msr {
         let msr = self.raw();
         unsafe {
             core::arch::asm!(
-            "wrmsr",
-            in("ecx") msr,
-            in("eax") lo,
-            in("edx") hi,
-            options(nostack, preserves_flags)
+                "wrmsr",
+                in("ecx") msr,
+                in("eax") lo,
+                in("edx") hi,
+                options(nostack, preserves_flags)
             );
         }
     }
@@ -107,11 +107,11 @@ impl Msr {
         let ecx = self.raw();
         unsafe {
             core::arch::asm!(
-            "rdmsr",
-            in("ecx") ecx,
-            out("eax") lo,
-            out("edx") hi,
-            options(nomem, nostack, preserves_flags)
+                "rdmsr",
+                in("ecx") ecx,
+                out("eax") lo,
+                out("edx") hi,
+                options(nomem, nostack, preserves_flags)
             );
         }
         (u64::from(hi) << 32) | u64::from(lo)

@@ -69,6 +69,7 @@ mod panik;
 mod per_cpu;
 mod ports;
 mod privilege;
+mod syscall;
 mod task;
 mod tracing;
 mod tsc;
