@@ -9,7 +9,7 @@ pub enum SyscallSource {
     Int80h,
 }
 
-#[allow(clippy::no_effect_underscore_binding)]
+#[allow(clippy::no_effect_underscore_binding, clippy::too_many_arguments)]
 pub fn syscall(
     sysno: u64,
     arg0: u64,

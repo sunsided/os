@@ -86,8 +86,9 @@ use crate::userland::boot_single_user_task;
 use core::f32::consts::{PI, TAU};
 use core::hint::spin_loop;
 use core::sync::atomic::{AtomicU64, Ordering};
-use kernel_info::boot::FramebufferInfo;
+use kernel_info::boot::{FramebufferInfo, UserBundleInfo};
 use log::info;
+use packer_abi::unbundle::Bundle;
 
 /// Main kernel loop, running with all memory (including framebuffer) properly mapped.
 ///
@@ -107,8 +108,10 @@ use log::info;
     clippy::cast_sign_loss,
     clippy::cast_precision_loss
 )]
-fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
+fn kernel_main(fb_virt: &FramebufferInfo, user: &UserBundleInfo) -> ! {
     info!("Kernel doing kernel things now ...");
+
+    parse_userland_bundle(user);
 
     let cpu = unsafe { PerCpu::current() };
     let start = cpu.ticks.load(Ordering::Acquire);
@@ -162,11 +165,29 @@ fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
     }
 }
 
+#[allow(clippy::cast_possible_truncation)]
+fn parse_userland_bundle(bundle: &UserBundleInfo) {
+    let slice: &[u8] = unsafe {
+        core::slice::from_raw_parts(bundle.bytes_ptr as *const u8, bundle.length as usize)
+    };
+
+    let bundle = Bundle::parse(slice).expect("failed to parse userland bundle");
+    info!("Userland bundle has {num} entries", num = bundle.len());
+
+    let init_bytes = bundle
+        .entries()
+        .filter_map(Result::ok)
+        .find(|(name, _bytes)| "init".eq(*name))
+        .map(|(_name, bytes)| bytes)
+        .expect("userland bundle has no init binary");
+    info!("Init binary is {len} bytes", len = init_bytes.len());
+}
+
 #[inline]
 fn fast_sin(x: f32) -> f32 {
     // x must be in [-π, π]
-    const B: f32 = 4.0 / core::f32::consts::PI;
-    const C: f32 = -4.0 / (core::f32::consts::PI * core::f32::consts::PI);
+    const B: f32 = 4.0 / PI;
+    const C: f32 = -4.0 / (PI * PI);
     // First-order: triangle-like sine
     let y = B * x + C * x * x.abs();
     // Second-order correction for curvature

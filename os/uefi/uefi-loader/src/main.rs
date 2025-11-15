@@ -234,7 +234,7 @@ use crate::tracing::trace_boot_info;
 use crate::uefi_mmap::exit_boot_services;
 use crate::vmem::create_kernel_pagetables;
 use alloc::boxed::Box;
-use kernel_info::boot::{KernelBootInfo, MemoryMapInfo};
+use kernel_info::boot::{KernelBootInfo, UefiMemoryMapInfo, UserBundleInfo};
 use kernel_memory_addresses::{PhysicalAddress, VirtualAddress};
 use kernel_registers::cr0::Cr0;
 use kernel_registers::{LoadRegisterUnsafe, StoreRegisterUnsafe, cr4::Cr4, efer::Efer};
@@ -316,7 +316,7 @@ fn efi_main() -> Status {
 
     let boot_info = KernelBootInfo {
         // Memory map fields are filled right after exit_boot_services returns the owned map:
-        mmap: MemoryMapInfo {
+        mmap: UefiMemoryMapInfo {
             mmap_ptr: 0,
             mmap_len: 0,
             mmap_desc_size: 0,
@@ -324,6 +324,10 @@ fn efi_main() -> Status {
         },
         rsdp_addr,
         fb,
+        userland: UserBundleInfo {
+            bytes_ptr: bun_bytes.as_ptr() as u64,
+            length: bun_bytes.len() as u64,
+        },
     };
 
     // Heap-allocate and leak the boot info.

@@ -22,8 +22,12 @@ static GLOBAL_ALLOC: UefiBootAllocator = UefiBootAllocator;
 
 unsafe impl GlobalAlloc for UefiBootAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        // Require at least 4K alignment for everything
+        const MIN_ALIGN: usize = 4096;
+
         // Ensure minimum size of 1 and include header for original pointer and padding for alignment
-        let align = layout.align().max(size_of::<usize>());
+        let align = layout.align().max(size_of::<usize>()).max(MIN_ALIGN);
+
         let size = layout.size().max(1);
         let Some(total) = size
             .checked_add(align)

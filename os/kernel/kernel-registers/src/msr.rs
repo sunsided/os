@@ -100,7 +100,7 @@ impl Msr {
 
     /// Reads the 64-bit value from the given **Model-Specific Register (MSR)**.
     #[inline(always)]
-    #[allow(clippy::inline_always)]
+    #[allow(clippy::inline_always, clippy::missing_safety_doc)]
     #[doc(alias = "read_model_specific_register")]
     #[must_use]
     pub unsafe fn load_raw(self) -> u64 {

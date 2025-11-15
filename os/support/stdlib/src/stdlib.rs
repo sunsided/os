@@ -1,7 +1,7 @@
 use crate::syscall::debug_byte;
 
 #[inline(always)]
-fn hex_digit(n: u8) -> u8 {
+const fn hex_digit(n: u8) -> u8 {
     if n < 10 { b'0' + n } else { b'A' + (n - 10) }
 }
 

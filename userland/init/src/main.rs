@@ -21,6 +21,6 @@ pub extern "C" fn _start() -> ! {
     }
 
     loop {
-        core::hint::spin_loop()
+        core::hint::spin_loop();
     }
 }

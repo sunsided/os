@@ -4,11 +4,8 @@ use kernel_info::boot::{BootPixelFormat, FramebufferInfo};
 
 /// Virtual offset inside the HHDM where we map the framebuffer.
 ///
-/// We pick **`HHDM_BASE + 1 GiB + 0xB8000`** (“VGA-like”) to stay well clear
-/// of a potential 1 GiB huge page mapping at the very start of the HHDM.
-///
-/// This reduces the risk of having to split a 1 GiB page into 4 KiB pages.
-pub const VGA_LIKE_OFFSET: u64 = 1u64 << 30; // 1 GiB inside HHDM range
+/// This reduces the risk of having to split a 1 MiB page into 4 KiB pages.
+pub const VGA_LIKE_OFFSET: u64 = 1u64 << 40; // 1 TiB inside HHDM range
 
 #[allow(clippy::missing_safety_doc, clippy::many_single_char_names)]
 pub unsafe fn fill_solid(fb: &FramebufferInfo, r: u8, g: u8, b: u8) {

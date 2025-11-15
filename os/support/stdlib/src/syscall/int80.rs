@@ -7,7 +7,7 @@ pub fn debug_byte_int80(b: u8) {
         core::arch::asm!(
             "int 0x80",
             in("rax") Sysno::DebugWriteByte as u64,
-            in("rdi") b as u64,
+            in("rdi") u64::from(b),
             // clobbers: none declared; int80 preserves ABI like a call
             options(nostack)
         );
@@ -16,6 +16,7 @@ pub fn debug_byte_int80(b: u8) {
 
 #[inline(always)]
 #[deprecated(note = "Use sys_bogus instead")]
+#[must_use]
 pub fn sys_bogus_int80() -> u64 {
     let mut ret: u64;
     unsafe {

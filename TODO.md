@@ -18,7 +18,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 ## [os/kernel/kernel/src/init.rs](./os/kernel/kernel/src/init.rs)
 
 - Line [267](./os/kernel/kernel/src/init.rs#L267): Restrict allocator to actual available RAM size.
-- Line [415](./os/kernel/kernel/src/init.rs#L415): Use a different IST from PF
+- Line [421](./os/kernel/kernel/src/init.rs#L421): Use a different IST from PF
 
 ## [os/kernel/kernel/src/interrupts/page_fault.rs](./os/kernel/kernel/src/interrupts/page_fault.rs)
 
@@ -38,4 +38,4 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/uefi/uefi-loader/src/memory.rs](./os/uefi/uefi-loader/src/memory.rs)
 
-- Line [97](./os/uefi/uefi-loader/src/memory.rs#L97): Convert to actual pointer arithmetic ops.
+- Line [101](./os/uefi/uefi-loader/src/memory.rs#L101): Convert to actual pointer arithmetic ops.

@@ -4,14 +4,14 @@
 
 use alloc::vec;
 use alloc::vec::Vec;
-use kernel_info::boot::MemoryMapInfo;
+use kernel_info::boot::UefiMemoryMapInfo;
 use log::{debug, info};
 use uefi::boot::MemoryType;
 use uefi::mem::memory_map::MemoryMap;
 use uefi::{Status, boot};
 
 /// Exist the UEFI boot services and retain a copy of the UEFI memory map.
-pub fn exit_boot_services() -> Result<MemoryMapInfo, Status> {
+pub fn exit_boot_services() -> Result<UefiMemoryMapInfo, Status> {
     uefi::println!("Exiting boot services ...");
     info!("Exiting boot services ...");
 
@@ -44,7 +44,7 @@ pub fn exit_boot_services() -> Result<MemoryMapInfo, Status> {
         core::ptr::copy_nonoverlapping(src, mmap_copy_ptr, mmap_length);
     }
 
-    let mmap = MemoryMapInfo {
+    let mmap = UefiMemoryMapInfo {
         mmap_ptr: mmap_copy_ptr as u64,
         mmap_len: mmap_length as u64,
         mmap_desc_size: owned_map.meta().desc_size as u64,

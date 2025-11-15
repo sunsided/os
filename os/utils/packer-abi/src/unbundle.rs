@@ -22,8 +22,8 @@ pub enum BundleError {
 }
 
 #[inline]
-fn is_aligned8(x: usize) -> bool {
-    (x & 7) == 0
+const fn is_aligned8(x: usize) -> bool {
+    x.trailing_zeros() >= 3
 }
 
 #[inline]
@@ -44,8 +44,9 @@ fn read_u64_le(buf: &[u8], off: usize) -> Result<u64, BundleError> {
 
 impl<'a> Bundle<'a> {
     /// Parse and validate a bundle blob.
+    #[allow(clippy::missing_errors_doc, clippy::cast_possible_truncation)]
     pub fn parse(blob: &'a [u8]) -> Result<Self, BundleError> {
-        use BundleError::*;
+        use BundleError::{BadAlignment, BadMagic, OutOfBounds, TooShort};
         // Need at least a Header.
         if blob.len() < size_of::<Header>() {
             return Err(TooShort);
@@ -57,11 +58,14 @@ impl<'a> Bundle<'a> {
             return Err(BadMagic);
         }
 
-        let count = read_u32_le(blob, 8)?;
-        let _resv = read_u32_le(blob, 12)?; // must be zero in your writer; ignore here
-        let names_off = read_u64_le(blob, 16)? as usize;
-        let files_off = read_u64_le(blob, 24)? as usize;
-        let entries_off = read_u64_le(blob, 32)? as usize;
+        let version = read_u32_le(blob, 8)?;
+        assert_eq!(version, 0, "unsupported userland bundle version: {version}");
+
+        let count = read_u32_le(blob, 12)?;
+        let _resv = read_u64_le(blob, 16)?; // must be zero in your writer; ignore here
+        let names_off = read_u64_le(blob, 24)? as usize;
+        let files_off = read_u64_le(blob, 32)? as usize;
+        let entries_off = read_u64_le(blob, 40)? as usize;
 
         // Alignment constraints (all sections 8-byte aligned).
         if !is_aligned8(names_off) || !is_aligned8(files_off) || !is_aligned8(entries_off) {
@@ -90,21 +94,25 @@ impl<'a> Bundle<'a> {
     }
 
     /// Number of files in the bundle.
-    pub fn len(&self) -> usize {
+    #[must_use]
+    pub const fn len(&self) -> usize {
         self.hdr.count as usize
     }
-    pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Iterate over entries by index (0..count).
-    pub fn entries(&self) -> Entries<'_> {
+    #[must_use]
+    pub const fn entries(&self) -> Entries<'_> {
         Entries { b: self, idx: 0 }
     }
 
     /// Fetch the (name, bytes) pair for entry `i`.
+    #[allow(clippy::missing_errors_doc, clippy::cast_possible_truncation)]
     pub fn get(&self, i: usize) -> Result<(&'a str, &'a [u8]), BundleError> {
-        use BundleError::*;
+        use BundleError::{OutOfBounds, Utf8};
         if i >= self.len() {
             return Err(OutOfBounds);
         }
@@ -112,7 +120,7 @@ impl<'a> Bundle<'a> {
         let off = base + i * size_of::<Entry>();
 
         // Entry fields (LE) read directly; we don't rely on target endianness/layout.
-        let name_off_rel = read_u64_le(self.blob, off + 0)? as usize;
+        let name_off_rel = read_u64_le(self.blob, off)? as usize;
         let file_off_rel = read_u64_le(self.blob, off + 8)? as usize;
         let file_len = read_u64_le(self.blob, off + 16)? as usize;
 
@@ -147,6 +155,7 @@ impl<'a> Bundle<'a> {
     }
 
     /// Find a file by exact name.
+    #[must_use]
     pub fn find(&'a self, needle: &str) -> Option<&'a [u8]> {
         for (name, bytes) in self.entries().flatten() {
             if name == needle {
@@ -157,6 +166,7 @@ impl<'a> Bundle<'a> {
     }
 
     /// Return the first file (name, bytes), if any.
+    #[must_use]
     pub fn first(&self) -> Option<(&'a str, &'a [u8])> {
         self.get(0).ok()
     }
@@ -164,6 +174,7 @@ impl<'a> Bundle<'a> {
 
 impl<'a> Iterator for Entries<'a> {
     type Item = Result<(&'a str, &'a [u8]), BundleError>;
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx >= self.b.len() {
             return None;
@@ -179,4 +190,4 @@ impl<'a> Iterator for Entries<'a> {
     }
 }
 
-impl<'a> core::iter::FusedIterator for Entries<'a> {}
+impl core::iter::FusedIterator for Entries<'_> {}
