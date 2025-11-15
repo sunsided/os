@@ -5,7 +5,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use kernel_info::boot::MemoryMapInfo;
-use log::info;
+use log::{debug, info};
 use uefi::boot::MemoryType;
 use uefi::mem::memory_map::MemoryMap;
 use uefi::{Status, boot};
@@ -54,7 +54,7 @@ pub fn exit_boot_services() -> Result<MemoryMapInfo, Status> {
     // Ensure the memory map copy continues to exist.
     core::mem::forget(mmap_copy);
 
-    info!("Boot services exited, we're now flying by instruments.");
+    debug!("Boot services exited, we're now flying by instruments.");
     Ok(mmap)
 }
 

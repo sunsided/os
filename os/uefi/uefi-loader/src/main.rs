@@ -236,6 +236,7 @@ use crate::vmem::create_kernel_pagetables;
 use alloc::boxed::Box;
 use kernel_info::boot::{KernelBootInfo, MemoryMapInfo};
 use kernel_memory_addresses::{PhysicalAddress, VirtualAddress};
+use kernel_registers::cr0::Cr0;
 use kernel_registers::{LoadRegisterUnsafe, StoreRegisterUnsafe, cr4::Cr4, efer::Efer};
 use log::{LevelFilter, debug, info};
 use uefi::boot::PAGE_SIZE;
@@ -366,24 +367,18 @@ fn efi_main() -> Status {
 
 #[allow(clippy::items_after_statements)]
 unsafe fn enable_wp_nxe_pge() {
-    // CR0.WP = 1 (write-protect in supervisor)
     info!("Enabling supervisor write protection ...");
-    let mut cr0: u64;
     unsafe {
-        core::arch::asm!("mov {}, cr0", out(reg) cr0, options(nomem, preserves_flags));
-    }
-    cr0 |= 1 << 16;
-    unsafe {
-        core::arch::asm!("mov cr0, {}", in(reg) cr0, options(nomem, preserves_flags));
+        Cr0::load_unsafe()
+            .with_wp_write_protect(true)
+            .store_unsafe();
     }
 
-    // EFER.NXE = 1
-    info!("Setting EFER.NXE ...");
+    info!("Setting no-execute support for page tables (EFER.NXE) ...");
     unsafe {
         Efer::load_unsafe().with_nxe(true).store_unsafe();
     }
 
-    // CR4.PGE = 1 (global pages)
     info!("Enabling global pages ...");
     unsafe {
         Cr4::load_unsafe().with_pge(true).store_unsafe();
