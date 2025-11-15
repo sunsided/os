@@ -12,6 +12,12 @@ pub mod cr3;
 #[cfg(feature = "cr4")]
 pub mod cr4;
 
+#[cfg(feature = "msr")]
+pub mod msr;
+
+#[cfg(feature = "rflags")]
+pub mod rflags;
+
 pub trait LoadRegisterUnsafe {
     /// # Safety
     /// The caller must uphold the implementation-specific safety requirements.

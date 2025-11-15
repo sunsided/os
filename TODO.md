@@ -26,7 +26,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/interrupts/syscall.rs](./os/kernel/kernel/src/interrupts/syscall.rs)
 
-- Line [96](./os/kernel/kernel/src/interrupts/syscall.rs#L96): Validate the CPU frame is indeed in the correct location here.
+- Line [97](./os/kernel/kernel/src/interrupts/syscall.rs#L97): Validate the CPU frame is indeed in the correct location here.
 
 ## [os/kernel/kernel/src/userland.rs](./os/kernel/kernel/src/userland.rs)
 

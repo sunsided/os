@@ -85,6 +85,7 @@ name = "kernel-registers"
 version = "0.0.0"
 dependencies = [
  "bitfield-struct",
+ "kernel-memory-addresses",
 ]
 
 [[package]]

@@ -108,7 +108,7 @@ use log::info;
 fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
     info!("Kernel doing kernel things now ...");
 
-    let cpu = PerCpu::current();
+    let cpu = unsafe { PerCpu::current() };
     let start = cpu.ticks.load(Ordering::Acquire);
     let mut prev = 0;
 

@@ -1,26 +1,28 @@
-//! Provides the [`Ia32GsBaseMsr`] type.
+//! Provides the [`Ia32GsBaseMsrExt`] trait.
 
-use crate::msr::{Msr, is_canonical};
 use crate::per_cpu::PerCpu;
-use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
+use kernel_registers::msr::{Ia32GsBaseMsr, is_canonical_gs_base};
+use kernel_registers::{LoadRegisterUnsafe, StoreRegisterUnsafe};
 
-/// Model-Specific Register: current **GS base address**.
-///
-/// The CPU uses this value when resolving memory references through the GS
-/// segment register (`mov %gs:offset, ...` or `mov ..., %gs:offset`).
-///
-/// In 64-bit mode, this value is 64 bits wide and read/writable through
-/// `RDMSR`/`WRMSR` at index `0xC000_0101`.
-pub struct Ia32GsBaseMsr(Msr);
+pub trait Ia32GsBaseMsrExt {
+    /// Set the *current* GS base (used by `gs:` memory references).
+    ///
+    /// # Safety
+    /// - CPL0 only; WRMSR at CPL>0 traps.
+    /// - `base` must be a valid, canonical virtual address mapped for the intended use.
+    /// - Changing GS base while concurrently using `gs:` can race; coordinate on SMP.
+    unsafe fn set_gs_base(percpu: &PerCpu);
 
-impl Ia32GsBaseMsr {
-    pub const IA32_GS_BASE: u32 = 0xC000_0101;
+    /// Get the [`PerCpu`] pointer from the current [`IA32_GS_BASE`](Ia32GsBaseMsr::IA32_GS_BASE).
+    unsafe fn read_ptr() -> *const PerCpu;
 
-    pub const fn new() -> Self {
-        Self(Msr::new(Self::IA32_GS_BASE))
-    }
+    /// Get the [`PerCpu`] reference from the current [`IA32_GS_BASE`](Ia32GsBaseMsr::IA32_GS_BASE).
+    #[doc(alias = "gs_base_ptr")]
+    unsafe fn current() -> &'static PerCpu;
+}
 
+impl Ia32GsBaseMsrExt for Ia32GsBaseMsr {
     /// Set the *current* GS base (used by `gs:` memory references).
     ///
     /// # Safety
@@ -28,50 +30,33 @@ impl Ia32GsBaseMsr {
     /// - `base` must be a valid, canonical virtual address mapped for the intended use.
     /// - Changing GS base while concurrently using `gs:` can race; coordinate on SMP.
     #[inline]
-    pub unsafe fn set_gs_base(percpu: &PerCpu) {
+    unsafe fn set_gs_base(percpu: &PerCpu) {
         let base = NonNull::from_ref(percpu);
         let addr = base.as_ptr() as u64;
-        debug_assert!(is_canonical(addr), "non-canonical GS base: {addr:#x}");
+        debug_assert!(
+            is_canonical_gs_base(addr),
+            "non-canonical GS base: {addr:#x}"
+        );
+
         unsafe {
-            Self::new().write_raw(addr);
+            Self::load_unsafe().with_gs_base(base).store_unsafe();
         }
     }
 
-    /// Get the [`PerCpu`] pointer from the current [`IA32_GS_BASE`](Self::IA32_GS_BASE).
+    /// Get the [`PerCpu`] pointer from the current [`IA32_GS_BASE`](Ia32GsBaseMsr::IA32_GS_BASE).
     #[inline(always)]
     #[allow(clippy::inline_always)]
-    #[doc(alias = "gs_base_ptr")]
-    pub fn read_ptr() -> *const PerCpu {
-        unsafe { Self::new().read_raw() as *const PerCpu }
+    unsafe fn read_ptr() -> *const PerCpu {
+        let msr = unsafe { Self::load_unsafe() };
+        msr.ptr() as *const PerCpu
     }
 
-    /// Get the [`PerCpu`] reference from the current [`IA32_GS_BASE`](Self::IA32_GS_BASE).
+    /// Get the [`PerCpu`] reference from the current [`IA32_GS_BASE`](Ia32GsBaseMsr::IA32_GS_BASE).
     #[inline(always)]
     #[allow(clippy::inline_always)]
-    #[doc(alias = "gs_base_ptr")]
-    pub fn current() -> &'static PerCpu {
-        let ptr = Self::read_ptr();
+    unsafe fn current() -> &'static PerCpu {
+        let ptr = unsafe { Self::read_ptr() };
         debug_assert!(!ptr.is_null(), "Per-CPU instance pointer is unset");
         unsafe { &*ptr }
-    }
-}
-
-impl Default for Ia32GsBaseMsr {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Deref for Ia32GsBaseMsr {
-    type Target = Msr;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Ia32GsBaseMsr {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
     }
 }

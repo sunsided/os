@@ -1,5 +1,6 @@
 use crate::{LoadRegisterUnsafe, StoreRegisterUnsafe};
 use bitfield_struct::bitfield;
+use kernel_memory_addresses::PhysicalAddress;
 
 /// CR3 — Page-Map Level-4 Base Register (IA-32e, PCID disabled).
 ///
@@ -32,7 +33,7 @@ pub struct Cr3 {
     /// right by 12 (4 KiB alignment). To get the full physical address:
     /// `pml4_base_phys = pml4_base_4k << 12`.
     #[bits(40)]
-    pub pml4_base_4k: u64,
+    pml4_base_4k: u64,
 
     /// Bits 52–63 — Reserved.
     #[bits(12)]
@@ -44,23 +45,27 @@ impl Cr3 {
     ///
     /// `pml4_phys` must be 4 KiB-aligned.
     #[must_use]
-    pub fn from_pml4_phys(pml4_phys: u64, pwt: bool, pcd: bool) -> Self {
-        debug_assert_eq!(pml4_phys & 0xFFF, 0, "PML4 base must be 4K-aligned");
+    pub fn from_pml4_phys(pml4_phys: PhysicalAddress, pwt: bool, pcd: bool) -> Self {
+        debug_assert_eq!(
+            pml4_phys.as_u64() & 0xFFF,
+            0,
+            "PML4 base must be 4K-aligned"
+        );
         let mut cr3 = Self::new();
         cr3.set_pwt(pwt);
         cr3.set_pcd(pcd);
-        cr3.set_pml4_base_4k(pml4_phys >> 12);
+        cr3.set_pml4_base_4k(pml4_phys.as_u64() >> 12);
         cr3
     }
 
     /// Return the full physical address of the PML4 base.
     #[must_use]
-    pub fn pml4_phys(&self) -> u64 {
+    pub fn pml4_phys(&self) -> PhysicalAddress {
         // In 4- and 5-level paging, CR3[51:12] is the base. Upper bits should be zero.
         let bits = self.into_bits();
         debug_assert_eq!(bits >> 52, 0, "CR3 has nonzero high bits: {bits:#018x}");
 
-        self.pml4_base_4k() << 12
+        PhysicalAddress::new(self.pml4_base_4k() << 12)
     }
 }
 

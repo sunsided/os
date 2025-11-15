@@ -12,15 +12,18 @@ publish.workspace = true
 
 [features]
 default = ["kernel"]
-kernel = ["asm", "cr3", "cr4", "efer"]
+kernel = ["asm", "cr3", "cr4", "efer", "msr", "rflags"]
 uefi = ["asm", "cr4", "efer"]
 asm = []
 cr3 = []
 cr4 = []
 efer = []
+msr = []
+rflags = []
 
 [dependencies]
 bitfield-struct.workspace = true
+kernel-memory-addresses = { path = "../../kernel/kernel-memory-addresses" }
 
 [lints]
 workspace = true

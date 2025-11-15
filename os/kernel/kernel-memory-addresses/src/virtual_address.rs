@@ -51,6 +51,22 @@ impl VirtualAddress {
         Self(MemoryAddress::new(v))
     }
 
+    /// Alias for [`new`](Self::new).
+    #[inline]
+    #[must_use]
+    #[doc(hidden)]
+    pub const fn from_bits(v: u64) -> Self {
+        Self::new(v)
+    }
+
+    /// Alias for [`as_u64`](Self::as_u64).
+    #[inline]
+    #[must_use]
+    #[doc(hidden)]
+    pub const fn into_bits(self) -> u64 {
+        self.as_u64()
+    }
+
     #[inline]
     #[must_use]
     pub const fn zero() -> Self {

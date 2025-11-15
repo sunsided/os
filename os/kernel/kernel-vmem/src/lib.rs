@@ -251,14 +251,14 @@ pub unsafe fn read_cr3_phys() -> PhysicalAddress {
     let phys_base = cr3.pml4_phys();
 
     // Clear PCID / low bits by turning it into a 4K page base and back to an address.
-    let page = PhysicalAddress::new(phys_base).page::<Size4K>(); // drop low 12 bits
+    let page = phys_base.page::<Size4K>(); // drop low 12 bits
     debug_assert_eq!(
         phys_base,
-        page.base().as_u64(),
+        page.base(),
         "PML4 phys base is not 4 KiB aligned"
     );
 
-    PhysicalAddress::new(phys_base)
+    phys_base
 }
 
 /// Invalidate one page in the TLB on the **current CPU** for the **current** address space.

@@ -1,5 +1,11 @@
 # Developer Diary
 
+## 2025-11-13
+
+Syscall today. Refactored the crates a bit and upon wiring up the STAR/LSTAR registers
+learned that I should rearrange the GDT to have Data Segments before Code Segments.
+The swap was minimally invasive thankfully and things continued to work right after.
+
 ## 2025-11-12
 
 There's some more work left to do with the INT80h parts. The fact that I currently

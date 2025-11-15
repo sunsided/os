@@ -75,6 +75,6 @@ extern "C" fn lapic_timer_handler_rust() {
         apic::eoi_x2apic();
     }
 
-    let p = PerCpu::current();
+    let p = unsafe { PerCpu::current() };
     p.ticks.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
 }

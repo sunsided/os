@@ -56,8 +56,8 @@ use kernel_memory_addresses::VirtualAddress;
 pub struct Selectors {
     pub kernel_cs: SegmentSelector<CodeSel>,
     pub kernel_ds: SegmentSelector<DataSel>,
-    pub user_cs: SegmentSelector<CodeSel>,
     pub user_ds: SegmentSelector<DataSel>,
+    pub user_cs: SegmentSelector<CodeSel>,
     pub tss: SegmentSelector<TssSel>,
 }
 
@@ -66,8 +66,8 @@ impl Selectors {
         Self {
             kernel_cs: KERNEL_CS_SEL,
             kernel_ds: KERNEL_DS_SEL,
-            user_cs: USER_CS_SEL,
             user_ds: USER_DS_SEL,
+            user_cs: USER_CS_SEL,
             tss: TSS_SYS_SEL,
         }
     }
@@ -85,8 +85,8 @@ impl Default for Selectors {
 // values (useful for inline asm or iret frames).
 pub const KERNEL_CS_SEL: SegmentSelector<CodeSel> = SegmentSelector::<CodeSel>::new(1, Rpl::Ring0);
 pub const KERNEL_DS_SEL: SegmentSelector<DataSel> = SegmentSelector::<DataSel>::new(2, Rpl::Ring0);
-pub const USER_CS_SEL: SegmentSelector<CodeSel> = SegmentSelector::<CodeSel>::new(3, Rpl::Ring3);
-pub const USER_DS_SEL: SegmentSelector<DataSel> = SegmentSelector::<DataSel>::new(4, Rpl::Ring3);
+pub const USER_DS_SEL: SegmentSelector<DataSel> = SegmentSelector::<DataSel>::new(3, Rpl::Ring3);
+pub const USER_CS_SEL: SegmentSelector<CodeSel> = SegmentSelector::<CodeSel>::new(4, Rpl::Ring3);
 pub const TSS_SYS_SEL: SegmentSelector<TssSel> = SegmentSelector::<TssSel>::new(5);
 
 // Encoded selector numbers as `u16` (what the CPU actually loads).
@@ -102,8 +102,8 @@ const _: () = {
     // Expected raw selector numbers (given the GDT layout in this file).
     assert!(KERNEL_CS == 0x08);
     assert!(KERNEL_DS == 0x10);
-    assert!(USER_CS == 0x1b);
-    assert!(USER_DS == 0x23);
+    assert!(USER_DS == 0x1b);
+    assert!(USER_CS == 0x23);
     assert!(TSS_SEL == 0x28);
 
     // Encoding formula: (index << 3) | (TI=0) | RPL
@@ -113,8 +113,8 @@ const _: () = {
 
     assert!(KERNEL_CS == enc(1, 0)); // kernel code: index=1, RPL=0
     assert!(KERNEL_DS == enc(2, 0)); // kernel data: index=2, RPL=0
-    assert!(USER_CS == enc(3, 3)); // user   code: index=3, RPL=3
-    assert!(USER_DS == enc(4, 3)); // user   data: index=4, RPL=3
+    assert!(USER_DS == enc(3, 3)); // user   data: index=4, RPL=3
+    assert!(USER_CS == enc(4, 3)); // user   code: index=3, RPL=3
     assert!(TSS_SEL == enc(5, 0)); // TSS (low): index=5, RPL=0
 
     // Typed selectors must produce the same raw values.
@@ -152,11 +152,13 @@ pub struct Gdt {
     /// Kernel code segment (64-bit, DPL=0).
     kcode: Desc64, // 1
     /// Kernel data/stack segment (DPL=0).
+    /// Must be one index after `kcode` for `SYSCALL`.
     kdata: Desc64, // 2
-    /// User code segment (64-bit, DPL=3).
-    ucode: Desc64, // 3
     /// User data/stack segment (DPL=3).
-    udata: Desc64, // 4
+    /// Must be one index before `ucode` for `SYSRET`.
+    udata: Desc64, // 3
+    /// User code segment (64-bit, DPL=3).
+    ucode: Desc64, // 4
     /// 64-bit Available TSS descriptor (low+high).
     tss: TssDesc64, // 5 & 6 (16-byte system descriptor)
 }
@@ -173,8 +175,8 @@ impl Gdt {
             null: Desc64 { raw: 0 },
             kcode: Desc64::from_code_dpl(Dpl::Ring0), // kernel code: DPL=0
             kdata: Desc64::from_data_dpl(Dpl::Ring0), // kernel data: DPL=0
-            ucode: Desc64::from_code_dpl(Dpl::Ring3), // user   code: DPL=3
             udata: Desc64::from_data_dpl(Dpl::Ring3), // user   data: DPL=3
+            ucode: Desc64::from_code_dpl(Dpl::Ring3), // user   code: DPL=3
             tss,
         }
     }
@@ -200,9 +202,9 @@ unsafe fn load_gdt(gdt: &Gdt) {
 
     unsafe {
         core::arch::asm!(
-        "lgdt [{}]",
-        in(reg) &raw const ptr,
-        options(readonly, nostack, preserves_flags)
+            "lgdt [{}]",
+            in(reg) &raw const ptr,
+            options(readonly, nostack, preserves_flags)
         );
     }
 }

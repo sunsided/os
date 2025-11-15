@@ -26,92 +26,12 @@
 
 mod ia32_gs_base;
 mod ia32_kernel_gs_base;
+mod ia32_star;
 
-pub use crate::msr::ia32_gs_base::Ia32GsBaseMsr;
-pub use crate::msr::ia32_kernel_gs_base::Ia32KernelGsBaseMsr;
+pub use crate::msr::ia32_gs_base::Ia32GsBaseMsrExt;
+pub use crate::msr::ia32_kernel_gs_base::Ia32KernelGsBaseMsrExt;
 use crate::per_cpu::PerCpu;
-
-/// Identifies a **Model-Specific Register (MSR)** by its architectural index.
-///
-/// MSR indices are 32-bit identifiers used by the `rdmsr` and `wrmsr`
-/// instructions to select which internal CPU register to access.
-/// The index space is architecture-defined; see the Intel/AMD manuals for details.
-#[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Msr(pub u32);
-
-impl Msr {
-    /// Creates a new `Msr` from a raw index.
-    #[inline(always)]
-    #[allow(clippy::inline_always)]
-    const fn new(index: u32) -> Self {
-        Self(index)
-    }
-
-    /// Returns the underlying raw MSR index.
-    #[inline(always)]
-    #[allow(clippy::inline_always)]
-    pub const fn raw(self) -> u32 {
-        self.0
-    }
-
-    /// Write a 64-bit value to the given **Model-Specific Register (MSR)**.
-    ///
-    /// # Parameters
-    /// - `msr`: the MSR index (e.g., [`Ia32GsBaseMsr::IA32_GS_BASE`]).
-    /// - `val`: the 64-bit value to write.
-    ///
-    /// # Safety
-    /// - This function executes the privileged `WRMSR` instruction, which is only
-    ///   valid at **CPL=0** (kernel mode). Executing this in user mode will raise a
-    ///   **#GP(0)** exception.
-    /// - The target MSR must be **valid and writable** on the current CPU.
-    ///   Writing an invalid or reserved MSR causes a general protection fault.
-    /// - Callers must ensure that interrupts and concurrent CPU accesses do not
-    ///   interfere with the semantics of the written MSR (e.g., writing GS base
-    ///   while `swapgs` is in flight).
-    ///
-    /// # See Also
-    /// - [`Ia32GsBaseMsr::IA32_GS_BASE`]
-    /// - [`Ia32KernelGsBaseMsr::IA32_KERNEL_GS_BASE`]
-    #[inline]
-    #[allow(clippy::cast_possible_truncation)]
-    #[doc(alias = "write_model_specific_register")]
-    pub unsafe fn write_raw(self, val: u64) {
-        let lo = (val & 0xFFFF_FFFF) as u32;
-        let hi = (val >> 32) as u32;
-        let msr = self.raw();
-        unsafe {
-            core::arch::asm!(
-                "wrmsr",
-                in("ecx") msr,
-                in("eax") lo,
-                in("edx") hi,
-                options(nostack, preserves_flags)
-            );
-        }
-    }
-
-    /// Reads the 64-bit value from the given **Model-Specific Register (MSR)**.
-    #[inline(always)]
-    #[allow(clippy::inline_always)]
-    #[doc(alias = "read_model_specific_register")]
-    pub unsafe fn read_raw(self) -> u64 {
-        let lo: u32;
-        let hi: u32;
-        let ecx = self.raw();
-        unsafe {
-            core::arch::asm!(
-                "rdmsr",
-                in("ecx") ecx,
-                out("eax") lo,
-                out("edx") hi,
-                options(nomem, nostack, preserves_flags)
-            );
-        }
-        (u64::from(hi) << 32) | u64::from(lo)
-    }
-}
+use kernel_registers::msr::{Ia32GsBaseMsr, Ia32KernelGsBaseMsr};
 
 /// Convenience: initialize both GS bases to the same per-CPU pointer
 /// (common during early boot so a later `swapgs` is a no-op).
@@ -121,8 +41,8 @@ impl Msr {
 #[inline]
 pub unsafe fn init_gs_bases(percpu: &PerCpu) {
     unsafe {
-        Ia32GsBaseMsr::set_gs_base(percpu);
-        Ia32KernelGsBaseMsr::set_kernel_gs_base(percpu); // for SWAPGS
+        <Ia32GsBaseMsr as Ia32GsBaseMsrExt>::set_gs_base(percpu);
+        <Ia32KernelGsBaseMsr as Ia32KernelGsBaseMsrExt>::set_kernel_gs_base(percpu); // for SWAPGS
     }
 }
 

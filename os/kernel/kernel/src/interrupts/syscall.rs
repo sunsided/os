@@ -43,6 +43,7 @@
 use crate::gdt::KERNEL_CS_SEL;
 use crate::interrupts::{GateType, Idt};
 use crate::ports::outb;
+use kernel_registers::rflags::Rflags;
 
 pub const SYSCALL_VECTOR: usize = 0x80; // 128
 
@@ -102,7 +103,7 @@ pub struct TrapFrame {
     /// Code segment selector at the time of INT 0x80 (usually user CS).
     cs: u64,
     /// RFLAGS at the time of INT 0x80 (IF is cleared on entry).
-    rflags: u64,
+    rflags: Rflags,
     /// Return RSP saved by the CPU (user stack pointer on entry).
     rsp: u64,
     /// Stack segment selector (user SS).
