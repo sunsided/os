@@ -47,6 +47,12 @@ impl VirtualAddress {
 
     #[inline]
     #[must_use]
+    pub const fn from_extern_c_fn(ptr: extern "C" fn()) -> Self {
+        Self::from_ptr(ptr as *const u8)
+    }
+
+    #[inline]
+    #[must_use]
     pub const fn new(v: u64) -> Self {
         Self(MemoryAddress::new(v))
     }

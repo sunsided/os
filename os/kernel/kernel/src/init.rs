@@ -446,7 +446,7 @@ unsafe fn init_syscall(cpu: &PerCpu) {
     }
 
     // Set LSTAR to syscall entry stub.
-    let addr = VirtualAddress::from_ptr(syscall_entry_stub as *const extern "C" fn());
+    let addr = VirtualAddress::from_extern_c_fn(syscall_entry_stub);
     info!("Syscall entry stubs at {addr}");
     unsafe {
         Ia32LStar::new().with_syscall_rip(addr).store_unsafe();
