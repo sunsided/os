@@ -369,6 +369,7 @@ fn efi_main() -> Status {
 unsafe fn enable_wp_nxe_pge() {
     info!("Enabling supervisor write protection ...");
     unsafe {
+        // CPU is already in long mode due to UEFI specs, i.e. paging bit is set, etc.
         Cr0::load_unsafe()
             .with_wp_write_protect(true)
             .store_unsafe();
