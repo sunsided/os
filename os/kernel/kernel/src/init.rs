@@ -85,7 +85,7 @@ use crate::interrupts::syscall::SyscallInterrupt;
 use crate::interrupts::{Idt, Ist};
 use crate::tracing::trace_boot_info;
 use crate::{gdt, interrupts, kernel_main};
-use kernel_info::boot::{FramebufferInfo, KernelBootInfo};
+use kernel_info::boot::{FramebufferInfo, KernelBootInfo, UserBundleInfo};
 use kernel_qemu::QemuLogger;
 use log::{LevelFilter, info};
 
@@ -399,7 +399,13 @@ extern "C" fn stage_two_init_bootstrap_processor(
         "Remapping UEFI GOP framebuffer ({size} bytes) ...",
         size = bi.fb.framebuffer_size
     );
-    let fb_virt = remap_framebuffer_memory(bi);
+    let fb = remap_framebuffer_memory(bi);
+
+    info!(
+        "Remapping userland bundle ({size} bytes) ...",
+        size = bi.userland.bytes_ptr
+    );
+    let user = remap_userland_memory(bi);
 
     // Initialize the IDT once.
     info!("Initializing IDT ...");
@@ -440,7 +446,7 @@ extern "C" fn stage_two_init_bootstrap_processor(
     enable_supervisor_protections();
 
     info!("Kernel early init is done, jumping into kernel main loop ...");
-    kernel_main(&fb_virt)
+    kernel_main(&fb, &user)
 }
 
 fn enable_supervisor_protections() {
@@ -544,4 +550,43 @@ fn remap_framebuffer_memory(bi: &KernelBootInfo) -> FramebufferInfo {
     fb_virt.framebuffer_ptr = (va_base + (fb_pa.as_u64() & 0xFFF)).as_u64(); // preserve offset within page
     info!("Remapped frame buffer to {va_base}");
     fb_virt
+}
+
+/// Virtual offset inside the HHDM where we map the userland bootstrap data.
+pub const USERLAND_BOOTSTRAP_BUNDLE: u64 = 1u64 << 41; // 2 TiB inside HHDM range
+
+/// Remaps the boot framebuffer memory into the kernel's virtual address space.
+///
+/// UEFI provides the physical address of the framebuffer in the boot info, but does not
+/// include it in the memory mapping table. This means the kernel must manually map the
+/// framebuffer into its own virtual address space to access it. This function sets up the
+/// necessary mapping so the framebuffer can be used by the kernel.
+fn remap_userland_memory(bi: &KernelBootInfo) -> UserBundleInfo {
+    // Map framebuffer
+    let pa = PhysicalAddress::new(bi.userland.bytes_ptr);
+    let len = bi.userland.length;
+    let va_base = HHDM_BASE + USERLAND_BOOTSTRAP_BUNDLE;
+
+    let user_flags = VirtualMemoryPageBits::default()
+        .with_writable(false)
+        .with_user(false)
+        .with_no_execute(true);
+
+    try_with_kernel_vmm(FlushTlb::OnSuccess, |vmm| {
+        vmm.map_region(
+            AllocationTarget::Kernel,
+            va_base,
+            pa,
+            len,
+            user_flags,
+            user_flags,
+        )
+    })
+    .expect("Userland mapping failed");
+
+    // Return updated FramebufferInfo with new virtual address
+    let mut virt = bi.userland.clone();
+    virt.bytes_ptr = (va_base + (pa.as_u64() & 0xFFF)).as_u64(); // preserve offset within page
+    info!("Remapped userland bundle to {va_base}");
+    virt
 }

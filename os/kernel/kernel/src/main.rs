@@ -59,6 +59,7 @@
 mod alloc;
 mod apic;
 mod cpuid;
+mod elf;
 mod framebuffer;
 mod gdt;
 mod idt;
@@ -76,17 +77,21 @@ mod tracing;
 mod tsc;
 mod tss;
 mod userland;
-mod userland_demo;
 
-use crate::alloc::with_kernel_vmm;
+use crate::alloc::{FlushTlb, try_with_kernel_vmm};
 use crate::framebuffer::fill_solid;
 use crate::per_cpu::PerCpu;
+use crate::smap::SmapGuard;
+use crate::tracing::log_ctrl_bits;
 use crate::tsc::{estimate_tsc_hz, rdtsc};
-use crate::userland::boot_single_user_task;
+use crate::userland::{enter_user_mode, parse_userland_bundle};
 use core::f32::consts::{PI, TAU};
 use core::hint::spin_loop;
+use core::num::NonZeroU64;
 use core::sync::atomic::{AtomicU64, Ordering};
-use kernel_info::boot::FramebufferInfo;
+use kernel_alloc::phys_mapper::HhdmPhysMapper;
+use kernel_info::boot::{FramebufferInfo, UserBundleInfo};
+use kernel_memory_addresses::VirtualAddress;
 use log::info;
 
 /// Main kernel loop, running with all memory (including framebuffer) properly mapped.
@@ -107,8 +112,16 @@ use log::info;
     clippy::cast_sign_loss,
     clippy::cast_precision_loss
 )]
-fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
+fn kernel_main(fb_virt: &FramebufferInfo, user: &UserBundleInfo) -> ! {
     info!("Kernel doing kernel things now ...");
+
+    let ustack_top = VirtualAddress::new(0x0000_7fff_f000);
+    let num_stack_pages = unsafe { NonZeroU64::new_unchecked(2048) }; // 8 MiB
+    let (va, ustack_top) = try_with_kernel_vmm(FlushTlb::OnSuccess, |vmm| {
+        let _guard = SmapGuard::enter();
+        parse_userland_bundle(user, vmm, ustack_top, num_stack_pages)
+    })
+    .expect("Failed to parse userland bundle");
 
     let cpu = unsafe { PerCpu::current() };
     let start = cpu.ticks.load(Ordering::Acquire);
@@ -154,10 +167,12 @@ fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
         spin_loop();
 
         if prev == 2 {
+            info!("About to enter user mode ...");
+            log_ctrl_bits();
+            alloc::debug::dump_walk(&HhdmPhysMapper, va);
+
             info!("Jumping into userland code - will not refresh screen anymore");
-            with_kernel_vmm(|vmm| {
-                boot_single_user_task(vmm);
-            });
+            unsafe { enter_user_mode(va, ustack_top) }
         }
     }
 }
@@ -165,8 +180,8 @@ fn kernel_main(fb_virt: &FramebufferInfo) -> ! {
 #[inline]
 fn fast_sin(x: f32) -> f32 {
     // x must be in [-π, π]
-    const B: f32 = 4.0 / core::f32::consts::PI;
-    const C: f32 = -4.0 / (core::f32::consts::PI * core::f32::consts::PI);
+    const B: f32 = 4.0 / PI;
+    const C: f32 = -4.0 / (PI * PI);
     // First-order: triangle-like sine
     let y = B * x + C * x * x.abs();
     // Second-order correction for curvature

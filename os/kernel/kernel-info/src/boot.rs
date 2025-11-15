@@ -13,18 +13,21 @@ pub type KernelEntryFn = extern "win64" fn(*const KernelBootInfo) -> !;
 #[derive(Clone)]
 pub struct KernelBootInfo {
     /// Memory map information.
-    pub mmap: MemoryMapInfo,
+    pub mmap: UefiMemoryMapInfo,
 
     /// RSDP (ACPI 2.0+) physical address, or 0 if not provided.
     pub rsdp_addr: u64,
 
     /// Framebuffer information, passed from UEFI GOP.
     pub fb: FramebufferInfo,
+
+    /// Userland binaries
+    pub userland: UserBundleInfo,
 }
 
 #[repr(C)]
 #[derive(Clone)]
-pub struct MemoryMapInfo {
+pub struct UefiMemoryMapInfo {
     /// Pointer to the raw UEFI memory map buffer (array of `EFI_MEMORY_DESCRIPTOR` bytes).
     /// Pass 0 if you’re not handing the map to the kernel yet.
     pub mmap_ptr: u64,
@@ -92,4 +95,13 @@ pub struct BootPixelMasks {
     pub blue_mask: u32,
     /// Mask of the alpha channel within a pixel (often 0x00000000 if opaque).
     pub alpha_mask: u32,
+}
+
+#[repr(C)]
+#[derive(Clone)]
+pub struct UserBundleInfo {
+    /// The address of the bytes in memory
+    pub bytes_ptr: u64,
+    /// The number of bytes in memory.
+    pub length: u64,
 }

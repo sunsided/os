@@ -1,0 +1,20 @@
+[package]
+name = "packer-abi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = ["unbundle"]
+unbundle = []
+
+[dependencies]
+
+[lints]
+workspace = true

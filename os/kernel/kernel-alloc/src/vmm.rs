@@ -154,6 +154,7 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
             let Some(pp) = self.alloc.alloc_4k() else {
                 return Err(VmmError::OutOfMemory);
             };
+
             let pa = pp.base();
             self.ptables
                 .map_one::<A, Size4K>(self.alloc, va, pa, nonleaf, leaf)?;
@@ -209,8 +210,11 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
         va_start: VirtualAddress,
         len: u64,
         nonleaf: VirtualMemoryPageBits,
-        leaf_rx: VirtualMemoryPageBits,
+        mut leaf_rx: VirtualMemoryPageBits,
     ) -> Result<(), VmmError> {
+        // Enforce cleared NX
+        leaf_rx.set_no_execute(false).set_writable(false);
+
         let pages = len.div_ceil(Size4K::SIZE);
         for i in 0..pages {
             let va = VirtualAddress::new(va_start.as_u64() + i * Size4K::SIZE);
@@ -228,6 +232,40 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
 
             self.unmap_one_4k(va).map_err(VmmError::UnmapFailed)?;
             self.map_one::<Size4K>(target, va, pa_aligned_4k(pa), nonleaf, leaf_rx)?;
+            self.invlpg(VirtualPage::<Size4K>::containing_address(va));
+        }
+        Ok(())
+    }
+
+    /// Change per-page protection from RW to RO by unmapping & remapping with the same PA.
+    /// Works for 4K pages created by `map_anon_4k_pages`.v
+    #[allow(clippy::missing_errors_doc)]
+    pub fn make_region_ro(
+        &mut self,
+        va_start: VirtualAddress,
+        len: u64,
+        nonleaf: VirtualMemoryPageBits,
+        mut leaf_ro: VirtualMemoryPageBits,
+    ) -> Result<(), VmmError> {
+        leaf_ro.set_writable(false).set_no_execute(true);
+
+        let pages = len.div_ceil(Size4K::SIZE);
+        for i in 0..pages {
+            let va = VirtualAddress::new(va_start.as_u64() + i * Size4K::SIZE);
+            let Some(pa) = self.query(va) else {
+                return Err(VmmError::Unmapped);
+            };
+
+            // Recreate the target. This is safe to do here because we
+            // are not moving the memory, so we just recreate the original argument
+            // to ensure the check passes when re-mapping.
+            let target = AllocationTarget::from(va);
+
+            // Ensure 4K mapping. We unmap first since otherwise the mapping call would
+            // fail with the page already in use.
+
+            self.unmap_one_4k(va).map_err(VmmError::UnmapFailed)?;
+            self.map_one::<Size4K>(target, va, pa_aligned_4k(pa), nonleaf, leaf_ro)?;
             self.invlpg(VirtualPage::<Size4K>::containing_address(va));
         }
         Ok(())

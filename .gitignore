@@ -1,5 +1,6 @@
 /.task
 /target
+/dist
 /qemu
 *.log
 /Taskfile.yaml
