@@ -6,11 +6,11 @@ use bitfield_struct::bitfield;
 ///
 /// In 64-bit mode:
 ///
-/// - `syscall` uses IA32_STAR[47:32] to derive kernel CS/SS.
-/// - `sysret` uses IA32_STAR[63:48] to derive user CS/SS.
+/// - `syscall` uses `IA32_STAR[47:32]` to derive kernel CS/SS.
+/// - `sysret` uses `IA32_STAR[63:48]` to derive user CS/SS.
 /// - `IA32_LSTAR` provides the 64-bit RIP target for `syscall`.
 ///
-/// In compatibility mode, `IA32_STAR`[31:0] holds the 32-bit EIP target for `syscall`.
+/// In compatibility mode, `IA32_STAR[31:0]` holds the 32-bit EIP target for `syscall`.
 #[bitfield(u64)]
 pub struct Ia32Star {
     /// Bits 0–31 — Compatibility-mode `syscall` EIP.
@@ -28,7 +28,7 @@ pub struct Ia32Star {
     ///   SS ← (this + 8)
     /// ```
     ///
-    /// You typically store your kernel CS selector here (e.g. [`KERNEL_CS_SEL`](crate::gdt::KERNEL_CS_SEL), `0x08`).
+    /// You typically store your kernel CS selector here (e.g. `KERNEL_CS_SEL`, `0x08`).
     #[bits(16)]
     pub syscall_cs_selector: u16,
 
@@ -40,7 +40,7 @@ pub struct Ia32Star {
     ///   SS ← (this +  8) | 3
     /// ```
     ///
-    /// You typically store your user CS selector here (e.g. [`USER_CS_SEL`](crate::gdt::USER_CS_SEL), `0x1b`).
+    /// You typically store your user CS selector here (e.g. `USER_CS_SEL`, `0x1b`).
     #[bits(16)]
     pub sysret_cs_selector: u16,
 }

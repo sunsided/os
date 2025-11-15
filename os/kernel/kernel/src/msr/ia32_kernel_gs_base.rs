@@ -22,11 +22,11 @@ pub trait Ia32KernelGsBaseMsrExt {
     /// - Ensure your `swapgs` usage matches your entry/exit path expectations.
     unsafe fn set_kernel_gs_base(percpu: &PerCpu);
 
-    /// Get the [`PerCpu`] pointer from the current [`IA32_KERNEL_GS_BASE`](Self::IA32_KERNEL_GS_BASE).
+    /// Get the [`PerCpu`] pointer from the current [`IA32_KERNEL_GS_BASE`](Ia32KernelGsBaseMsr::IA32_KERNEL_GS_BASE).
     #[allow(dead_code)]
     unsafe fn read_ptr() -> *const PerCpu;
 
-    /// Get the [`PerCpu`] reference from the current [`IA32_GS_BASE`](Ia32GsBaseMsr::IA32_GS_BASE).
+    /// Get the [`PerCpu`] reference from the current [`IA32_GS_BASE`](Ia32KernelGsBaseMsr::IA32_KERNEL_GS_BASE).
     #[allow(dead_code)]
     #[doc(alias = "kernel_gs_base_ptr")]
     unsafe fn current() -> &'static PerCpu;
@@ -53,7 +53,7 @@ impl Ia32KernelGsBaseMsrExt for Ia32KernelGsBaseMsr {
         }
     }
 
-    /// Get the [`PerCpu`] pointer from the current [`IA32_KERNEL_GS_BASE`](Self::IA32_KERNEL_GS_BASE).
+    /// Get the [`PerCpu`] pointer from the current [`IA32_KERNEL_GS_BASE`](Ia32KernelGsBaseMsr::IA32_KERNEL_GS_BASE).
     #[inline(always)]
     #[allow(clippy::inline_always)]
     #[allow(dead_code)]
@@ -63,7 +63,7 @@ impl Ia32KernelGsBaseMsrExt for Ia32KernelGsBaseMsr {
         msr.ptr() as *const PerCpu
     }
 
-    /// Get the [`PerCpu`] reference from the current [`IA32_GS_BASE`](Ia32GsBaseMsr::IA32_GS_BASE).
+    /// Get the [`PerCpu`] reference from the current [`IA32_KERNEL_GS_BASE`](Ia32KernelGsBaseMsr::IA32_KERNEL_GS_BASE).
     #[inline(always)]
     #[allow(clippy::inline_always)]
     unsafe fn current() -> &'static PerCpu {

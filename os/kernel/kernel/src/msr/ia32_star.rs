@@ -8,11 +8,11 @@ use kernel_registers::msr::Ia32Star;
 ///
 /// In 64-bit mode:
 ///
-/// - `syscall` uses `IA32_STAR`[47:32] to derive kernel CS/SS.
-/// - `sysret` uses `IA32_STAR`[63:48] to derive user CS/SS.
+/// - `syscall` uses `IA32_STAR[47:32]` to derive kernel CS/SS.
+/// - `sysret` uses `IA32_STAR[63:48]` to derive user CS/SS.
 /// - `IA32_LSTAR` provides the 64-bit RIP target for `syscall`.
 ///
-/// In compatibility mode, `IA32_STAR`[31:0] holds the 32-bit EIP target for `syscall`.
+/// In compatibility mode, `IA32_STAR[31:0]` holds the 32-bit EIP target for `syscall`.
 pub trait Ia32StarExt {
     fn from_selectors<T>(selector: T) -> Self
     where
