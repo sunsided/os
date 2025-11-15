@@ -3,7 +3,8 @@
 #![cfg_attr(feature = "syscall", allow(unsafe_code))]
 
 #[cfg(feature = "stdlib")]
-mod stdlib;
+#[macro_use]
+pub mod stdlib;
 
 #[cfg(feature = "syscall")]
 pub mod syscall;

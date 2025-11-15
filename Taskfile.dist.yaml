@@ -318,6 +318,7 @@ tasks:
       - Cargo.toml
       - Cargo.lock
       - userland/init/**
+      - os/support/**
     cmds:
       - cd userland/init && cargo build --bin init --target '{{.TARGET_TRIPLE}}' {{.PROFILE_FLAG}}
       - task: dist:copy
@@ -394,7 +395,7 @@ tasks:
       - |
         '{{.PACKER_BIN_PATH}}' 'dist/{{.PROFILE}}/userland' '{{.USER_BUNDLE_PATH}}'
     sources:
-      - 'dist/{{.PROFILE}}/*'
+      - 'dist/{{.PROFILE}}/userland/*'
     generates:
       - '{{.USER_BUNDLE_PATH}}'
 
@@ -427,11 +428,6 @@ tasks:
       - cp '{{.UEFI_LOADER_PATH}}' '{{.ESP_LOCAL_UEFI_PATH}}'
       - cp '{{.KERNEL_BIN_PATH}}' '{{.ESP_LOCAL_KERNEL_PATH}}'
       - cp '{{.USER_BUNDLE_PATH}}' '{{.ESP_LOCAL_USER_BUNDLE_PATH}}'
-    sources:
-      - '{{.UEFI_LOADER_PATH}}'
-      - '{{.KERNEL_BIN_PATH}}'
-      - '{{.OVMF_VARS_PATH}}'
-      - '{{.USER_BUNDLE_PATH}}'
     generates:
       - '{{.OVMF_LOCAL_VARS_PATH}}'
       - '{{.ESP_LOCAL_UEFI_PATH}}'

@@ -7,7 +7,7 @@ use kernel_alloc::vmm::AllocationTarget;
 use kernel_info::boot::UserBundleInfo;
 use kernel_memory_addresses::{PageSize, Size4K, VirtualAddress};
 use kernel_vmem::VirtualMemoryPageBits;
-use log::{debug, info};
+use log::{debug, info, trace};
 use packer_abi::unbundle::Bundle;
 
 pub unsafe fn enter_user_mode(entry: VirtualAddress, user_sp: VirtualAddress) -> ! {
@@ -83,7 +83,7 @@ fn parse_elf_bytes(
     // Map and load each PT_LOAD
     debug!("Mapping user binary code ...");
     for ph in view.iter_pt_load() {
-        debug!("{ph:#?}");
+        trace!("{ph:#?}");
 
         if ph.p_memsz < ph.p_filesz {
             return Err(ElfErr::BadPh);
@@ -92,7 +92,7 @@ fn parse_elf_bytes(
         // Align the segment mapping range
         let align = core::cmp::max(ph.p_align, Size4K::SIZE);
         let seg_va = ph.p_vaddr.as_u64();
-        debug!("Mapping segment to VA {seg_va} ...", seg_va = ph.p_vaddr);
+        trace!("Mapping segment to VA {seg_va} ...", seg_va = ph.p_vaddr);
 
         let seg_start = round_down(seg_va, align);
         let seg_end = round_up_4k(seg_va + ph.p_memsz);

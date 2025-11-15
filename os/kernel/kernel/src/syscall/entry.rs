@@ -49,18 +49,19 @@ pub extern "C" fn syscall_entry_stub() {
         //   RAX = syscall number
         //   RDI = arg0
         //   RSI = arg1
-        //   R10 = arg2
-        //   R8 = arg2
-        //   R9 = arg3
+        //   RDX = arg2
+        //   R10 = arg3
+        //   R8 = arg4
+        //   R9 = arg45
 
         // Switch GS base to kernel PerCpu
         "swapgs",
 
         // Save user RSP (we’ll store it in the frame)
-        "mov rbx, rsp",
+        "mov r12, rsp",
 
         // Switch to kernel syscall stack: rsp = PerCpu.kstack_top
-        "mov rsp, qword ptr gs:[{kstack}]",
+        "mov rsp, qword ptr gs:[{kstack_top}]",
 
         // ensure pre-call %rsp % 16 == 8 (SysV). kstack_top is 16-aligned.
         "sub rsp, 8",
@@ -90,7 +91,7 @@ pub extern "C" fn syscall_entry_stub() {
         //   +56 rip
         //   +64 rflags
         //   +72 rsp
-        "push rbx",   // +72: user RSP
+        "push r12",   // +72: user RSP
         "push r11",   // +64: user RFLAGS
         "push rcx",   // +56: user RIP
         "push r9",    // +48: a5
@@ -120,10 +121,10 @@ pub extern "C" fn syscall_entry_stub() {
         "mov r9,  [rsp + 48]",  // arg5 (restore)
         "mov rcx, [rsp + 56]",  // user RIP
         "mov r11, [rsp + 64]",  // user RFLAGS
-        "mov rbx, [rsp + 72]",  // user RSP
+        "mov r12, [rsp + 72]",  // user RSP
 
         // Switch to user stack
-        "mov rsp, rbx",
+        "mov rsp, r12",
 
         // Back to user GS
         "swapgs",
@@ -131,7 +132,7 @@ pub extern "C" fn syscall_entry_stub() {
         // Return to user
         "sysretq",
 
-        kstack = const PERCPU_KSTACK_TOP_OFFSET,
+        kstack_top = const PERCPU_KSTACK_TOP_OFFSET,
         rust = sym syscall_fast_rust,
     );
 }
