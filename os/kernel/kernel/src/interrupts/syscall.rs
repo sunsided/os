@@ -42,8 +42,7 @@
 
 use crate::gdt::KERNEL_CS_SEL;
 use crate::interrupts::{GateType, Idt};
-use crate::ports::outb;
-use crate::syscall::Sysno;
+use crate::syscall::{SyscallSource, syscall};
 use kernel_registers::rflags::Rflags;
 
 pub const SYSCALL_VECTOR: usize = 0x80; // 128
@@ -181,18 +180,8 @@ extern "C" fn syscall_int80_handler() {
 extern "C" fn syscall_int80_rust(tf: &mut TrapFrame) {
     let sysno = tf.rax;
     let a0 = tf.rdi;
-    let _a1 = tf.rsi; // placeholder
-    let _a2 = tf.rdx; // placeholder
+    let a1 = tf.rsi;
+    let a2 = tf.rdx;
 
-    tf.rax = match sysno {
-        x if x == Sysno::DebugWriteByte as u64 => {
-            unsafe {
-                let byte = (a0 & 0xFF) as u8;
-                outb(0x402, byte);
-            }
-            0
-        }
-        x if x == Sysno::Bogus as u64 => 0xd34d_c0d3, // prove return works
-        _ => u64::MAX,                                // -ENOSYS
-    };
+    tf.rax = syscall(sysno, a0, a1, a2, SyscallSource::Int80h);
 }

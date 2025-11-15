@@ -108,7 +108,7 @@ use crate::per_cpu::PerCpu;
 use crate::per_cpu::ist_stacks::{IST1_SIZE, ist_slot_for_cpu};
 use crate::per_cpu::kernel_stacks::kstack_slot_for_cpu;
 use crate::per_cpu::stack::{CpuStack, map_ist_stack, map_kernel_stack};
-use crate::syscall::syscall_entry_stub;
+use crate::syscall::entry::syscall_entry_stub;
 use crate::tsc::estimate_tsc_hz;
 use kernel_alloc::phys_mapper::HhdmPhysMapper;
 use kernel_alloc::vmm::AllocationTarget;
