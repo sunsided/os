@@ -32,6 +32,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
+name = "init"
+version = "0.0.0"
+dependencies = [
+ "stdlib",
+]
+
+[[package]]
 name = "kernel"
 version = "0.0.0"
 dependencies = [
@@ -45,6 +52,7 @@ dependencies = [
  "kernel-vmem",
  "log",
  "packer-abi",
+ "stdlib",
 ]
 
 [[package]]
@@ -160,6 +168,10 @@ checksum = "ce25767e7b499d1b604768e7cde645d14cc8584231ea6b295e9c9eb22c02e1d1"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "stdlib"
+version = "0.0.0"
 
 [[package]]
 name = "syn"

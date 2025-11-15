@@ -19,6 +19,7 @@ vars:
 
   # Where to put the files for QEMU
   BUILD_LOCAL_DIR: '{{ .BUILD_LOCAL_DIR | default "qemu" }}'
+  DIST_LOCAL_DIR: '{{ .DIST_LOCAL_DIR | default "dist" }}'
 
   # Path to the esp directory for QEMU
   ESP_LOCAL_DIR: '{{ printf "%s/esp" .BUILD_LOCAL_DIR }}'
@@ -37,9 +38,10 @@ vars:
     sh: "rustc -vV | grep host: | cut -d' ' -f2"
 
   # Where your .efi lives; tweak as needed
-  UEFI_LOADER_PATH: '{{ printf "target/%s/%s/uefi-loader.efi" .UEFI_TARGET_TRIPLE .PROFILE }}'
-  KERNEL_BIN_PATH: '{{ printf "target/%s/%s/kernel" .NONE_TARGET_TRIPLE .PROFILE }}'
   PACKER_BIN_PATH: '{{ printf "target/%s/%s/packer" .HOST_TARGET .PROFILE }}'
+  UEFI_LOADER_PATH: '{{ printf "dist/%s/uefi/uefi-loader.efi" .PROFILE }}'
+  KERNEL_BIN_PATH: '{{ printf "dist/%s/kernel/kernel" .PROFILE }}'
+  USER_INIT_BIN_PATH: '{{ printf "dist/%s/userland/init" .PROFILE }}'
 
 # Default task when you run just `task`
 tasks:
@@ -164,6 +166,7 @@ tasks:
     deps:
       - clean:rust
       - clean:package
+      - clean:dist
 
   clean:rust:
     desc: Clean cargo and build artifacts
@@ -184,12 +187,20 @@ tasks:
     cmds:
       - rm -rf '{{.BUILD_LOCAL_DIR}}'
 
+  clean:dist:
+    desc: Clean distribution artifacts in {{.DIST_LOCAL_DIR}}
+    status:
+      - test ! -d '{{.DIST_LOCAL_DIR}}'
+    cmds:
+      - rm -rf '{{.DIST_LOCAL_DIR}}'
+
   build:
     desc: Build UEFI loader and kernel ({{.PROFILE}})
     cmds:
       - task: build:packer
       - task: build:uefi
       - task: build:kernel
+      - task: build:user
     requires:
       vars:
         - name: PROFILE
@@ -199,7 +210,8 @@ tasks:
 
   build:kernel:
     desc: Build kernel ({{.PROFILE}}, no std target)
-    dir: os/kernel/kernel
+    vars:
+      TARGET_TRIPLE: '{{.NONE_TARGET_TRIPLE}}'
     requires:
       vars:
         - name: PROFILE
@@ -212,11 +224,17 @@ tasks:
       - os/kernel/**
       - os/utils/**
     cmds:
-      - cargo build --bin kernel --target '{{.NONE_TARGET_TRIPLE}}' {{.PROFILE_FLAG}}
+      - cd os/kernel/kernel && cargo build --bin kernel --target '{{.TARGET_TRIPLE}}' {{.PROFILE_FLAG}}
+      - task: dist:copy
+        vars:
+          SOURCE_TRIPLE: '{{.TARGET_TRIPLE}}'
+          BINARY: kernel
+          SECTION: kernel
       - task: kernel:elf
       - task: kernel:obj
     generates:
       - '{{.KERNEL_BIN_PATH}}'
+      - 'dist/{{.PROFILE}}/kernel/kernel'
 
   kernel:elf:
     desc: Prints ELF information about {{.KERNEL_BIN_PATH}}
@@ -250,7 +268,8 @@ tasks:
 
   build:uefi:
     desc: Build UEFI loader ({{.PROFILE}})
-    dir: os/uefi/uefi-loader
+    vars:
+      TARGET_TRIPLE: '{{.UEFI_TARGET_TRIPLE}}'
     requires:
       vars:
         - name: PROFILE
@@ -263,9 +282,80 @@ tasks:
       - os/uefi/**
       - os/utils/**
     cmds:
-      - cargo build --bin uefi-loader --target '{{.UEFI_TARGET_TRIPLE}}' {{.PROFILE_FLAG}}
+      - cd os/uefi/uefi-loader && cargo build --bin uefi-loader --target '{{.TARGET_TRIPLE}}' {{.PROFILE_FLAG}}
+      - task: dist:copy
+        vars:
+          SOURCE_TRIPLE: '{{.TARGET_TRIPLE}}'
+          BINARY: uefi-loader.efi
+          SECTION: uefi
     generates:
       - '{{.UEFI_LOADER_PATH}}'
+      - 'dist/{{.PROFILE}}/uefi/uefi-loader.efi'
+
+  build:user:
+    desc: Build userland binaries ({{.PROFILE}})
+    dir: userland/init
+    requires:
+      vars:
+        - name: PROFILE
+          enum:
+            - debug
+            - release
+    cmds:
+      - task: build:user:init
+
+  build:user:init:
+    desc: Build init userland binary ({{.PROFILE}})
+    vars:
+      TARGET_TRIPLE: '{{.NONE_TARGET_TRIPLE}}'
+    requires:
+      vars:
+        - name: PROFILE
+          enum:
+            - debug
+            - release
+    sources:
+      - Cargo.toml
+      - Cargo.lock
+      - userland/init/**
+    cmds:
+      - cd userland/init && cargo build --bin init --target '{{.TARGET_TRIPLE}}' {{.PROFILE_FLAG}}
+      - task: dist:copy
+        vars:
+          SOURCE_TRIPLE: '{{.TARGET_TRIPLE}}'
+          BINARY: init
+          SECTION: userland
+    generates:
+      - '{{.USER_INIT_BIN_PATH}}'
+      - 'dist/{{.PROFILE}}/userland/init'
+
+  dist:copy:
+    internal: true
+    vars:
+      SOURCE_TRIPLE: '{{.SOURCE_TRIPLE}}'
+      SECTION: '{{.SECTION}}'
+      BINARY: '{{.BINARY}}'
+      BINARY_OUT: '{{.BINARY}}'
+      PROFILE: '{{.PROFILE}}'
+    requires:
+      vars:
+        - name: SECTION
+          enum:
+            - userland
+            - kernel
+            - uefi
+        - name: PROFILE
+          enum:
+            - release
+            - debug
+    cmds:
+      - cmd: mkdir -p 'dist/{{.PROFILE}}/{{.SECTION}}'
+        silent: true
+      - cp 'target/{{.SOURCE_TRIPLE}}/{{.PROFILE}}/{{.BINARY}}' 'dist/{{.PROFILE}}/{{.SECTION}}/{{.BINARY_OUT}}'
+    sources:
+      - 'target/{{.SOURCE_TRIPLE}}/{{.PROFILE}}/{{.BINARY}}'
+    generates:
+      - 'dist/{{.PROFILE}}/{{.SECTION}}/{{.BINARY_OUT}}'
 
   build:packer:
     desc: Build packer ({{.PROFILE}})

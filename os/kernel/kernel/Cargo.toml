@@ -25,6 +25,7 @@ kernel-registers = { path = "../../kernel/kernel-registers", default-features = 
 kernel-sync = { path = "../../kernel/kernel-sync" }
 kernel-vmem = { path = "../../kernel/kernel-vmem" }
 log.workspace = true
+stdlib = { path = "../../support/stdlib", default-features = false, features = ["kernel"] }
 
 [build-dependencies]
 kernel-info = { path = "../kernel-info" }
