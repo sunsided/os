@@ -17,7 +17,16 @@ pub enum SyscallSource {
 }
 
 #[allow(clippy::no_effect_underscore_binding)]
-pub fn syscall(sysno: u64, arg0: u64, _arg1: u64, _arg2: u64, source: SyscallSource) -> u64 {
+pub fn syscall(
+    sysno: u64,
+    arg0: u64,
+    _arg1: u64,
+    _arg2: u64,
+    _arg3: u64,
+    _arg4: u64,
+    _arg5: u64,
+    source: SyscallSource,
+) -> u64 {
     match sysno {
         x if x == Sysno::DebugWriteByte as u64 => {
             unsafe {

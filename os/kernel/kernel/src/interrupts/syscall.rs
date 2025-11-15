@@ -69,7 +69,7 @@ impl SyscallInterrupt for Idt {
 #[derive(Debug)]
 #[repr(C)]
 pub struct TrapFrame {
-    // Pushed by your stub before calling Rust handler:
+    // Pushed by the stub before calling Rust handler:
     rax: u64,
     rbx: u64,
     rcx: u64,
@@ -182,6 +182,9 @@ extern "C" fn syscall_int80_rust(tf: &mut TrapFrame) {
     let a0 = tf.rdi;
     let a1 = tf.rsi;
     let a2 = tf.rdx;
+    let a3 = tf.r10;
+    let a4 = tf.r8; // sic!
+    let a5 = tf.r9;
 
-    tf.rax = syscall(sysno, a0, a1, a2, SyscallSource::Int80h);
+    tf.rax = syscall(sysno, a0, a1, a2, a3, a4, a5, SyscallSource::Int80h);
 }
