@@ -3,14 +3,17 @@
 #![cfg_attr(not(any(test, doctest)), no_std)]
 #![allow(unsafe_code)]
 
-#[cfg(feature = "efer")]
-pub mod efer;
+#[cfg(feature = "cr0")]
+pub mod cr0;
 
 #[cfg(feature = "cr3")]
 pub mod cr3;
 
 #[cfg(feature = "cr4")]
 pub mod cr4;
+
+#[cfg(feature = "efer")]
+pub mod efer;
 
 #[cfg(feature = "msr")]
 pub mod msr;

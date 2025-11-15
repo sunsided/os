@@ -12,9 +12,10 @@ publish.workspace = true
 
 [features]
 default = ["kernel"]
-kernel = ["asm", "cr3", "cr4", "efer", "msr", "rflags"]
-uefi = ["asm", "cr4", "efer"]
+kernel = ["asm", "cr0", "cr3", "cr4", "efer", "msr", "rflags"]
+uefi = ["asm", "cr0", "cr4", "efer"]
 asm = []
+cr0 = []
 cr3 = []
 cr4 = []
 efer = []
