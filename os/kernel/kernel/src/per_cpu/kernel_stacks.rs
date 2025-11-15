@@ -20,7 +20,7 @@
 //!   and keeps adjacent CPU stacks safely separated.
 
 use kernel_info::memory::KERNEL_STACK_SIZE;
-use kernel_vmem::addresses::{PageSize, Size4K, VirtualAddress, VirtualPage};
+use kernel_memory_addresses::{PageSize, Size4K, VirtualAddress, VirtualPage};
 
 /// Size of the unmapped guard page at the bottom of each stack (4 KiB).
 pub const KSTACK_GUARD: u64 = Size4K::SIZE;

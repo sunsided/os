@@ -19,7 +19,8 @@
 //!
 //! ## Example
 //! ```rust,no_run
-//! use kernel_vmem::{addresses::PhysicalAddress, page_table::pt::PageTable, PhysMapper};
+//! use kernel_memory_addresses::PhysicalAddress;
+//! use kernel_vmem::{page_table::pt::PageTable, PhysMapper};
 //! use kernel_alloc::phys_mapper::HhdmPhysMapper;
 //! let phys = PhysicalAddress::new(0x1234_0000);
 //! let mapper = HhdmPhysMapper;
@@ -33,8 +34,8 @@
 //! - Your kernel's memory layout and HHDM configuration
 
 use kernel_info::memory::HHDM_BASE;
+use kernel_memory_addresses::PhysicalAddress;
 use kernel_vmem::PhysMapper;
-use kernel_vmem::addresses::PhysicalAddress;
 
 /// [`PhysMapper`] implementation for kernels with a higher-half direct map (HHDM).
 ///
@@ -47,7 +48,8 @@ use kernel_vmem::addresses::PhysicalAddress;
 ///
 /// # Example
 /// ```rust,no_run
-/// use kernel_vmem::{addresses::PhysicalAddress, page_table::pt::PageTable, PhysMapper};
+/// use kernel_memory_addresses::PhysicalAddress;
+/// use kernel_vmem::{page_table::pt::PageTable, PhysMapper};
 /// use kernel_alloc::phys_mapper::HhdmPhysMapper;
 /// let phys = PhysicalAddress::new(0x1234_0000);
 /// let mapper = HhdmPhysMapper;
@@ -59,7 +61,7 @@ pub struct HhdmPhysMapper;
 
 impl PhysMapper for HhdmPhysMapper {
     unsafe fn phys_to_mut<T>(&self, pa: PhysicalAddress) -> &mut T {
-        let va = (HHDM_BASE + pa.as_u64()) as *mut T;
+        let va = (HHDM_BASE.as_u64() + pa.as_u64()) as *mut T;
         // SAFETY: Caller must ensure the physical address is valid and mapped via HHDM.
         unsafe { &mut *va }
     }

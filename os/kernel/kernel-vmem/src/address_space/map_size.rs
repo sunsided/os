@@ -9,15 +9,15 @@
 //! - `ensure_chain_for`: Given a virtual address, ensure that the non-leaf
 //!   chain for that address down to the table that holds the leaf for the
 
-use crate::addresses::{
-    PageSize, PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress,
-};
 use crate::bits::VirtualMemoryPageBits;
 use crate::page_table::pd::{L2Index, PdEntry, PdEntryKind};
 use crate::page_table::pdpt::{L3Index, PdptEntry, PdptEntryKind};
 use crate::page_table::pml4::{L4Index, Pml4Entry};
 use crate::page_table::pt::{L1Index, PtEntry4k};
 use crate::{AddressSpace, PhysFrameAlloc, PhysMapper};
+use kernel_memory_addresses::{
+    PageSize, PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress,
+};
 
 /// # Page-size–directed mapping behavior
 ///

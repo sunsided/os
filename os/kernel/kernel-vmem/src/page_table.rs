@@ -5,11 +5,11 @@ pub mod pdpt;
 pub mod pml4;
 pub mod pt;
 
-use crate::addresses::VirtualAddress;
 use crate::page_table::pd::L2Index;
 use crate::page_table::pdpt::L3Index;
 use crate::page_table::pml4::L4Index;
 use crate::page_table::pt::L1Index;
+use kernel_memory_addresses::VirtualAddress;
 
 /// Hardware **Present** bit position shared across levels (bit 0).
 const PRESENT_BIT: u64 = 1 << 0;

@@ -15,8 +15,10 @@
 
 use core::ptr::copy_nonoverlapping;
 use kernel_info::memory::{LAST_USERSPACE_ADDRESS, USERSPACE_END};
+use kernel_memory_addresses::{PageSize, PhysicalAddress, Size4K, VirtualAddress, VirtualPage};
+use kernel_registers::cr3::Cr3;
+use kernel_registers::{LoadRegisterUnsafe, StoreRegisterUnsafe};
 use kernel_vmem::address_space::{AddressSpaceMapOneError, AddressSpaceMapRegionError, MapSize};
-use kernel_vmem::addresses::{PageSize, PhysicalAddress, Size4K, VirtualAddress, VirtualPage};
 use kernel_vmem::{AddressSpace, PhysFrameAlloc, PhysMapper};
 use kernel_vmem::{VirtualMemoryPageBits, invalidate_tlb_page};
 
@@ -35,7 +37,7 @@ pub enum AllocationTarget {
 impl AllocationTarget {
     #[must_use]
     pub const fn from(va: VirtualAddress) -> Self {
-        if va.as_u64() >= USERSPACE_END {
+        if va.as_u64() >= USERSPACE_END.as_u64() {
             Self::Kernel
         } else {
             Self::User
@@ -172,7 +174,7 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
         src: &[u8],
     ) -> Result<(), VmmError> {
         assert!(
-            dst_user.as_u64() <= LAST_USERSPACE_ADDRESS,
+            dst_user.as_u64() <= LAST_USERSPACE_ADDRESS.as_u64(),
             "attempted to copy user code into kernel space"
         );
 
@@ -277,9 +279,7 @@ impl<'m, M: PhysMapper, A: PhysFrameAlloc> Vmm<'m, M, A> {
     ///   synchronize as appropriate).
     pub unsafe fn local_tlb_flush_all(&self) {
         unsafe {
-            let cr3: u64;
-            core::arch::asm!("mov {}, cr3", out(reg) cr3, options(nomem, nostack, preserves_flags));
-            core::arch::asm!("mov cr3, {}", in(reg) cr3, options(nostack, preserves_flags));
+            Cr3::load_unsafe().store_unsafe();
         }
     }
 }

@@ -17,6 +17,8 @@
 
 use crate::privilege::Rpl;
 use bitfield_struct::bitfield;
+use core::fmt::Debug;
+use core::ops::Deref;
 
 /// Which descriptor table a selector addresses.
 ///
@@ -50,13 +52,13 @@ impl Table {
 pub struct SegmentSelectorRaw {
     /// Requested Privilege Level (bits 0..1).
     #[bits(2)]
-    rpl: Rpl,
+    pub rpl: Rpl,
     /// Table Indicator (bit 2): 0 = GDT, 1 = LDT.
     #[bits(1)]
-    ti: Table,
+    pub ti: Table,
     /// Descriptor index (bits 3..15).
     #[bits(13)]
-    index: u16,
+    pub index: u16,
 }
 
 impl SegmentSelectorRaw {
@@ -74,18 +76,18 @@ impl SegmentSelectorRaw {
 }
 
 /// Marker trait for typed selectors.
-pub trait SelectorKind: Copy {}
+pub trait SelectorKind: Copy + Debug {}
 
 /// Code segment (CS) selector.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CodeSel {}
 
 /// Data/stack (DS/ES/SS) selector.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum DataSel {}
 
 /// TSS system segment selector (for `ltr`).
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum TssSel {}
 
 impl SelectorKind for CodeSel {}
@@ -97,8 +99,13 @@ impl SelectorKind for TssSel {}
 /// This prevents using a data selector where a code selector is required, etc.
 /// Convert to `u16` with `.to_u16()` for use in `iret` frames or inline asm.
 #[repr(transparent)]
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct SegmentSelector<K: SelectorKind>(SegmentSelectorRaw, core::marker::PhantomData<K>);
+
+const _: () = {
+    assert!(size_of::<SegmentSelector<DataSel>>() == 2);
+    assert!(size_of::<SegmentSelector<CodeSel>>() == 2);
+};
 
 impl<K: SelectorKind> SegmentSelector<K> {
     /// Access the raw selector (index/TI/RPL).
@@ -114,6 +121,17 @@ impl<K: SelectorKind> SegmentSelector<K> {
     }
 }
 
+impl<K> Deref for SegmentSelector<K>
+where
+    K: SelectorKind,
+{
+    type Target = SegmentSelectorRaw;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl SegmentSelector<CodeSel> {
     /// Create a **code** selector from a GDT index and desired RPL.
     ///
@@ -124,6 +142,22 @@ impl SegmentSelector<CodeSel> {
             SegmentSelectorRaw::new_with(index, Table::Gdt, rpl),
             core::marker::PhantomData,
         )
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    #[must_use]
+    #[doc(hidden)]
+    pub const fn from_bits(value: u16) -> Self {
+        Self(SegmentSelectorRaw(value), core::marker::PhantomData)
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    #[must_use]
+    #[doc(hidden)]
+    pub const fn into_bits(self) -> u16 {
+        self.0.into_bits()
     }
 }
 

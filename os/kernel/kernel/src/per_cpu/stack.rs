@@ -1,7 +1,7 @@
 use crate::alloc::KernelVmm;
 use kernel_alloc::vmm::{AllocationTarget, VmmError};
+use kernel_memory_addresses::{PageSize, Size4K, VirtualAddress, VirtualPage};
 use kernel_vmem::VirtualMemoryPageBits;
-use kernel_vmem::addresses::{PageSize, Size4K, VirtualAddress, VirtualPage};
 
 /// Result of creating a kernel stack.
 pub struct CpuStack {

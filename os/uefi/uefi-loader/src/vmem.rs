@@ -4,14 +4,12 @@ use crate::elf::loader::LoadedSegMap;
 use kernel_info::memory::{HHDM_BASE /*KERNEL_BASE,*/ /*PHYS_LOAD*/};
 use log::info;
 
-use kernel_vmem::{
-    AddressSpace, PhysFrameAlloc, PhysMapper, PhysMapperExt,
-    addresses::{PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress},
+use kernel_memory_addresses::{
+    PageSize, PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress,
 };
-
 use kernel_vmem::VirtualMemoryPageBits;
 use kernel_vmem::address_space::AddressSpaceMapOneError;
-use kernel_vmem::addresses::PageSize;
+use kernel_vmem::{AddressSpace, PhysFrameAlloc, PhysMapper, PhysMapperExt};
 use uefi::boot;
 use uefi::boot::{AllocateType, MemoryType};
 
@@ -141,8 +139,8 @@ pub fn create_kernel_pagetables(
     // HHDM: map first 1 GiB VA = HHDM_BASE → PA = 0, NX + writable + global
     info!("Mapping first 1 GiB VA = HHDM_BASE to PA=0 ...");
     {
-        let hhdm_va = VirtualAddress::new(HHDM_BASE);
-        let zero_pa = PhysicalAddress::new(0);
+        let hhdm_va = HHDM_BASE;
+        let zero_pa = PhysicalAddress::zero();
         let leaf = VirtualMemoryPageBits::default()
             .with_present(true)
             .with_writable(true)

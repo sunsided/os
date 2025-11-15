@@ -5,7 +5,7 @@ use core::alloc::{GlobalAlloc, Layout};
 use core::ptr;
 use core::ptr::NonNull;
 use core::ptr::null_mut;
-use kernel_vmem::addresses::{PhysicalAddress, VirtualAddress};
+use kernel_memory_addresses::{PhysicalAddress, VirtualAddress};
 use uefi::boot;
 use uefi::boot::{AllocateType, MemoryType};
 

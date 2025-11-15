@@ -22,9 +22,9 @@
 //! - Raw constructors perform no validation; use with care.
 
 use crate::VirtualMemoryPageBits;
-use crate::addresses::{PhysicalAddress, PhysicalPage, Size1G, Size4K, VirtualAddress};
 use crate::page_table::{PRESENT_BIT, PS_BIT};
 use bitfield_struct::bitfield;
+use kernel_memory_addresses::{PhysicalAddress, PhysicalPage, Size1G, Size4K, VirtualAddress};
 
 /// **Borrowed view** into an L3 PDPTE.
 ///
@@ -465,7 +465,7 @@ impl PageDirectoryPointerTable {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::addresses::PhysicalAddress;
+    use kernel_memory_addresses::PhysicalAddress;
 
     #[test]
     fn pdpt_table_vs_1g() {

@@ -63,7 +63,7 @@ use core::arch::asm;
 use core::mem::size_of;
 use core::ops::{Index, IndexMut};
 pub use ist::Ist;
-use kernel_vmem::addresses::VirtualAddress;
+use kernel_memory_addresses::VirtualAddress;
 
 // Compile-time layout sanity checks for the architecture.
 //

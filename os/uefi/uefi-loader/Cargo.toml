@@ -17,7 +17,9 @@ qemu = ["kernel-qemu/enabled"]
 [dependencies]
 bitfield-struct.workspace = true
 kernel-info = { path = "../../kernel/kernel-info" }
+kernel-memory-addresses = { path = "../../kernel/kernel-memory-addresses" }
 kernel-qemu = { path = "../../kernel/kernel-qemu", default-features = false }
+kernel-registers = { path = "../../kernel/kernel-registers", default-features = false, features = ["uefi"] }
 kernel-vmem = { path = "../../kernel/kernel-vmem" }
 log.workspace = true
 thiserror.workspace = true

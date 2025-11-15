@@ -31,15 +31,15 @@ mod map_size;
 
 pub use crate::address_space::map_size::MapSize;
 use crate::address_space::map_size::MapSizeEnsureChainError;
-use crate::addresses::{
-    PageSize, PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress,
-};
 use crate::bits::VirtualMemoryPageBits;
 use crate::page_table::pd::{L2Index, PageDirectory, PdEntry, PdEntryKind};
 use crate::page_table::pdpt::{L3Index, PageDirectoryPointerTable, PdptEntry, PdptEntryKind};
 use crate::page_table::pml4::{L4Index, PageMapLevel4, Pml4Entry};
 use crate::page_table::pt::{L1Index, PageTable, PtEntry4k};
 use crate::{PhysFrameAlloc, PhysMapper, PhysMapperExt, read_cr3_phys};
+use kernel_memory_addresses::{
+    PageSize, PhysicalAddress, PhysicalPage, Size1G, Size2M, Size4K, VirtualAddress,
+};
 use log::{trace, warn};
 
 /// Handle to a single, concrete address space.

@@ -22,8 +22,8 @@
 //!   [`PhysicalPage<Size4K>`] for next-level tables.
 
 use crate::VirtualMemoryPageBits;
-use crate::addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualAddress};
 use bitfield_struct::bitfield;
+use kernel_memory_addresses::{PhysicalAddress, PhysicalPage, Size4K, VirtualAddress};
 
 /// L4 **PML4E** — pointer to a **PDPT** (non-leaf; PS **must be 0**).
 ///
@@ -256,7 +256,7 @@ impl PageMapLevel4 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::addresses::PhysicalAddress;
+    use kernel_memory_addresses::PhysicalAddress;
 
     #[test]
     fn pml4_points_to_pdpt() {

@@ -13,7 +13,7 @@
 //! - `IST_SLOT_STRIDE` must be >= guard + max IST size you’ll map.
 
 use crate::interrupts::Ist;
-use kernel_vmem::addresses::{PageSize, Size4K, VirtualAddress, VirtualPage};
+use kernel_memory_addresses::{PageSize, Size4K, VirtualAddress, VirtualPage};
 
 /// Number of hardware IST entries supported by x86_64 TSS.
 pub const IST_SLOTS_PER_CPU: u64 = 7;

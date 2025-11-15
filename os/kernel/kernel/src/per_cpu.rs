@@ -91,9 +91,10 @@ pub mod kernel_stacks;
 pub mod stack;
 
 use crate::gdt::{Gdt, Selectors};
-use crate::msr::gs_base_ptr;
+use crate::msr::Ia32GsBaseMsrExt;
 use crate::tss::Tss64;
-use kernel_vmem::addresses::VirtualAddress;
+use kernel_memory_addresses::VirtualAddress;
+use kernel_registers::msr::Ia32GsBaseMsr;
 
 #[repr(C, align(64))] // avoid false sharing; nice for future SMP
 pub struct PerCpu {
@@ -159,9 +160,7 @@ impl PerCpu {
 
     #[inline(always)]
     #[allow(clippy::inline_always)]
-    pub fn current() -> &'static Self {
-        let ptr = gs_base_ptr();
-        debug_assert!(!ptr.is_null(), "Per-CPU instance pointer is unset");
-        unsafe { &*ptr }
+    pub unsafe fn current() -> &'static Self {
+        unsafe { <Ia32GsBaseMsr as Ia32GsBaseMsrExt>::current() }
     }
 }
