@@ -5,7 +5,7 @@ use bitfield_struct::bitfield;
 /// Bits that are architecturally fixed in 64-bit mode are modeled as
 /// `#[bits(default=.., access=RO)]` so they cannot be changed.
 ///
-/// Bits that may legally be manipulated (and masked via IA32_FMASK)
+/// Bits that may legally be manipulated (and masked via `IA32_FMASK`)
 /// are exposed as normal read/write bools or small enums.
 #[bitfield(u64, order = Lsb)]
 pub struct Rflags {

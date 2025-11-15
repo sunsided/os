@@ -442,11 +442,12 @@ extern "C" fn stage_two_init_bootstrap_processor(
 unsafe fn init_syscall(cpu: &PerCpu) {
     // Set STAR kernel / user CS bases.
     unsafe {
-        Ia32Star::from_selectors(&cpu.selectors);
+        Ia32Star::from_selectors(&cpu.selectors).store_unsafe();
     }
 
     // Set LSTAR to syscall entry stub.
-    let addr = VirtualAddress::from_ptr(&syscall_entry_stub);
+    let addr = VirtualAddress::from_ptr(syscall_entry_stub as *const extern "C" fn());
+    info!("Syscall entry stubs at {addr}");
     unsafe {
         Ia32LStar::new().with_syscall_rip(addr).store_unsafe();
     }

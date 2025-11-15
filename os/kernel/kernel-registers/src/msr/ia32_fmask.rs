@@ -2,7 +2,7 @@ use crate::msr::Msr;
 use crate::{LoadRegisterUnsafe, StoreRegisterUnsafe};
 use bitfield_struct::bitfield;
 
-/// `IA32_FMASK` — `RFLAGS` Mask for `syscall` (MSR 0xC000_0084).
+/// `IA32_FMASK` — `RFLAGS` Mask for `syscall` (MSR `0xC000_0084`).
 ///
 /// On `syscall`, the CPU computes:
 /// ```text
@@ -168,6 +168,7 @@ impl Ia32Fmask {
     pub const MSR: Msr = Msr::new(Self::IA32_FMASK);
 
     /// Reasonable default: clear TF/IF/DF/IOPL/NT/RF/VM/AC/VIF/VIP.
+    #[must_use]
     pub const fn new_kernel_defaults() -> Self {
         Self::new()
             .with_tf_trap(true)

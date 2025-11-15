@@ -62,7 +62,7 @@ pub extern "C" fn syscall_entry_stub() {
         "mov rbx, rsp",
 
         // Switch to kernel syscall stack: rsp = PerCpu.kstack_top
-        "mov rsp, qword ptr [gs:{kstack}]",
+        "mov rsp, qword ptr gs:[{kstack}]",
 
         // Build SyscallFrame on kernel stack.
         //
@@ -136,7 +136,7 @@ extern "C" fn syscall_fast_rust(tf: &mut SyscallFrame) {
             }
             0
         }
-        x if x == Sysno::Bogus as u64 => 0xd34d_c0d3,
+        x if x == Sysno::Bogus as u64 => 0xb007_c4fe,
         _ => u64::MAX,
     };
 }

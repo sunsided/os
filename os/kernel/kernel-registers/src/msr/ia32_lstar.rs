@@ -3,7 +3,7 @@ use crate::{LoadRegisterUnsafe, StoreRegisterUnsafe};
 use bitfield_struct::bitfield;
 use kernel_memory_addresses::VirtualAddress;
 
-/// `IA32_LSTAR` — 64-bit SYSCALL Target RIP (MSR 0xC000_0082).
+/// `IA32_LSTAR` — 64-bit SYSCALL Target RIP (MSR `0xC000_0082`).
 ///
 /// In 64-bit mode, `syscall` loads RIP from this register.
 #[bitfield(u64)]
@@ -16,14 +16,15 @@ pub struct Ia32LStar {
 }
 
 impl Ia32LStar {
-    /// MSR index for IA32_LSTAR.
+    /// MSR index for `IA32_LSTAR`.
     pub const IA32_LSTAR: u32 = 0xC000_0082;
 
     /// The MSR.
     pub const MSR: Msr = Msr::new(Self::IA32_LSTAR);
 
+    #[must_use]
     pub const fn from(rip: VirtualAddress) -> Self {
-        Ia32LStar::new().with_syscall_rip(rip)
+        Self::new().with_syscall_rip(rip)
     }
 }
 

@@ -1,5 +1,9 @@
 # Developer Diary
 
+## 2025-11-15
+
+Made `syscall`/`sysret` work today.
+
 ## 2025-11-13
 
 Syscall today. Refactored the crates a bit and upon wiring up the STAR/LSTAR registers

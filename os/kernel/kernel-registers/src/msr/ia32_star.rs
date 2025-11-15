@@ -2,7 +2,7 @@ use crate::msr::Msr;
 use crate::{LoadRegisterUnsafe, StoreRegisterUnsafe};
 use bitfield_struct::bitfield;
 
-/// `IA32_STAR` — System Call Target & Segment Selectors (MSR 0xC000_0081).
+/// `IA32_STAR` — System Call Target & Segment Selectors (MSR `0xC000_0081`).
 ///
 /// In 64-bit mode:
 ///
@@ -10,13 +10,13 @@ use bitfield_struct::bitfield;
 /// - `sysret` uses IA32_STAR[63:48] to derive user CS/SS.
 /// - `IA32_LSTAR` provides the 64-bit RIP target for `syscall`.
 ///
-/// In compatibility mode, IA32_STAR[31:0] holds the 32-bit EIP target for `syscall`.
+/// In compatibility mode, `IA32_STAR`[31:0] holds the 32-bit EIP target for `syscall`.
 #[bitfield(u64)]
 pub struct Ia32Star {
     /// Bits 0–31 — Compatibility-mode `syscall` EIP.
     ///
     /// Used only when executing `syscall` from IA-32e compatibility mode.
-    /// Ignored for 64-bit `syscall`, which uses IA32_LSTAR.
+    /// Ignored for 64-bit `syscall`, which uses `IA32_LSTAR`.
     #[bits(32, access = RO)]
     pub compat_syscall_eip: u32,
 
@@ -55,18 +55,19 @@ impl Ia32Star {
     /// Helper to build a STAR value for a pure 64-bit kernel.
     ///
     /// `kernel_cs` and `user_cs` are the *selectors* (e.g. `0x08` and `0x1b`).
+    #[must_use]
     pub fn new_64bit_raw(kernel_cs: u16, user_cs: u16) -> Self {
         // Assumption:
         // kcode -> kdata -> udata -> ucode
 
         // Small helpers for raw selectors.
         #[inline]
-        fn gdt_index(sel: u16) -> u16 {
+        const fn gdt_index(sel: u16) -> u16 {
             sel >> 3
         }
 
         #[inline]
-        fn rpl(sel: u16) -> u16 {
+        const fn rpl(sel: u16) -> u16 {
             sel & 0b11
         }
 
@@ -93,9 +94,9 @@ impl Ia32Star {
         // Solve:
         //   base = (user_ss_index << 3) - 8
         //
-        let base_no_rpl: u16 = ((user_ss_index as u16) << 3).wrapping_sub(8);
+        let base_no_rpl: u16 = (user_ss_index << 3).wrapping_sub(8);
 
-        Ia32Star::new()
+        Self::new()
             // Hardware ignores the RPL bits for the syscall CS selector in STAR,
             // but storing the full selector is fine; only bits 15:3 matter.
             .with_syscall_cs_selector(kernel_cs)

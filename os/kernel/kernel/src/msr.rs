@@ -46,11 +46,3 @@ pub unsafe fn init_gs_bases(percpu: &PerCpu) {
         <Ia32KernelGsBaseMsr as Ia32KernelGsBaseMsrExt>::set_kernel_gs_base(percpu); // for SWAPGS
     }
 }
-
-#[inline(always)]
-#[allow(clippy::inline_always)]
-const fn is_canonical(addr: u64) -> bool {
-    // Canonical if bits 63..48 are all copies of bit 47.
-    let sign = (addr >> 47) & 1;
-    (addr >> 48) == if sign == 0 { 0 } else { 0xFFFF }
-}

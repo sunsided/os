@@ -56,6 +56,7 @@ impl Msr {
     /// Returns the underlying raw MSR index.
     #[inline(always)]
     #[allow(clippy::inline_always)]
+    #[must_use]
     pub const fn raw(self) -> u32 {
         self.0
     }
@@ -101,6 +102,7 @@ impl Msr {
     #[inline(always)]
     #[allow(clippy::inline_always)]
     #[doc(alias = "read_model_specific_register")]
+    #[must_use]
     pub unsafe fn load_raw(self) -> u64 {
         let lo: u32;
         let hi: u32;
@@ -120,6 +122,7 @@ impl Msr {
 
 #[inline(always)]
 #[allow(clippy::inline_always)]
+#[must_use]
 pub const fn is_canonical_gs_base(addr: u64) -> bool {
     // Canonical if bits 63..48 are all copies of bit 47.
     let sign = (addr >> 47) & 1;
