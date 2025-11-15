@@ -25,7 +25,7 @@ vars:
   ESP_LOCAL_DIR: '{{ printf "%s/esp" .BUILD_LOCAL_DIR }}'
   ESP_LOCAL_UEFI_PATH: '{{ printf "%s/EFI/Boot/BootX64.efi" .ESP_LOCAL_DIR}}'
   ESP_LOCAL_KERNEL_PATH: '{{ printf "%s/EFI/Boot/kernel.elf" .ESP_LOCAL_DIR}}'
-  ESP_LOCAL_USER_BUNDLE_PATH: '{{ printf "%s/EFI/Boot/user.bun" .ESP_LOCAL_DIR}}'
+  ESP_LOCAL_USER_BUNDLE_PATH: '{{ printf "%s/EFI/Boot/user.bundle" .ESP_LOCAL_DIR}}'
 
   # Derived paths
   OVMF_CODE_PATH: '{{ printf "%s/%s" .OVMF_DIR .OVMF_CODE_FILE }}'
@@ -43,7 +43,7 @@ vars:
   UEFI_LOADER_PATH: '{{ printf "dist/%s/os/uefi-loader.efi" .PROFILE }}'
   KERNEL_BIN_PATH: '{{ printf "dist/%s/os/kernel" .PROFILE }}'
   USER_INIT_BIN_PATH: '{{ printf "dist/%s/userland/init" .PROFILE }}'
-  USER_BUNDLE_PATH: '{{ printf "dist/%s/user.bun" .PROFILE }}'
+  USER_BUNDLE_PATH: '{{ printf "dist/%s/user.bundle" .PROFILE }}'
 
 # Default task when you run just `task`
 tasks:
@@ -410,10 +410,11 @@ tasks:
       - task: build
         vars:
           PROFILE: '{{.PROFILE}}'
+    cmds:
+      # Bundle the user binaries; must run after build
       - task: package:bundle
         vars:
           PROFILE: '{{.PROFILE}}'
-    cmds:
       # Keep a writable copy of OVMF_VARS next to the build tree
       - mkdir -p '{{.BUILD_LOCAL_DIR}}'
       - |

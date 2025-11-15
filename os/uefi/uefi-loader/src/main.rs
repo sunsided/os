@@ -261,7 +261,10 @@ fn efi_main() -> Status {
     info!("Attempting to load kernel.elf ...");
 
     let elf_bytes = match load_file(cstr16!("\\EFI\\Boot\\kernel.elf")) {
-        Ok(bytes) => bytes,
+        Ok(bytes) => {
+            info!("Loaded {size} bytes of kernel.elf", size = bytes.len());
+            bytes
+        }
         Err(status) => {
             info!("Failed to load kernel.elf. Exiting.");
             return status;
@@ -280,6 +283,18 @@ fn efi_main() -> Status {
         Err(e) => {
             info!("Failed to load PT_LOAD segments: {e:?}");
             return e.into();
+        }
+    };
+
+    info!("Load userland bundle into memory ...");
+    let bun_bytes = match load_file(cstr16!("\\EFI\\Boot\\user.bundle")) {
+        Ok(bytes) => {
+            info!("Loaded {size} bytes of user.bundle", size = bytes.len());
+            bytes
+        }
+        Err(status) => {
+            info!("Failed to load user.bundle. Exiting.");
+            return status;
         }
     };
 
