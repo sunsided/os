@@ -39,6 +39,7 @@ vars:
   # Where your .efi lives; tweak as needed
   UEFI_LOADER_PATH: '{{ printf "target/%s/%s/uefi-loader.efi" .UEFI_TARGET_TRIPLE .PROFILE }}'
   KERNEL_BIN_PATH: '{{ printf "target/%s/%s/kernel" .NONE_TARGET_TRIPLE .PROFILE }}'
+  PACKER_BIN_PATH: '{{ printf "target/%s/%s/packer" .HOST_TARGET .PROFILE }}'
 
 # Default task when you run just `task`
 tasks:
@@ -184,8 +185,9 @@ tasks:
       - rm -rf '{{.BUILD_LOCAL_DIR}}'
 
   build:
-    desc: Build UEFI loader and kernel
+    desc: Build UEFI loader and kernel ({{.PROFILE}})
     cmds:
+      - task: build:packer
       - task: build:uefi
       - task: build:kernel
     requires:
@@ -196,7 +198,7 @@ tasks:
             - release
 
   build:kernel:
-    desc: Build kernel (release, no std target)
+    desc: Build kernel ({{.PROFILE}}, no std target)
     dir: os/kernel/kernel
     requires:
       vars:
@@ -247,7 +249,7 @@ tasks:
         msg: '{{.KERNEL_BIN_PATH}} is missing; run task build:kernel'
 
   build:uefi:
-    desc: Build UEFI loader (release)
+    desc: Build UEFI loader ({{.PROFILE}})
     dir: os/uefi/uefi-loader
     requires:
       vars:
@@ -264,6 +266,23 @@ tasks:
       - cargo build --bin uefi-loader --target '{{.UEFI_TARGET_TRIPLE}}' {{.PROFILE_FLAG}}
     generates:
       - '{{.UEFI_LOADER_PATH}}'
+
+  build:packer:
+    desc: Build packer ({{.PROFILE}})
+    requires:
+      vars:
+        - name: PROFILE
+          enum:
+            - debug
+            - release
+    sources:
+      - Cargo.toml
+      - Cargo.lock
+      - tools/packer/**
+    cmds:
+      - cargo build --bin packer --target '{{.HOST_TARGET}}' {{.PROFILE_FLAG}}
+    generates:
+      - '{{.PACKER_BIN_PATH}}'
 
   package:
     desc: Prepare QEMU/OVMF runnable layout in {{.BUILD_LOCAL_DIR}} (ESP + vars)
