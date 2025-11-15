@@ -16,6 +16,7 @@ qemu = ["kernel-qemu/enabled"]
 
 [dependencies]
 bitfield-struct.workspace = true
+packer-abi = { path = "../../utils/packer-abi" }
 kernel-alloc = { path = "../kernel-alloc" }
 kernel-info = { path = "../kernel-info" }
 kernel-memory-addresses = { path = "../../kernel/kernel-memory-addresses" }

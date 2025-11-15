@@ -1,5 +1,8 @@
 #![no_std]
 
+#[cfg(feature = "unbundle")]
+pub mod unbundle;
+
 /// Magic signature identifying a valid bundle file.
 ///
 /// The ASCII bytes correspond to `"INIT_BUN"` (in little-endian)  — short for **Init Bundle**.

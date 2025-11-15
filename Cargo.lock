@@ -44,6 +44,7 @@ dependencies = [
  "kernel-sync",
  "kernel-vmem",
  "log",
+ "packer-abi",
 ]
 
 [[package]]
