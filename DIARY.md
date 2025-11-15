@@ -2,7 +2,14 @@
 
 ## 2025-11-15
 
-Made `syscall`/`sysret` work today.
+Made `syscall`/`sysret` work today. I got a bit confused about the CR0 Paging Enabled
+flag because I never explicitly set it to `1`, until I realized that this is a
+requirement coming from UEFI: It already puts the CPU in long mode, so I never had to.
+
+Enabling SMEP (Supervisor Mode Execution Prevention) was easy after that.
+Expectedly, enabling SMAP (Access Prevention) immediately caused a page fault when loading
+the userland binary since the kernel writes to a user page. Adding a little drop guard
+that calls `stac` on enter and `clac` on exit made this a no-brainer, too.
 
 ## 2025-11-13
 

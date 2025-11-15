@@ -17,8 +17,8 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/init.rs](./os/kernel/kernel/src/init.rs)
 
-- Line [266](./os/kernel/kernel/src/init.rs#L266): Restrict allocator to actual available RAM size.
-- Line [414](./os/kernel/kernel/src/init.rs#L414): Use a different IST from PF
+- Line [267](./os/kernel/kernel/src/init.rs#L267): Restrict allocator to actual available RAM size.
+- Line [415](./os/kernel/kernel/src/init.rs#L415): Use a different IST from PF
 
 ## [os/kernel/kernel/src/interrupts/page_fault.rs](./os/kernel/kernel/src/interrupts/page_fault.rs)
 
@@ -30,7 +30,7 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 ## [os/kernel/kernel/src/userland.rs](./os/kernel/kernel/src/userland.rs)
 
-- Line [50](./os/kernel/kernel/src/userland.rs#L50): Remove later
+- Line [51](./os/kernel/kernel/src/userland.rs#L51): Remove later
 
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 

@@ -114,6 +114,7 @@ use kernel_alloc::phys_mapper::HhdmPhysMapper;
 use kernel_alloc::vmm::AllocationTarget;
 use kernel_info::memory::{HHDM_BASE, KERNEL_STACK_SIZE};
 use kernel_memory_addresses::{PhysicalAddress, VirtualAddress};
+use kernel_registers::cr4::Cr4;
 use kernel_registers::efer::Efer;
 use kernel_registers::msr::{Ia32Fmask, Ia32LStar, Ia32Star};
 use kernel_registers::{LoadRegisterUnsafe, StoreRegisterUnsafe};
@@ -435,8 +436,20 @@ extern "C" fn stage_two_init_bootstrap_processor(
     info!("Clearing UEFI pages ...");
     with_kernel_vmm(|vmm| unsafe { vmm.clear_lower_half() });
 
+    info!("Enabling Supervisor Mode Execution and Access Prevention (SMEP/SMAP)");
+    enable_supervisor_protections();
+
     info!("Kernel early init is done, jumping into kernel main loop ...");
     kernel_main(&fb_virt)
+}
+
+fn enable_supervisor_protections() {
+    unsafe {
+        Cr4::load_unsafe()
+            .with_smep(true)
+            .with_smap(true)
+            .store_unsafe();
+    }
 }
 
 unsafe fn init_syscall(cpu: &PerCpu) {

@@ -1,5 +1,6 @@
 use crate::alloc::KernelVmm;
 use crate::gdt::{USER_CS, USER_DS};
+use crate::smap::SmapGuard;
 use crate::tracing::log_ctrl_bits;
 use crate::{alloc, userland_demo};
 use kernel_alloc::phys_mapper::HhdmPhysMapper;
@@ -65,6 +66,8 @@ fn map_user_demo<M: PhysMapper, A: PhysFrameAlloc>(
     ustack_top: VirtualAddress,
     blob: &[u8],
 ) -> Result<(VirtualAddress, VirtualAddress), VmmError> {
+    let _guard = SmapGuard::enter();
+
     // non-leaf: allow user traversal (U/S=1), WB, Present, Write=1 (harmless), NX don't-care
     let nonleaf = VirtualMemoryPageBits::user_table_wb_exec(); // must set US=1
 
