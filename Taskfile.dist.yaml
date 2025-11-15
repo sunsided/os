@@ -25,6 +25,7 @@ vars:
   ESP_LOCAL_DIR: '{{ printf "%s/esp" .BUILD_LOCAL_DIR }}'
   ESP_LOCAL_UEFI_PATH: '{{ printf "%s/EFI/Boot/BootX64.efi" .ESP_LOCAL_DIR}}'
   ESP_LOCAL_KERNEL_PATH: '{{ printf "%s/EFI/Boot/kernel.elf" .ESP_LOCAL_DIR}}'
+  ESP_LOCAL_USER_BUNDLE_PATH: '{{ printf "%s/EFI/Boot/user.bun" .ESP_LOCAL_DIR}}'
 
   # Derived paths
   OVMF_CODE_PATH: '{{ printf "%s/%s" .OVMF_DIR .OVMF_CODE_FILE }}'
@@ -38,10 +39,11 @@ vars:
     sh: "rustc -vV | grep host: | cut -d' ' -f2"
 
   # Where your .efi lives; tweak as needed
-  PACKER_BIN_PATH: '{{ printf "target/%s/%s/packer" .HOST_TARGET .PROFILE }}'
-  UEFI_LOADER_PATH: '{{ printf "dist/%s/uefi/uefi-loader.efi" .PROFILE }}'
-  KERNEL_BIN_PATH: '{{ printf "dist/%s/kernel/kernel" .PROFILE }}'
+  PACKER_BIN_PATH: '{{ printf "dist/%s/tools/packer" .PROFILE }}'
+  UEFI_LOADER_PATH: '{{ printf "dist/%s/os/uefi-loader.efi" .PROFILE }}'
+  KERNEL_BIN_PATH: '{{ printf "dist/%s/os/kernel" .PROFILE }}'
   USER_INIT_BIN_PATH: '{{ printf "dist/%s/userland/init" .PROFILE }}'
+  USER_BUNDLE_PATH: '{{ printf "dist/%s/user.bun" .PROFILE }}'
 
 # Default task when you run just `task`
 tasks:
@@ -229,12 +231,11 @@ tasks:
         vars:
           SOURCE_TRIPLE: '{{.TARGET_TRIPLE}}'
           BINARY: kernel
-          SECTION: kernel
+          SECTION: os
       - task: kernel:elf
       - task: kernel:obj
     generates:
       - '{{.KERNEL_BIN_PATH}}'
-      - 'dist/{{.PROFILE}}/kernel/kernel'
 
   kernel:elf:
     desc: Prints ELF information about {{.KERNEL_BIN_PATH}}
@@ -287,10 +288,9 @@ tasks:
         vars:
           SOURCE_TRIPLE: '{{.TARGET_TRIPLE}}'
           BINARY: uefi-loader.efi
-          SECTION: uefi
+          SECTION: os
     generates:
       - '{{.UEFI_LOADER_PATH}}'
-      - 'dist/{{.PROFILE}}/uefi/uefi-loader.efi'
 
   build:user:
     desc: Build userland binaries ({{.PROFILE}})
@@ -327,7 +327,30 @@ tasks:
           SECTION: userland
     generates:
       - '{{.USER_INIT_BIN_PATH}}'
-      - 'dist/{{.PROFILE}}/userland/init'
+
+  build:packer:
+    desc: Build packer ({{.PROFILE}})
+    vars:
+      TARGET_TRIPLE: '{{.HOST_TARGET}}'
+    requires:
+      vars:
+        - name: PROFILE
+          enum:
+            - debug
+            - release
+    sources:
+      - Cargo.toml
+      - Cargo.lock
+      - tools/packer/**
+    cmds:
+      - cargo build --bin packer --target '{{.TARGET_TRIPLE}}' {{.PROFILE_FLAG}}
+      - task: dist:copy
+        vars:
+          SOURCE_TRIPLE: '{{.TARGET_TRIPLE}}'
+          BINARY: packer
+          SECTION: tools
+    generates:
+      - '{{.PACKER_BIN_PATH}}'
 
   dist:copy:
     internal: true
@@ -342,8 +365,8 @@ tasks:
         - name: SECTION
           enum:
             - userland
-            - kernel
-            - uefi
+            - os
+            - tools
         - name: PROFILE
           enum:
             - release
@@ -357,22 +380,23 @@ tasks:
     generates:
       - 'dist/{{.PROFILE}}/{{.SECTION}}/{{.BINARY_OUT}}'
 
-  build:packer:
-    desc: Build packer ({{.PROFILE}})
-    requires:
-      vars:
-        - name: PROFILE
-          enum:
-            - debug
-            - release
-    sources:
-      - Cargo.toml
-      - Cargo.lock
-      - tools/packer/**
+  package:bundle:
+    desc: Packages userland binaries into a bundle for the kernel ({{.PROFILE}})
+    aliases:
+      - package:user-bundle
+      - bundle:user
+    deps:
+      - task: build:packer
+        silent: true
+        vars:
+          PROFILE: '{{.PROFILE}}'
     cmds:
-      - cargo build --bin packer --target '{{.HOST_TARGET}}' {{.PROFILE_FLAG}}
+      - |
+        '{{.PACKER_BIN_PATH}}' 'dist/{{.PROFILE}}/userland' '{{.USER_BUNDLE_PATH}}'
+    sources:
+      - 'dist/{{.PROFILE}}/*'
     generates:
-      - '{{.PACKER_BIN_PATH}}'
+      - '{{.USER_BUNDLE_PATH}}'
 
   package:
     desc: Prepare QEMU/OVMF runnable layout in {{.BUILD_LOCAL_DIR}} (ESP + vars)
@@ -384,6 +408,9 @@ tasks:
             - release
     deps:
       - task: build
+        vars:
+          PROFILE: '{{.PROFILE}}'
+      - task: package:bundle
         vars:
           PROFILE: '{{.PROFILE}}'
     cmds:
@@ -398,14 +425,17 @@ tasks:
       - mkdir -p "$(dirname '{{.ESP_LOCAL_KERNEL_PATH}}')"
       - cp '{{.UEFI_LOADER_PATH}}' '{{.ESP_LOCAL_UEFI_PATH}}'
       - cp '{{.KERNEL_BIN_PATH}}' '{{.ESP_LOCAL_KERNEL_PATH}}'
+      - cp '{{.USER_BUNDLE_PATH}}' '{{.ESP_LOCAL_USER_BUNDLE_PATH}}'
     sources:
       - '{{.UEFI_LOADER_PATH}}'
       - '{{.KERNEL_BIN_PATH}}'
       - '{{.OVMF_VARS_PATH}}'
+      - '{{.USER_BUNDLE_PATH}}'
     generates:
       - '{{.OVMF_LOCAL_VARS_PATH}}'
       - '{{.ESP_LOCAL_UEFI_PATH}}'
       - '{{.ESP_LOCAL_KERNEL_PATH}}'
+      - '{{.ESP_LOCAL_USER_BUNDLE_PATH}}'
 
   ovmf:find:
     desc: Try common OVMF locations and print the first that works
