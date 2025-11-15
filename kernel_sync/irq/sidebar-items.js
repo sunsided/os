@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["cli_stop_interrupts","rflags","sti_enable_interrupts"],"struct":["IrqGuard","IrqMutex"]};

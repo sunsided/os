@@ -1,0 +1,81 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `os/kernel/kernel/src/per_cpu/ist_stacks.rs`."><title>ist_stacks.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="kernel" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">kernel/per_cpu/</div>ist_stacks.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-2"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Virtual layout for IST stacks: per-CPU × per-IST slots with a guard page.
+<a href=#2 id=2 data-nosnippet>2</a>//!
+<a href=#3 id=3 data-nosnippet>3</a>//! Layout (virtual):
+<a href=#4 id=4 data-nosnippet>4</a>//!   `IST_BASE`
+<a href=#5 id=5 data-nosnippet>5</a>//!     + `cpu_id` * `CPU_STRIDE`
+<a href=#6 id=6 data-nosnippet>6</a>//!       + (ist_idx-1) * `IST_SLOT_STRIDE`
+<a href=#7 id=7 data-nosnippet>7</a>//!         -&gt; [ guard (4 KiB, unmapped) ][ IST stack bytes, RW|NX ]
+<a href=#8 id=8 data-nosnippet>8</a>//!
+<a href=#9 id=9 data-nosnippet>9</a>//! Notes
+<a href=#10 id=10 data-nosnippet>10</a>//! - We keep IST stacks in a separate region from kernel stacks to simplify
+<a href=#11 id=11 data-nosnippet>11</a>//!   debugging and avoid tight packing constraints.
+<a href=#12 id=12 data-nosnippet>12</a>//! - One unmapped 4 KiB guard below each IST stack catches overflows.
+<a href=#13 id=13 data-nosnippet>13</a>//! - `IST_SLOT_STRIDE` must be &gt;= guard + max IST size you’ll map.
+<a href=#14 id=14 data-nosnippet>14</a>
+<a href=#15 id=15 data-nosnippet>15</a></span><span class="kw">use </span><span class="kw">crate</span>::interrupts::Ist;
+<a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>kernel_memory_addresses::{PageSize, Size4K, VirtualAddress, VirtualPage};
+<a href=#17 id=17 data-nosnippet>17</a>
+<a href=#18 id=18 data-nosnippet>18</a><span class="doccomment">/// Number of hardware IST entries supported by x86_64 TSS.
+<a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">pub const </span>IST_SLOTS_PER_CPU: u64 = <span class="number">7</span>;
+<a href=#20 id=20 data-nosnippet>20</a>
+<a href=#21 id=21 data-nosnippet>21</a><span class="doccomment">/// 4 KiB guard below each IST stack.
+<a href=#22 id=22 data-nosnippet>22</a></span><span class="attr">#[allow(dead_code)]
+<a href=#23 id=23 data-nosnippet>23</a></span><span class="kw">pub const </span>IST_GUARD: u64 = Size4K::SIZE;
+<a href=#24 id=24 data-nosnippet>24</a>
+<a href=#25 id=25 data-nosnippet>25</a><span class="doccomment">/// Virtual base for all IST stacks (choose a disjoint, canonical kernel range).
+<a href=#26 id=26 data-nosnippet>26</a>/// Picked in the higher half, far from your kernel-stack region (`0xffff_ff00_…`).
+<a href=#27 id=27 data-nosnippet>27</a></span><span class="kw">pub const </span>IST_BASE: u64 = <span class="number">0xffff_ff10_0000_0000</span>;
+<a href=#28 id=28 data-nosnippet>28</a>
+<a href=#29 id=29 data-nosnippet>29</a><span class="doccomment">/// Per-CPU stride in the IST region (bytes). Leave ample room for 7 ISTs.
+<a href=#30 id=30 data-nosnippet>30</a></span><span class="kw">pub const </span>IST_CPU_STRIDE: u64 = <span class="number">0x10_0000</span>; <span class="comment">// 1 MiB per CPU in the IST region
+<a href=#31 id=31 data-nosnippet>31</a>
+<a href=#32 id=32 data-nosnippet>32</a></span><span class="doccomment">/// Per-IST stride inside one CPU’s IST area (bytes).
+<a href=#33 id=33 data-nosnippet>33</a>/// With 7 ISTs × 128 KiB &lt; 1 MiB, this fits comfortably.
+<a href=#34 id=34 data-nosnippet>34</a></span><span class="kw">pub const </span>IST_SLOT_STRIDE: u64 = <span class="number">0x02_0000</span>; <span class="comment">// 128 KiB per IST “slot”
+<a href=#35 id=35 data-nosnippet>35</a>
+<a href=#36 id=36 data-nosnippet>36</a></span><span class="doccomment">/// 16 KiB is enough for #PF/#DF handlers.
+<a href=#37 id=37 data-nosnippet>37</a>///
+<a href=#38 id=38 data-nosnippet>38</a>/// [`IST1`](Ist::Ist1) is used for critical handlers such as double fault.
+<a href=#39 id=39 data-nosnippet>39</a></span><span class="kw">pub const </span>IST1_SIZE: u64 = <span class="number">16 </span>* <span class="number">1024</span>;
+<a href=#40 id=40 data-nosnippet>40</a>
+<a href=#41 id=41 data-nosnippet>41</a><span class="kw">const _</span>: () = {
+<a href=#42 id=42 data-nosnippet>42</a>    <span class="comment">// Sanity: 7 IST slots must fit inside one CPU stride
+<a href=#43 id=43 data-nosnippet>43</a>    </span><span class="macro">assert!</span>(IST_SLOTS_PER_CPU * IST_SLOT_STRIDE &lt;= IST_CPU_STRIDE);
+<a href=#44 id=44 data-nosnippet>44</a>    <span class="comment">// Page-aligned strides
+<a href=#45 id=45 data-nosnippet>45</a>    </span><span class="macro">assert!</span>(IST_CPU_STRIDE.is_multiple_of(Size4K::SIZE));
+<a href=#46 id=46 data-nosnippet>46</a>    <span class="macro">assert!</span>(IST_SLOT_STRIDE.is_multiple_of(Size4K::SIZE));
+<a href=#47 id=47 data-nosnippet>47</a>};
+<a href=#48 id=48 data-nosnippet>48</a>
+<a href=#49 id=49 data-nosnippet>49</a><span class="doccomment">/// Maximum usable IST bytes per slot (excludes the 4 KiB guard).
+<a href=#50 id=50 data-nosnippet>50</a></span><span class="attr">#[inline]
+<a href=#51 id=51 data-nosnippet>51</a>#[allow(dead_code)]
+<a href=#52 id=52 data-nosnippet>52</a></span><span class="kw">pub const fn </span>max_ist_bytes() -&gt; u64 {
+<a href=#53 id=53 data-nosnippet>53</a>    IST_SLOT_STRIDE - IST_GUARD
+<a href=#54 id=54 data-nosnippet>54</a>}
+<a href=#55 id=55 data-nosnippet>55</a>
+<a href=#56 id=56 data-nosnippet>56</a><span class="doccomment">/// Return the **guard page** base for `(cpu_id, ist_idx)` (1..=7).
+<a href=#57 id=57 data-nosnippet>57</a>/// The first mapped byte (stack base) is `guard + 4 KiB`.
+<a href=#58 id=58 data-nosnippet>58</a></span><span class="attr">#[inline]
+<a href=#59 id=59 data-nosnippet>59</a>#[allow(clippy::cast_possible_truncation)]
+<a href=#60 id=60 data-nosnippet>60</a></span><span class="kw">pub const fn </span>ist_slot_for_cpu(cpu_id: u64, ist_idx: Ist) -&gt; VirtualPage&lt;Size4K&gt; {
+<a href=#61 id=61 data-nosnippet>61</a>    <span class="comment">// Hardware IST indices are 1..=7.
+<a href=#62 id=62 data-nosnippet>62</a>    </span><span class="macro">assert!</span>(ist_idx.gate_index() &gt;= <span class="number">1 </span>&amp;&amp; ist_idx.gate_index() &lt;= IST_SLOTS_PER_CPU <span class="kw">as </span>u8);
+<a href=#63 id=63 data-nosnippet>63</a>
+<a href=#64 id=64 data-nosnippet>64</a>    <span class="kw">let </span>cpu_off = cpu_id * IST_CPU_STRIDE;
+<a href=#65 id=65 data-nosnippet>65</a>    <span class="kw">let </span>ist_off = (ist_idx.gate_index() <span class="kw">as </span>u64 - <span class="number">1</span>) * IST_SLOT_STRIDE;
+<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">let </span>addr = VirtualAddress::new(IST_BASE + cpu_off + ist_off);
+<a href=#67 id=67 data-nosnippet>67</a>    <span class="kw">let </span>page = addr.page();
+<a href=#68 id=68 data-nosnippet>68</a>    <span class="macro">assert!</span>(page.base().as_u64() == addr.as_u64()); <span class="comment">// page-aligned
+<a href=#69 id=69 data-nosnippet>69</a>    </span>page
+<a href=#70 id=70 data-nosnippet>70</a>}
+<a href=#71 id=71 data-nosnippet>71</a>
+<a href=#72 id=72 data-nosnippet>72</a><span class="doccomment">/// Convenience: compute the 16-byte–aligned top given a mapped length.
+<a href=#73 id=73 data-nosnippet>73</a>/// You’ll typically map `[guard (4 KiB)][ist_bytes]` and then use this top.
+<a href=#74 id=74 data-nosnippet>74</a></span><span class="attr">#[inline]
+<a href=#75 id=75 data-nosnippet>75</a>#[allow(dead_code)]
+<a href=#76 id=76 data-nosnippet>76</a></span><span class="kw">pub const fn </span>ist_top_for(len_bytes_mapped: u64, guard_base: VirtualAddress) -&gt; VirtualAddress {
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">let </span>base = VirtualAddress::new(guard_base.as_u64() + IST_GUARD); <span class="comment">// skip guard
+<a href=#78 id=78 data-nosnippet>78</a>    // align down to 16 for ABI-correct entry on the stack
+<a href=#79 id=79 data-nosnippet>79</a>    </span>VirtualAddress::new((base.as_u64() + len_bytes_mapped) &amp; !<span class="number">0xFu64</span>)
+<a href=#80 id=80 data-nosnippet>80</a>}
+</code></pre></div></section></main></body></html>

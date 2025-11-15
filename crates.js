@@ -1,0 +1,2 @@
+window.ALL_CRATES = ["kernel","kernel_acpi","kernel_alloc","kernel_info","kernel_memory_addresses","kernel_qemu","kernel_registers","kernel_sync","kernel_vmem","uefi_loader"];
+//{"start":21,"fragment_lengths":[8,14,15,14,26,14,19,14,14,14]}

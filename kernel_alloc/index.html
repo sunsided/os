@@ -1,0 +1,141 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Kernel Memory Allocation and Virtual Memory Management"><title>kernel_alloc - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="kernel_alloc" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate kernel_alloc</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../kernel_alloc/index.html">kernel_<wbr>alloc</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#kernel-memory-allocation-and-virtual-memory-management" title="Kernel Memory Allocation and Virtual Memory Management">Kernel Memory Allocation and Virtual Memory Management</a><ul><li><a href="#architecture-overview" title="Architecture Overview">Architecture Overview</a></li><li><a href="#core-components" title="Core Components">Core Components</a></li><li><a href="#memory-layout-integration" title="Memory Layout Integration">Memory Layout Integration</a></li><li><a href="#safety-model" title="Safety Model">Safety Model</a></li><li><a href="#usage-patterns" title="Usage Patterns">Usage Patterns</a></li><li><a href="#performance-characteristics" title="Performance Characteristics">Performance Characteristics</a></li><li><a href="#integration-points" title="Integration Points">Integration Points</a></li></ul></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>kernel_<wbr>alloc</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/kernel_alloc/lib.rs.html#1-168">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="kernel-memory-allocation-and-virtual-memory-management"><a class="doc-anchor" href="#kernel-memory-allocation-and-virtual-memory-management">§</a>Kernel Memory Allocation and Virtual Memory Management</h2>
+<p>This crate provides the core memory allocation infrastructure for the kernel,
+implementing both physical frame allocation and virtual memory management
+capabilities. It serves as the foundation for all memory operations in the
+operating system, from initial bootstrap through runtime operation.</p>
+<h3 id="architecture-overview"><a class="doc-anchor" href="#architecture-overview">§</a>Architecture Overview</h3>
+<p>The memory management system is built on a three-layer architecture:</p>
+<div class="example-wrap"><pre class="language-text"><code>┌─────────────────────────────────────────────────────┐
+│                Virtual Memory Manager (VMM)         │
+│    • Page table manipulation                        │
+│    • Virtual address space management               │
+│    • User/kernel space separation                   │
+└─────────────────┬───────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────┐
+│              Physical Mapper                        │
+│    • Physical-to-virtual address translation        │
+│    • HHDM (Higher Half Direct Mapping)              │
+│    • Safe pointer conversion                        │
+└─────────────────┬───────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────┐
+│           Physical Frame Allocator                  │
+│    • 4KiB page frame management                     │
+│    • Bitmap-based free/used tracking                │
+│    • No-heap allocation strategy                    │
+└─────────────────────────────────────────────────────┘</code></pre></div><h3 id="core-components"><a class="doc-anchor" href="#core-components">§</a>Core Components</h3><h4 id="physical-frame-allocator-frame_alloc"><a class="doc-anchor" href="#physical-frame-allocator-frame_alloc">§</a>Physical Frame Allocator (<a href="frame_alloc/index.html" title="mod kernel_alloc::frame_alloc"><code>frame_alloc</code></a>)</h4>
+<p>Manages the allocation and deallocation of 4KiB physical memory frames:</p>
+<ul>
+<li><strong>Bitmap Management</strong>: Efficient tracking of free/used frames using bit arrays</li>
+<li><strong>No-Heap Design</strong>: Self-contained implementation requiring no dynamic allocation</li>
+<li><strong>Fixed Region</strong>: Manages a predefined region of physical memory (currently 512 MiB)</li>
+<li><strong>Early Boot Support</strong>: Suitable for use before full memory management is available</li>
+</ul>
+<p>Key features:</p>
+<ul>
+<li>O(1) allocation when frames are available</li>
+<li>Simple bitmap-based tracking for reliability</li>
+<li>Configurable memory region boundaries</li>
+<li>Integration with kernel memory layout</li>
+</ul>
+<h4 id="physical-mapper-phys_mapper"><a class="doc-anchor" href="#physical-mapper-phys_mapper">§</a>Physical Mapper (<a href="phys_mapper/index.html" title="mod kernel_alloc::phys_mapper"><code>phys_mapper</code></a>)</h4>
+<p>Provides safe conversion between physical addresses and virtual pointers:</p>
+<ul>
+<li><strong>HHDM Support</strong>: Higher Half Direct Mapping for efficient address translation</li>
+<li><strong>Safe Abstractions</strong>: Type-safe pointer conversions with lifetime management</li>
+<li><strong>Page Table Access</strong>: Enables manipulation of physical page table structures</li>
+<li><strong>Cross-Platform</strong>: Abstracts physical memory access patterns</li>
+</ul>
+<p>Key capabilities:</p>
+<ul>
+<li>Physical address to virtual pointer conversion</li>
+<li>Support for different mapping strategies</li>
+<li>Safe dereferencing of physical memory</li>
+<li>Integration with page table manipulation</li>
+</ul>
+<h4 id="virtual-memory-manager-vmm"><a class="doc-anchor" href="#virtual-memory-manager-vmm">§</a>Virtual Memory Manager (<a href="vmm/index.html" title="mod kernel_alloc::vmm"><code>vmm</code></a>)</h4>
+<p>Coordinates virtual address space management and page table operations:</p>
+<ul>
+<li><strong>Address Space Management</strong>: Separate user and kernel virtual address spaces</li>
+<li><strong>Page Table Manipulation</strong>: Creation, modification, and destruction of mappings</li>
+<li><strong>Memory Protection</strong>: Configurable page permissions (read, write, execute, user)</li>
+<li><strong>Anonymous Mapping</strong>: On-demand allocation of virtual memory regions</li>
+<li><strong>Region Management</strong>: Bulk operations for mapping and unmapping areas</li>
+</ul>
+<p>Advanced features:</p>
+<ul>
+<li>Guard page support for stack overflow detection</li>
+<li>Bulk mapping operations for performance</li>
+<li>TLB management and invalidation</li>
+<li>User/kernel space isolation</li>
+</ul>
+<h3 id="memory-layout-integration"><a class="doc-anchor" href="#memory-layout-integration">§</a>Memory Layout Integration</h3>
+<p>The crate integrates with the kernel’s memory layout defined in <code>kernel-info</code>:</p>
+<div class="example-wrap"><pre class="language-text"><code>Virtual Address Space Layout:
+0x0000_0000_0000_0000 ┌─────────────────────────────────┐
+                      │        User Space               │
+                      │  (Applications, libraries)      │
+LAST_USERSPACE_ADDRESS├─────────────────────────────────┤
+                      │        Guard Region             │
+HHDM_BASE             ├─────────────────────────────────┤
+                      │   Higher Half Direct Map        │
+                      │  (Physical memory access)       │
+KERNEL_BASE           ├─────────────────────────────────┤
+                      │       Kernel Space              │
+                      │  (Kernel code and data)         │
+0xFFFF_FFFF_FFFF_FFFF └─────────────────────────────────┘</code></pre></div><h3 id="safety-model"><a class="doc-anchor" href="#safety-model">§</a>Safety Model</h3>
+<p>The memory management system employs multiple layers of safety:</p>
+<h4 id="type-safety"><a class="doc-anchor" href="#type-safety">§</a>Type Safety</h4>
+<ul>
+<li><strong>Address Types</strong>: Distinct types for physical and virtual addresses</li>
+<li><strong>Page Alignment</strong>: Compile-time guarantees for page-aligned operations</li>
+<li><strong>Lifetime Management</strong>: Rust ownership prevents use-after-free errors</li>
+</ul>
+<h4 id="runtime-safety"><a class="doc-anchor" href="#runtime-safety">§</a>Runtime Safety</h4>
+<ul>
+<li><strong>Bounds Checking</strong>: Validation of memory region boundaries</li>
+<li><strong>Permission Enforcement</strong>: Hardware-backed memory protection</li>
+<li><strong>Guard Pages</strong>: Overflow detection through unmapped regions</li>
+<li><strong>TLB Synchronization</strong>: Proper cache invalidation on mapping changes</li>
+</ul>
+<h4 id="concurrency-safety"><a class="doc-anchor" href="#concurrency-safety">§</a>Concurrency Safety</h4>
+<ul>
+<li><strong>Atomic Operations</strong>: Thread-safe allocation algorithms</li>
+<li><strong>Critical Sections</strong>: Protection of shared data structures</li>
+<li><strong>Lock-Free Paths</strong>: Performance optimization for common operations</li>
+</ul>
+<h3 id="usage-patterns"><a class="doc-anchor" href="#usage-patterns">§</a>Usage Patterns</h3><h4 id="basic-physical-allocation"><a class="doc-anchor" href="#basic-physical-allocation">§</a>Basic Physical Allocation</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>kernel_alloc::frame_alloc::BitmapFrameAlloc;
+<span class="kw">use </span>kernel_vmem::PhysFrameAlloc;
+
+<span class="kw">let </span><span class="kw-2">mut </span>allocator = BitmapFrameAlloc::new();
+<span class="kw">if let </span><span class="prelude-val">Some</span>(frame) = allocator.alloc_4k() {
+    <span class="comment">// Use the physical frame
+    </span>allocator.free_4k(frame);
+}</code></pre></div><h4 id="virtual-memory-management"><a class="doc-anchor" href="#virtual-memory-management">§</a>Virtual Memory Management</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>kernel_alloc::{phys_mapper::HhdmPhysMapper, vmm::Vmm};
+<span class="kw">use </span>kernel_alloc::frame_alloc::BitmapFrameAlloc;
+
+<span class="kw">let </span>mapper = HhdmPhysMapper;
+<span class="kw">let </span><span class="kw-2">mut </span>allocator = BitmapFrameAlloc::new();
+<span class="kw">let </span><span class="kw-2">mut </span>vmm = <span class="kw">unsafe </span>{ Vmm::from_current(<span class="kw-2">&amp;</span>mapper, <span class="kw-2">&amp;mut </span>allocator) };
+
+<span class="comment">// Map virtual memory regions, manage page tables, etc.</span></code></pre></div><h3 id="performance-characteristics"><a class="doc-anchor" href="#performance-characteristics">§</a>Performance Characteristics</h3>
+<ul>
+<li><strong>Physical Allocation</strong>: O(n) worst case, O(1) typical case</li>
+<li><strong>Virtual Mapping</strong>: O(1) for single pages, O(n) for regions</li>
+<li><strong>Address Translation</strong>: O(1) with HHDM</li>
+<li><strong>Memory Overhead</strong>: ~1 bit per 4KiB frame for allocation tracking</li>
+</ul>
+<h3 id="integration-points"><a class="doc-anchor" href="#integration-points">§</a>Integration Points</h3>
+<p>This crate integrates with several other kernel components:</p>
+<ul>
+<li><strong>kernel-vmem</strong>: Core virtual memory abstractions and types</li>
+<li><strong>kernel-info</strong>: Memory layout constants and configuration</li>
+<li><strong>kernel-sync</strong>: Synchronization primitives for thread safety</li>
+</ul>
+<p>The modular design enables testing, portability, and future enhancements
+while maintaining clear separation of concerns between different memory
+management responsibilities.</p>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="frame_alloc/index.html" title="mod kernel_alloc::frame_alloc">frame_<wbr>alloc</a></dt><dd>Minimal Bitmap-based Physical Memory Manager (PMM)</dd><dt><a class="mod" href="phys_mapper/index.html" title="mod kernel_alloc::phys_mapper">phys_<wbr>mapper</a></dt><dd>HHDM-based <a href="../kernel_vmem/trait.PhysMapper.html" title="trait kernel_vmem::PhysMapper"><code>PhysMapper</code></a> for Kernel Virtual Memory</dd><dt><a class="mod" href="vmm/index.html" title="mod kernel_alloc::vmm">vmm</a></dt><dd>Minimal Virtual Memory Manager (VMM) for the kernel.</dd></dl></section></div></main></body></html>

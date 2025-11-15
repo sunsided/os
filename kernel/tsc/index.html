@@ -1,0 +1,112 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Time Stamp Counter (TSC) Management"><title>kernel::tsc - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="kernel" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module tsc</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../kernel/index.html">kernel</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module tsc</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#time-stamp-counter-tsc-management" title="Time Stamp Counter (TSC) Management">Time Stamp Counter (TSC) Management</a><ul><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#tsc-frequency-detection-strategy" title="TSC Frequency Detection Strategy">TSC Frequency Detection Strategy</a></li><li><a href="#key-functions" title="Key Functions">Key Functions</a></li><li><a href="#pit-calibration-details" title="PIT Calibration Details">PIT Calibration Details</a></li><li><a href="#timing-accuracy-considerations" title="Timing Accuracy Considerations">Timing Accuracy Considerations</a></li><li><a href="#usage-patterns" title="Usage Patterns">Usage Patterns</a></li><li><a href="#safety-considerations" title="Safety Considerations">Safety Considerations</a></li><li><a href="#architectural-notes" title="Architectural Notes">Architectural Notes</a></li></ul></li></ul><h3><a href="#functions">Module Items</a></h3><ul class="block"><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate kernel</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">kernel</a></div><h1>Module <span>tsc</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/kernel/tsc.rs.html#1-282">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="time-stamp-counter-tsc-management"><a class="doc-anchor" href="#time-stamp-counter-tsc-management">§</a>Time Stamp Counter (TSC) Management</h2>
+<p>This module provides comprehensive TSC (Time Stamp Counter) frequency detection
+and measurement capabilities for the kernel’s timing subsystem. The TSC is a
+critical timing source in modern x86-64 systems, offering high-resolution
+timestamps for kernel scheduling, profiling, and time-sensitive operations.</p>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>The Time Stamp Counter is a 64-bit register that increments at a fixed frequency
+(typically the CPU’s crystal oscillator frequency) on modern processors. This
+module implements multiple strategies to accurately determine the TSC frequency,
+enabling precise timing calculations throughout the kernel.</p>
+<h3 id="tsc-frequency-detection-strategy"><a class="doc-anchor" href="#tsc-frequency-detection-strategy">§</a>TSC Frequency Detection Strategy</h3>
+<p>The module employs a fallback hierarchy to determine TSC frequency with maximum
+accuracy and compatibility:</p>
+<h4 id="1-cpuid-leaf-15h-primary-method"><a class="doc-anchor" href="#1-cpuid-leaf-15h-primary-method">§</a>1. CPUID Leaf 15H (Primary Method)</h4>
+<ul>
+<li><strong>Source</strong>: Architectural frequency information from processor</li>
+<li><strong>Accuracy</strong>: Exact crystal oscillator frequency and ratio</li>
+<li><strong>Requirements</strong>: TSC/CORE crystal ratio and crystal frequency both non-zero</li>
+<li><strong>Formula</strong>: <code>TSC_Hz = crystal_hz × (numerator / denominator)</code></li>
+<li><strong>Availability</strong>: Modern Intel processors, some AMD processors</li>
+</ul>
+<h4 id="2-cpuid-leaf-16h-secondary-method"><a class="doc-anchor" href="#2-cpuid-leaf-16h-secondary-method">§</a>2. CPUID Leaf 16H (Secondary Method)</h4>
+<ul>
+<li><strong>Source</strong>: Processor base frequency information</li>
+<li><strong>Accuracy</strong>: Good approximation assuming TSC runs at base frequency</li>
+<li><strong>Requirements</strong>: Base frequency must be reported (non-zero)</li>
+<li><strong>Formula</strong>: <code>TSC_Hz = base_mhz × 1,000,000</code></li>
+<li><strong>Availability</strong>: Intel processors with frequency reporting</li>
+</ul>
+<h4 id="3-pit-calibration-fallback-method"><a class="doc-anchor" href="#3-pit-calibration-fallback-method">§</a>3. PIT Calibration (Fallback Method)</h4>
+<ul>
+<li><strong>Source</strong>: Measurement against Programmable Interval Timer (PIT)</li>
+<li><strong>Accuracy</strong>: Limited by measurement window and system noise</li>
+<li><strong>Requirements</strong>: Functional PIT hardware and stable timing</li>
+<li><strong>Method</strong>: Measure TSC delta over known PIT countdown period</li>
+<li><strong>Availability</strong>: Universal (all x86 systems have PIT)</li>
+</ul>
+<h3 id="key-functions"><a class="doc-anchor" href="#key-functions">§</a>Key Functions</h3><h4 id="tsc-reading"><a class="doc-anchor" href="#tsc-reading">§</a>TSC Reading</h4>
+<ul>
+<li><a href="fn.rdtsc.html" title="fn kernel::tsc::rdtsc"><code>rdtsc</code></a> - Read current TSC value with serialization fence</li>
+</ul>
+<h4 id="frequency-detection"><a class="doc-anchor" href="#frequency-detection">§</a>Frequency Detection</h4>
+<ul>
+<li><a href="fn.estimate_tsc_hz.html" title="fn kernel::tsc::estimate_tsc_hz"><code>estimate_tsc_hz</code></a> - Multi-method TSC frequency detection</li>
+<li><a href="fn.cpuid_leaf_15_tsc_hz.html" title="fn kernel::tsc::cpuid_leaf_15_tsc_hz"><code>cpuid_leaf_15_tsc_hz</code></a> - CPUID.15H crystal-based frequency</li>
+<li><a href="fn.cpuid_leaf_16_base_mhz_hz.html" title="fn kernel::tsc::cpuid_leaf_16_base_mhz_hz"><code>cpuid_leaf_16_base_mhz_hz</code></a> - CPUID.16H base frequency estimation</li>
+<li><a href="fn.pit_measure_tsc_hz.html" title="fn kernel::tsc::pit_measure_tsc_hz"><code>pit_measure_tsc_hz</code></a> - PIT-based measurement calibration</li>
+</ul>
+<h3 id="pit-calibration-details"><a class="doc-anchor" href="#pit-calibration-details">§</a>PIT Calibration Details</h3>
+<p>When CPUID methods fail, the module falls back to PIT-based measurement:</p>
+<h4 id="calibration-process"><a class="doc-anchor" href="#calibration-process">§</a>Calibration Process</h4>
+<ol>
+<li><strong>PIT Setup</strong>: Configure Channel 0 in Mode 2 (rate generator)</li>
+<li><strong>Window Selection</strong>: Use configurable measurement window (typically 50ms)</li>
+<li><strong>Synchronization</strong>: Read TSC before and after PIT countdown</li>
+<li><strong>Calculation</strong>: Convert TSC delta to frequency using known time window</li>
+</ol>
+<h4 id="pit-configuration"><a class="doc-anchor" href="#pit-configuration">§</a>PIT Configuration</h4><div class="example-wrap"><pre class="language-text"><code>Channel 0: Rate generator mode (Mode 2)
+Input Frequency: 1,193,182 Hz (standard PIT frequency)
+Reload Value: Calculated for desired measurement window
+Access Mode: Low byte, then high byte</code></pre></div><h3 id="timing-accuracy-considerations"><a class="doc-anchor" href="#timing-accuracy-considerations">§</a>Timing Accuracy Considerations</h3><h4 id="measurement-quality"><a class="doc-anchor" href="#measurement-quality">§</a>Measurement Quality</h4>
+<ul>
+<li><strong>Serialization</strong>: <code>lfence</code> instruction ensures TSC read ordering</li>
+<li><strong>Interrupt Masking</strong>: Caller should mask interrupts during calibration</li>
+<li><strong>Window Size</strong>: Larger measurement windows improve accuracy</li>
+<li><strong>System Load</strong>: Reduced system activity during measurement improves precision</li>
+</ul>
+<h4 id="error-sources"><a class="doc-anchor" href="#error-sources">§</a>Error Sources</h4>
+<ul>
+<li><strong>CPU Power Management</strong>: Frequency scaling can affect measurements</li>
+<li><strong>Virtualization</strong>: VMs may report inaccurate or unstable frequencies</li>
+<li><strong>Hardware Variations</strong>: Manufacturing tolerances in crystal oscillators</li>
+<li><strong>Thermal Effects</strong>: Temperature changes can affect oscillator frequency</li>
+</ul>
+<h3 id="usage-patterns"><a class="doc-anchor" href="#usage-patterns">§</a>Usage Patterns</h3><h4 id="basic-frequency-detection"><a class="doc-anchor" href="#basic-frequency-detection">§</a>Basic Frequency Detection</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>tsc_hz = <span class="kw">unsafe </span>{ estimate_tsc_hz() };
+<span class="macro">println!</span>(<span class="string">"TSC frequency: {} Hz"</span>, tsc_hz);</code></pre></div><h4 id="high-resolution-timing"><a class="doc-anchor" href="#high-resolution-timing">§</a>High-Resolution Timing</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>start = rdtsc();
+<span class="comment">// ... timed operation ...
+</span><span class="kw">let </span>end = rdtsc();
+<span class="kw">let </span>cycles = end - start;
+<span class="kw">let </span>nanoseconds = (cycles * <span class="number">1_000_000_000</span>) / tsc_hz;</code></pre></div><h3 id="safety-considerations"><a class="doc-anchor" href="#safety-considerations">§</a>Safety Considerations</h3>
+<p>All TSC operations are marked unsafe due to:</p>
+<ul>
+<li><strong>Hardware Access</strong>: Direct interaction with CPU counters and PIT hardware</li>
+<li><strong>I/O Port Usage</strong>: PIT calibration requires port I/O operations</li>
+<li><strong>Timing Sensitivity</strong>: Measurement accuracy depends on execution environment</li>
+<li><strong>Privilege Requirements</strong>: Some operations require kernel-level access</li>
+</ul>
+<h3 id="architectural-notes"><a class="doc-anchor" href="#architectural-notes">§</a>Architectural Notes</h3><h4 id="tsc-properties-modern-cpus"><a class="doc-anchor" href="#tsc-properties-modern-cpus">§</a>TSC Properties (Modern CPUs)</h4>
+<ul>
+<li><strong>Constant Rate</strong>: TSC increments at fixed frequency regardless of CPU frequency</li>
+<li><strong>Non-Stop</strong>: Continues incrementing during sleep states</li>
+<li><strong>Synchronized</strong>: Same frequency across all cores in SMP systems</li>
+<li><strong>64-bit Range</strong>: Extremely long rollover period (centuries at GHz frequencies)</li>
+</ul>
+<h4 id="compatibility"><a class="doc-anchor" href="#compatibility">§</a>Compatibility</h4>
+<ul>
+<li><strong>Intel</strong>: Full support for all detection methods</li>
+<li><strong>AMD</strong>: Partial CPUID support, PIT fallback available</li>
+<li><strong>Virtual Machines</strong>: Variable support, often requires PIT calibration</li>
+<li><strong>Legacy Systems</strong>: PIT calibration provides universal compatibility</li>
+</ul>
+</div></details><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.busy_wait_pit_window.html" title="fn kernel::tsc::busy_wait_pit_window">busy_<wbr>wait_<wbr>pit_<wbr>window</a><span title="Restricted Visibility">&nbsp;🔒</span> <sup title="unsafe function">⚠</sup></dt><dd>Spin until the PIT has counted down approximately one reload period in mode 2.
+We read back the counter by issuing a latch command; this is coarse but stable
+enough for a one-shot window.</dd><dt><a class="fn" href="fn.cpu_relax.html" title="fn kernel::tsc::cpu_relax">cpu_<wbr>relax</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Allows the CPU to save some power. Functionally equivalent to <a href="https://doc.rust-lang.org/nightly/core/hint/fn.spin_loop.html" title="fn core::hint::spin_loop"><code>spin_loop</code></a>.</dd><dt><a class="fn" href="fn.cpuid_leaf_15_tsc_hz.html" title="fn kernel::tsc::cpuid_leaf_15_tsc_hz">cpuid_<wbr>leaf_<wbr>15_<wbr>tsc_<wbr>hz</a><span title="Restricted Visibility">&nbsp;🔒</span> <sup title="unsafe function">⚠</sup></dt><dd>Try CPUID.15H (TSC/CORE crystal + ratio).
+EAX = denom, EBX = numer, ECX = <code>crystal_hz</code> (may be 0).</dd><dt><a class="fn" href="fn.cpuid_leaf_16_base_mhz_hz.html" title="fn kernel::tsc::cpuid_leaf_16_base_mhz_hz">cpuid_<wbr>leaf_<wbr>16_<wbr>base_<wbr>mhz_<wbr>hz</a><span title="Restricted Visibility">&nbsp;🔒</span> <sup title="unsafe function">⚠</sup></dt><dd>Try CPUID.16H (processor base frequency in MHz).
+EAX = base MHz (may be 0 on many VMs).</dd><dt><a class="fn" href="fn.estimate_tsc_hz.html" title="fn kernel::tsc::estimate_tsc_hz">estimate_<wbr>tsc_<wbr>hz</a><sup title="unsafe function">⚠</sup></dt><dd>Best-effort TSC frequency estimate in Hz.
+Order: CPUID.15H → CPUID.16H → PIT measurement.
+Call with interrupts masked to reduce jitter during PIT timing.</dd><dt><a class="fn" href="fn.pit_measure_tsc_hz.html" title="fn kernel::tsc::pit_measure_tsc_hz">pit_<wbr>measure_<wbr>tsc_<wbr>hz</a><span title="Restricted Visibility">&nbsp;🔒</span> <sup title="unsafe function">⚠</sup></dt><dd>Calibrate TSC Hz by measuring rdtsc delta over a PIT window.
+Uses PIT channel 0 in mode 2 (rate generator).
+<code>window_us</code> typically <code>10_000–100_000</code>; larger → better precision.</dd><dt><a class="fn" href="fn.rdtsc.html" title="fn kernel::tsc::rdtsc">rdtsc</a></dt><dt><a class="fn" href="fn.read_pit_counter.html" title="fn kernel::tsc::read_pit_counter">read_<wbr>pit_<wbr>counter</a><span title="Restricted Visibility">&nbsp;🔒</span> <sup title="unsafe function">⚠</sup></dt></dl></section></div></main></body></html>

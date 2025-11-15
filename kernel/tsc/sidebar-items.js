@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["busy_wait_pit_window","cpu_relax","cpuid_leaf_15_tsc_hz","cpuid_leaf_16_base_mhz_hz","estimate_tsc_hz","pit_measure_tsc_hz","rdtsc","read_pit_counter"]};

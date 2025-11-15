@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["SPURIOUS_INTERRUPT_VECTOR"],"fn":["spurious_handler"],"trait":["SpuriousInterrupt"]};

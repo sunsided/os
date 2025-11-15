@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["clear_parent_xd_for_exec","dump_walk","l2i","l3i","l4i","phys_to_page4k","promote_pml4_user_bit","read_table_u64","va_l4_index"],"struct":["Pte"]};

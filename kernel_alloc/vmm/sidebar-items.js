@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AllocationTarget","VmmError"],"fn":["pa_aligned_4k"],"struct":["Vmm"]};

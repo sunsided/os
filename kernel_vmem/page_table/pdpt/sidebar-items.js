@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["L3View","PdptEntryKind"],"struct":["L3Index","PageDirectoryPointerTable","Pdpte","Pdpte1G"],"union":["PdptEntry"]};

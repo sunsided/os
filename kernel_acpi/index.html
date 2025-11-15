@@ -1,0 +1,114 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="ACPI (Advanced Configuration and Power Interface) Support"><title>kernel_acpi - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="kernel_acpi" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate kernel_acpi</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../kernel_acpi/index.html">kernel_<wbr>acpi</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#acpi-advanced-configuration-and-power-interface-support" title="ACPI (Advanced Configuration and Power Interface) Support">ACPI (Advanced Configuration and Power Interface) Support</a><ul><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#architecture" title="Architecture">Architecture</a></li><li><a href="#key-components" title="Key Components">Key Components</a></li><li><a href="#acpi-version-support" title="ACPI Version Support">ACPI Version Support</a></li><li><a href="#discovery-process" title="Discovery Process">Discovery Process</a></li><li><a href="#memory-management-integration" title="Memory Management Integration">Memory Management Integration</a></li><li><a href="#safety-considerations" title="Safety Considerations">Safety Considerations</a></li><li><a href="#usage-patterns" title="Usage Patterns">Usage Patterns</a></li><li><a href="#future-extensions" title="Future Extensions">Future Extensions</a></li><li><a href="#standards-compliance" title="Standards Compliance">Standards Compliance</a></li></ul></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>kernel_<wbr>acpi</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/kernel_acpi/lib.rs.html#1-148">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="acpi-advanced-configuration-and-power-interface-support"><a class="doc-anchor" href="#acpi-advanced-configuration-and-power-interface-support">§</a>ACPI (Advanced Configuration and Power Interface) Support</h2>
+<p>This crate provides foundational support for parsing and interpreting ACPI
+(Advanced Configuration and Power Interface) structures in the kernel. ACPI
+is a critical system interface that enables operating systems to discover
+and configure hardware components, manage power states, and interact with
+platform-specific features.</p>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>ACPI defines a standardized interface between the operating system and the
+platform firmware (BIOS/UEFI). This crate focuses on the early discovery
+phase, parsing the fundamental ACPI data structures needed to bootstrap
+the full ACPI subsystem.</p>
+<h3 id="architecture"><a class="doc-anchor" href="#architecture">§</a>Architecture</h3>
+<p>The ACPI specification defines a hierarchical table structure:</p>
+<div class="example-wrap"><pre class="language-text"><code>UEFI/BIOS Firmware
+    ↓
+RSDP/XSDP (Root System Description Pointer)
+    ↓
+RSDT/XSDT (Root/Extended System Description Table)
+    ↓
+Individual ACPI Tables (FADT, MADT, DSDT, SSDT, etc.)</code></pre></div><h3 id="key-components"><a class="doc-anchor" href="#key-components">§</a>Key Components</h3><h4 id="physical-memory-mapping-physmapro"><a class="doc-anchor" href="#physical-memory-mapping-physmapro">§</a>Physical Memory Mapping (<a href="trait.PhysMapRo.html" title="trait kernel_acpi::PhysMapRo"><code>PhysMapRo</code></a>)</h4>
+<p>Abstract trait for mapping physical memory regions into the kernel’s
+virtual address space. This allows the ACPI parser to access firmware
+tables regardless of the underlying memory management implementation.</p>
+<h4 id="rsdp-discovery-and-parsing-rsdp"><a class="doc-anchor" href="#rsdp-discovery-and-parsing-rsdp">§</a>RSDP Discovery and Parsing (<a href="rsdp/index.html" title="mod kernel_acpi::rsdp"><code>rsdp</code></a>)</h4>
+<ul>
+<li><strong>RSDP (ACPI 1.0)</strong>: 20-byte Root System Description Pointer</li>
+<li><strong>XSDP (ACPI 2.0+)</strong>: Extended version supporting 64-bit addresses</li>
+<li><strong>Validation</strong>: Checksum verification and signature validation</li>
+<li><strong>Version Detection</strong>: Automatic handling of ACPI 1.0 vs 2.0+ variants</li>
+</ul>
+<h3 id="acpi-version-support"><a class="doc-anchor" href="#acpi-version-support">§</a>ACPI Version Support</h3><h4 id="acpi-10-support"><a class="doc-anchor" href="#acpi-10-support">§</a>ACPI 1.0 Support</h4>
+<ul>
+<li><strong>RSDP Structure</strong>: 20-byte legacy format</li>
+<li><strong>Address Space</strong>: 32-bit physical addresses only</li>
+<li><strong>RSDT</strong>: Root System Description Table with 32-bit pointers</li>
+<li><strong>Checksum</strong>: Simple 8-bit checksum of first 20 bytes</li>
+</ul>
+<h4 id="acpi-20-support"><a class="doc-anchor" href="#acpi-20-support">§</a>ACPI 2.0+ Support</h4>
+<ul>
+<li><strong>XSDP Structure</strong>: Extended format with length field</li>
+<li><strong>Address Space</strong>: 64-bit physical addresses supported</li>
+<li><strong>XSDT</strong>: Extended System Description Table with 64-bit pointers</li>
+<li><strong>Extended Checksum</strong>: Checksum covers entire table structure</li>
+</ul>
+<h3 id="discovery-process"><a class="doc-anchor" href="#discovery-process">§</a>Discovery Process</h3>
+<ol>
+<li><strong>Firmware Handoff</strong>: UEFI provides RSDP address in configuration table</li>
+<li><strong>Signature Validation</strong>: Verify “RSD PTR “ signature at provided address</li>
+<li><strong>Checksum Verification</strong>: Validate table integrity via checksum</li>
+<li><strong>Version Detection</strong>: Determine ACPI 1.0 vs 2.0+ based on revision field</li>
+<li><strong>Address Extraction</strong>: Extract RSDT/XSDT addresses for further parsing</li>
+</ol>
+<h3 id="memory-management-integration"><a class="doc-anchor" href="#memory-management-integration">§</a>Memory Management Integration</h3>
+<p>The crate uses the <a href="trait.PhysMapRo.html" title="trait kernel_acpi::PhysMapRo"><code>PhysMapRo</code></a> trait to abstract physical memory access,
+enabling integration with various memory management strategies:</p>
+<ul>
+<li><strong>Identity Mapping</strong>: Direct physical-to-virtual mapping</li>
+<li><strong>Higher Half Direct Mapping (HHDM)</strong>: Fixed offset translation</li>
+<li><strong>Temporary Mapping</strong>: Map-use-unmap pattern for limited virtual space</li>
+<li><strong>UEFI Runtime Services</strong>: Use firmware-provided mapping functions</li>
+</ul>
+<h3 id="safety-considerations"><a class="doc-anchor" href="#safety-considerations">§</a>Safety Considerations</h3>
+<p>ACPI parsing involves extensive unsafe operations due to:</p>
+<h4 id="firmware-interface"><a class="doc-anchor" href="#firmware-interface">§</a>Firmware Interface</h4>
+<ul>
+<li><strong>Untrusted Data</strong>: Firmware-provided addresses and structures</li>
+<li><strong>Memory Layout</strong>: Platform-specific physical memory organization</li>
+<li><strong>Packed Structures</strong>: Direct hardware structure interpretation</li>
+</ul>
+<h4 id="validation-strategy"><a class="doc-anchor" href="#validation-strategy">§</a>Validation Strategy</h4>
+<ul>
+<li><strong>Signature Checking</strong>: Verify expected magic bytes in all structures</li>
+<li><strong>Checksum Validation</strong>: Mathematical integrity verification</li>
+<li><strong>Bounds Checking</strong>: Validate structure sizes and field ranges</li>
+<li><strong>Defensive Programming</strong>: Assume firmware data may be malformed</li>
+</ul>
+<h3 id="usage-patterns"><a class="doc-anchor" href="#usage-patterns">§</a>Usage Patterns</h3><h4 id="basic-rsdp-discovery"><a class="doc-anchor" href="#basic-rsdp-discovery">§</a>Basic RSDP Discovery</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>kernel_acpi::{PhysMapRo, rsdp::AcpiRoots};
+
+<span class="kw">struct </span>MyMapper;
+<span class="kw">impl </span>PhysMapRo <span class="kw">for </span>MyMapper {
+    <span class="kw">unsafe fn </span>map_ro&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, paddr: u64, len: usize) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8] {
+        <span class="comment">// Implementation-specific mapping
+    </span>}
+}
+
+<span class="kw">let </span>mapper = MyMapper;
+<span class="kw">let </span>rsdp_addr = <span class="number">0x12345000</span>; <span class="comment">// From UEFI configuration table
+
+</span><span class="kw">if let </span><span class="prelude-val">Some</span>(roots) = <span class="kw">unsafe </span>{ AcpiRoots::parse(<span class="kw-2">&amp;</span>mapper, rsdp_addr) } {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(xsdt) = roots.xsdt_addr {
+        <span class="macro">println!</span>(<span class="string">"ACPI 2.0+ detected, XSDT at 0x{:x}"</span>, xsdt);
+    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rsdt) = roots.rsdt_addr {
+        <span class="macro">println!</span>(<span class="string">"ACPI 1.0 detected, RSDT at 0x{:x}"</span>, rsdt);
+    }
+}</code></pre></div><h3 id="future-extensions"><a class="doc-anchor" href="#future-extensions">§</a>Future Extensions</h3>
+<p>This foundational crate enables future ACPI functionality:</p>
+<ul>
+<li><strong>Table Enumeration</strong>: Parse RSDT/XSDT to discover available tables</li>
+<li><strong>Specific Parsers</strong>: FADT, MADT, MCFG, and other standard tables</li>
+<li><strong>AML Interpreter</strong>: ACPI Machine Language execution engine</li>
+<li><strong>Power Management</strong>: ACPI power state and thermal management</li>
+<li><strong>Device Enumeration</strong>: PCI Express configuration and device discovery</li>
+</ul>
+<h3 id="standards-compliance"><a class="doc-anchor" href="#standards-compliance">§</a>Standards Compliance</h3>
+<p>Implementation follows the ACPI specification:</p>
+<ul>
+<li><strong>ACPI 1.0</strong>: Legacy 32-bit support for older systems</li>
+<li><strong>ACPI 2.0+</strong>: Modern 64-bit support with extended features</li>
+<li><strong>UEFI Integration</strong>: Proper discovery via UEFI configuration tables</li>
+<li><strong>Checksum Algorithms</strong>: Specification-compliant validation methods</li>
+</ul>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="rsdp/index.html" title="mod kernel_acpi::rsdp">rsdp</a></dt><dd>RSDP/XSDP (Root/Extended System Description Pointer)</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.PhysMapRo.html" title="trait kernel_acpi::PhysMapRo">Phys<wbr>MapRo</a></dt><dd>Map a physical region and return a <em>read-only</em> byte slice for its contents.
+You provide the implementation (identity map, kmap, etc.).</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.sum.html" title="fn kernel_acpi::sum">sum</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt></dl></section></div></main></body></html>

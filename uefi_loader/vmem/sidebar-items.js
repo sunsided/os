@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["KernelPageTableError"],"fn":["align_up_u64","create_kernel_pagetables"],"struct":["BsFrameAlloc","LoaderPhysMapper"]};

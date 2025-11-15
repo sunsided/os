@@ -1,0 +1,55 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="CPUID Instruction Interface"><title>kernel::cpuid - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="kernel" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module cpuid</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../kernel/index.html">kernel</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module cpuid</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#cpuid-instruction-interface" title="CPUID Instruction Interface">CPUID Instruction Interface</a><ul><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#architecture" title="Architecture">Architecture</a></li><li><a href="#key-features" title="Key Features">Key Features</a></li><li><a href="#usage-patterns" title="Usage Patterns">Usage Patterns</a></li><li><a href="#low-level-interface" title="Low-Level Interface">Low-Level Interface</a></li><li><a href="#safety" title="Safety">Safety</a></li></ul></li></ul><h3><a href="#reexports">Module Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate kernel</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">kernel</a></div><h1>Module <span>cpuid</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/kernel/cpuid.rs.html#1-126">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="cpuid-instruction-interface"><a class="doc-anchor" href="#cpuid-instruction-interface">§</a>CPUID Instruction Interface</h2>
+<p>This module provides a comprehensive interface to the x86-64 CPUID instruction,
+enabling the kernel to query processor capabilities, features, and identification
+information. It offers both low-level raw access and high-level typed wrappers
+for specific CPUID leaves.</p>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>The CPUID instruction returns processor information in the EAX, EBX, ECX, and EDX
+registers based on the input leaf (EAX) and subleaf (ECX) values. This module
+structures that information into safe, typed interfaces that make CPU feature
+detection and processor identification straightforward.</p>
+<h3 id="architecture"><a class="doc-anchor" href="#architecture">§</a>Architecture</h3>
+<p>The module is organized around specific CPUID leaves:</p>
+<ul>
+<li><strong>Leaf 00H</strong> (<a href="ranges/struct.CpuidRanges.html" title="struct kernel::cpuid::ranges::CpuidRanges"><code>CpuidRanges</code></a>): Basic CPU information, vendor identification,
+and maximum supported leaf numbers for both basic and extended functions</li>
+<li><strong>Leaf 01H</strong> (<a href="leaf01h/struct.Leaf01h.html" title="struct kernel::cpuid::leaf01h::Leaf01h"><code>Leaf01h</code></a>): Core feature flags, family/model/stepping info,
+and processor capabilities (SSE, AVX, x2APIC, etc.)</li>
+<li><strong>Leaf 15H</strong> (<a href="leaf15h/struct.Leaf15h.html" title="struct kernel::cpuid::leaf15h::Leaf15h"><code>Leaf15h</code></a>): TSC (Time Stamp Counter) frequency information
+with crystal oscillator frequency and ratio calculations</li>
+<li><strong>Leaf 16H</strong> (<a href="leaf16h/struct.Leaf16.html" title="struct kernel::cpuid::leaf16h::Leaf16"><code>Leaf16</code></a>): Processor frequency information including base,
+maximum, and bus frequencies (Intel advisory data)</li>
+</ul>
+<h3 id="key-features"><a class="doc-anchor" href="#key-features">§</a>Key Features</h3>
+<ul>
+<li><strong>Vendor Detection</strong>: Identifies Intel, AMD, and other CPU manufacturers</li>
+<li><strong>Feature Flags</strong>: Comprehensive access to CPU capability bits (SSE, AVX, etc.)</li>
+<li><strong>Processor Info</strong>: Family, model, stepping identification for CPU variants</li>
+<li><strong>Frequency Data</strong>: TSC and processor frequency information for timing</li>
+<li><strong>x2APIC Support</strong>: Detection of Extended APIC capabilities</li>
+<li><strong>Safe Wrappers</strong>: Type-safe interfaces with automatic leaf availability checks</li>
+</ul>
+<h3 id="usage-patterns"><a class="doc-anchor" href="#usage-patterns">§</a>Usage Patterns</h3><h4 id="basic-cpu-information"><a class="doc-anchor" href="#basic-cpu-information">§</a>Basic CPU Information</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>ranges = <span class="kw">unsafe </span>{ CpuidRanges::read() };
+<span class="macro">println!</span>(<span class="string">"CPU Vendor: {}"</span>, ranges.vendor.as_str());</code></pre></div><h4 id="feature-detection"><a class="doc-anchor" href="#feature-detection">§</a>Feature Detection</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>leaf1 = <span class="kw">unsafe </span>{ Leaf01h::new() };
+<span class="kw">if </span>leaf1.has_x2apic() {
+    <span class="comment">// x2APIC mode available
+</span>}</code></pre></div><h4 id="frequency-information"><a class="doc-anchor" href="#frequency-information">§</a>Frequency Information</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">if let </span><span class="prelude-val">Some</span>(leaf15) = <span class="kw">unsafe </span>{ Leaf15h::read(<span class="kw-2">&amp;</span>ranges) } {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(tsc_hz) = leaf15.tsc_hz() {
+        <span class="comment">// TSC frequency determined
+    </span>}
+}</code></pre></div><h3 id="low-level-interface"><a class="doc-anchor" href="#low-level-interface">§</a>Low-Level Interface</h3>
+<p>The <a href="fn.cpuid.html" title="fn kernel::cpuid::cpuid"><code>cpuid</code></a> function provides direct access to the CPUID instruction:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>result = <span class="kw">unsafe </span>{ cpuid(leaf, subleaf) };
+<span class="comment">// Access result.eax, result.ebx, result.ecx, result.edx</span></code></pre></div><h3 id="safety"><a class="doc-anchor" href="#safety">§</a>Safety</h3>
+<p>All CPUID operations are marked <code>unsafe</code> because they:</p>
+<ul>
+<li>Require execution at privilege level 0 (kernel mode)</li>
+<li>Assume CPUID instruction availability on the target processor</li>
+<li>May return invalid data if called with unsupported leaf values</li>
+</ul>
+<p>Higher-level wrappers provide safer interfaces with automatic capability checking.</p>
+</div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.Leaf01h"><code>pub use leaf01h::<a class="struct" href="leaf01h/struct.Leaf01h.html" title="struct kernel::cpuid::leaf01h::Leaf01h">Leaf01h</a>;</code></dt><dt id="reexport.Leaf15h"><code>pub use leaf15h::<a class="struct" href="leaf15h/struct.Leaf15h.html" title="struct kernel::cpuid::leaf15h::Leaf15h">Leaf15h</a>;</code></dt><dt id="reexport.Leaf16"><code>pub use leaf16h::<a class="struct" href="leaf16h/struct.Leaf16.html" title="struct kernel::cpuid::leaf16h::Leaf16">Leaf16</a>;</code></dt><dt id="reexport.CpuidRanges"><code>pub use ranges::<a class="struct" href="ranges/struct.CpuidRanges.html" title="struct kernel::cpuid::ranges::CpuidRanges">CpuidRanges</a>;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="leaf01h/index.html" title="mod kernel::cpuid::leaf01h">leaf01h</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="leaf15h/index.html" title="mod kernel::cpuid::leaf15h">leaf15h</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="leaf16h/index.html" title="mod kernel::cpuid::leaf16h">leaf16h</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="ranges/index.html" title="mod kernel::cpuid::ranges">ranges</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.CpuidResult.html" title="struct kernel::cpuid::CpuidResult">Cpuid<wbr>Result</a></dt></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.cpuid.html" title="fn kernel::cpuid::cpuid">cpuid</a><sup title="unsafe function">⚠</sup></dt><dd>Execute CPUID with the given leaf and subleaf.</dd></dl></section></div></main></body></html>

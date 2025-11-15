@@ -1,0 +1,183 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="UEFI Bootloader for Higher-Half x86-64 Kernel"><title>uefi_loader - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="uefi_loader" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate uefi_loader</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../uefi_loader/index.html">uefi_<wbr>loader</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#uefi-bootloader-for-higher-half-x86-64-kernel" title="UEFI Bootloader for Higher-Half x86-64 Kernel">UEFI Bootloader for Higher-Half x86-64 Kernel</a><ul><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#boot-process-architecture" title="Boot Process Architecture">Boot Process Architecture</a></li><li><a href="#key-components" title="Key Components">Key Components</a></li><li><a href="#virtual-memory-layout" title="Virtual Memory Layout">Virtual Memory Layout</a></li><li><a href="#elf-loading-strategy" title="ELF Loading Strategy">ELF Loading Strategy</a></li><li><a href="#uefi-integration" title="UEFI Integration">UEFI Integration</a></li><li><a href="#trampoline-execution" title="Trampoline Execution">Trampoline Execution</a></li><li><a href="#error-handling" title="Error Handling">Error Handling</a></li><li><a href="#security-considerations" title="Security Considerations">Security Considerations</a></li><li><a href="#development-and-debugging" title="Development and Debugging">Development and Debugging</a></li><li><a href="#standards-compliance" title="Standards Compliance">Standards Compliance</a></li></ul></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#constants" title="Constants">Constants</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>uefi_<wbr>loader</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/uefi_loader/main.rs.html#1-430">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="uefi-bootloader-for-higher-half-x86-64-kernel"><a class="doc-anchor" href="#uefi-bootloader-for-higher-half-x86-64-kernel">§</a>UEFI Bootloader for Higher-Half x86-64 Kernel</h2>
+<p>This UEFI application serves as the bootloader for the operating system kernel,
+handling the complex transition from UEFI firmware environment to a fully
+operational higher-half x86-64 kernel. It orchestrates ELF loading, memory
+management setup, and the critical handoff to kernel execution.</p>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>Modern operating systems require sophisticated bootloaders that can:</p>
+<ul>
+<li>Load and parse complex executable formats</li>
+<li>Configure virtual memory management</li>
+<li>Gather system information from firmware</li>
+<li>Safely transition between execution environments</li>
+</ul>
+<p>This UEFI loader implements all these capabilities while maintaining compatibility
+with the UEFI specification and providing a robust foundation for kernel startup.</p>
+<h3 id="boot-process-architecture"><a class="doc-anchor" href="#boot-process-architecture">§</a>Boot Process Architecture</h3>
+<p>The bootloader follows a carefully orchestrated sequence to transition from
+UEFI firmware control to autonomous kernel operation:</p>
+<div class="example-wrap"><pre class="language-text"><code>UEFI Firmware Boot
+        ↓
+┌─────────────────────────────────────────────┐
+│              UEFI Loader                    │
+├─────────────────────────────────────────────┤
+│  1. Environment Setup                       │
+│     • Initialize logging and allocator      │
+│     • Configure UEFI boot services          │
+│  2. Kernel Loading                          │
+│     • Parse kernel.elf file                 │
+│     • Load PT_LOAD segments to memory       │
+│     • Resolve higher-half addresses         │
+│  3. System Discovery                        │
+│     • Obtain framebuffer configuration      │
+│     • Locate ACPI RSDP                      │
+│     • Gather memory map information         │
+│  4. Virtual Memory Setup                    │
+│     • Create kernel page tables             │
+│     • Map kernel segments at higher-half    │
+│     • Establish HHDM mapping                │
+│     • Set up trampoline stack               │
+│  5. Environment Transition                  │
+│     • Exit UEFI boot services               │
+│     • Enable memory protection features     │
+│     • Switch to kernel page tables          │
+│  6. Kernel Handoff                          │
+│     • Jump to kernel entry point            │
+│     • Transfer boot information             │
+└─────────────────────────────────────────────┘
+        ↓
+Kernel Execution (Higher-Half)</code></pre></div><h3 id="key-components"><a class="doc-anchor" href="#key-components">§</a>Key Components</h3><h4 id="elf-loading-and-processing"><a class="doc-anchor" href="#elf-loading-and-processing">§</a>ELF Loading and Processing</h4>
+<ul>
+<li><strong>File System Access</strong>: Load <code>kernel.elf</code> from UEFI ESP filesystem</li>
+<li><strong>ELF64 Parsing</strong>: Parse program headers and extract loadable segments</li>
+<li><strong>Higher-Half Mapping</strong>: Resolve virtual addresses to higher-half locations</li>
+<li><strong>Physical Placement</strong>: Load segments at appropriate physical addresses</li>
+<li><strong>Entry Point Resolution</strong>: Extract kernel entry point for execution transfer</li>
+</ul>
+<h4 id="memory-management-setup"><a class="doc-anchor" href="#memory-management-setup">§</a>Memory Management Setup</h4>
+<ul>
+<li><strong>Page Table Creation</strong>: Build complete x86-64 page table hierarchy</li>
+<li><strong>Kernel Segment Mapping</strong>: Map all kernel segments with correct permissions</li>
+<li><strong>HHDM Establishment</strong>: Create Higher Half Direct Mapping for physical access</li>
+<li><strong>Identity Mapping</strong>: Maintain low-memory identity map for transition code</li>
+<li><strong>Protection Features</strong>: Enable NX-bit, write protection, and global pages</li>
+</ul>
+<h4 id="system-information-gathering"><a class="doc-anchor" href="#system-information-gathering">§</a>System Information Gathering</h4>
+<ul>
+<li><strong>UEFI Memory Map</strong>: Capture complete physical memory layout</li>
+<li><strong>Graphics Configuration</strong>: Obtain GOP framebuffer details</li>
+<li><strong>ACPI Discovery</strong>: Locate RSDP for hardware enumeration</li>
+<li><strong>Boot Information</strong>: Package data for kernel consumption</li>
+</ul>
+<h4 id="transition-management"><a class="doc-anchor" href="#transition-management">§</a>Transition Management</h4>
+<ul>
+<li><strong>Boot Services Exit</strong>: Safely terminate UEFI boot services</li>
+<li><strong>Trampoline Execution</strong>: Execute page table switch code</li>
+<li><strong>Stack Setup</strong>: Provide kernel with initial execution stack</li>
+<li><strong>Control Transfer</strong>: Jump to kernel entry point with proper ABI</li>
+</ul>
+<h3 id="virtual-memory-layout"><a class="doc-anchor" href="#virtual-memory-layout">§</a>Virtual Memory Layout</h3>
+<p>The loader establishes a sophisticated virtual memory layout for the kernel:</p>
+<div class="example-wrap"><pre class="language-text"><code>Virtual Address Space (Post-Transition):
+
+0x0000_0000_0000_0000 ┌────────────────────────────────┐
+                      │     Identity Mapped Region     │
+                      │   (UEFI transition code)       │ 2 MiB
+0x0000_0000_0020_0000 ├────────────────────────────────┤
+                      │        Unmapped Space          │
+                      │                                │
+HHDM_BASE             ├────────────────────────────────┤ 0xffff_8880_0000_0000
+                      │   Higher Half Direct Mapping   │
+                      │    (All Physical Memory)       │
+KERNEL_BASE           ├────────────────────────────────┤ 0xffff_ffff_8000_0000
+                      │       Kernel Text (.text)      │
+                      │       Kernel Data (.data)      │
+                      │       Kernel BSS  (.bss)       │
+                      │       Kernel Stacks            │
+0xFFFF_FFFF_FFFF_FFFF └────────────────────────────────┘</code></pre></div><h4 id="memory-protection-attributes"><a class="doc-anchor" href="#memory-protection-attributes">§</a>Memory Protection Attributes</h4>
+<ul>
+<li><strong>Kernel Code</strong>: Read + Execute, Global, Supervisor-only</li>
+<li><strong>Kernel Data</strong>: Read + Write + NX, Global, Supervisor-only</li>
+<li><strong>HHDM Region</strong>: Read + Write + NX, Global, Supervisor-only</li>
+<li><strong>Identity Map</strong>: Read + Execute, Global (temporary)</li>
+</ul>
+<h3 id="elf-loading-strategy"><a class="doc-anchor" href="#elf-loading-strategy">§</a>ELF Loading Strategy</h3>
+<p>The loader implements sophisticated ELF64 handling:</p>
+<h4 id="load-address-calculation"><a class="doc-anchor" href="#load-address-calculation">§</a>Load Address Calculation</h4><div class="example-wrap"><pre class="language-text"><code>ELF Virtual Address (VMA) → Physical Load Address (LMA)
+
+For higher-half kernel:
+LMA = VMA - KERNEL_BASE
+Physical Address = PHYS_LOAD + LMA
+
+Example:
+VMA = 0xffff_ffff_8010_0000 (kernel text)
+LMA = 0x0010_0000
+Physical = 0x0010_0000 + 0x0010_0000 = 0x0010_0000</code></pre></div><h4 id="segment-processing"><a class="doc-anchor" href="#segment-processing">§</a>Segment Processing</h4>
+<ol>
+<li><strong>Parse <code>PT_LOAD</code> Headers</strong>: Extract loadable segment information</li>
+<li><strong>Calculate Addresses</strong>: Resolve virtual-to-physical mappings</li>
+<li><strong>Allocate Memory</strong>: Reserve physical pages for segment content</li>
+<li><strong>Copy Content</strong>: Transfer ELF data to allocated memory</li>
+<li><strong>Zero BSS</strong>: Initialize uninitialized data sections</li>
+</ol>
+<h3 id="uefi-integration"><a class="doc-anchor" href="#uefi-integration">§</a>UEFI Integration</h3><h4 id="boot-services-utilization"><a class="doc-anchor" href="#boot-services-utilization">§</a>Boot Services Utilization</h4>
+<ul>
+<li><strong>Memory Allocation</strong>: Use UEFI allocator for temporary structures</li>
+<li><strong>File Access</strong>: Read kernel image from ESP filesystem</li>
+<li><strong>Graphics Setup</strong>: Configure GOP framebuffer for kernel graphics</li>
+<li><strong>Protocol Access</strong>: Interact with UEFI configuration tables</li>
+</ul>
+<h4 id="exit-strategy"><a class="doc-anchor" href="#exit-strategy">§</a>Exit Strategy</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Critical sequence for UEFI exit
+</span><span class="number">1. </span>Package all required information
+<span class="number">2. </span>Call ExitBootServices()
+<span class="number">3. </span>UEFI services now unavailable
+<span class="number">4. </span>Switch to kernel page tables
+<span class="number">5. </span>Jump to kernel entry point</code></pre></div><h3 id="trampoline-execution"><a class="doc-anchor" href="#trampoline-execution">§</a>Trampoline Execution</h3>
+<p>The transition to kernel requires careful stack and page table management:</p>
+<h4 id="assembly-transition-code"><a class="doc-anchor" href="#assembly-transition-code">§</a>Assembly Transition Code</h4><div class="example-wrap"><pre class="language-asm"><code>cli                    ; Disable interrupts
+mov cr3, new_pml4      ; Switch page tables
+mov rsp, new_stack     ; Set kernel stack
+jmp kernel_entry       ; Transfer control</code></pre></div><h4 id="stack-management"><a class="doc-anchor" href="#stack-management">§</a>Stack Management</h4>
+<ul>
+<li><strong>Trampoline Stack</strong>: Temporary stack for page table switch</li>
+<li><strong>Guard Pages</strong>: Protect against stack overflow</li>
+<li><strong>Alignment</strong>: Maintain 16-byte stack alignment for ABI</li>
+<li><strong>Identity Mapping</strong>: Ensure trampoline code remains executable</li>
+</ul>
+<h3 id="error-handling"><a class="doc-anchor" href="#error-handling">§</a>Error Handling</h3>
+<p>The loader implements comprehensive error handling:</p>
+<ul>
+<li><strong>ELF Validation</strong>: Verify file format and architecture compatibility</li>
+<li><strong>Memory Allocation</strong>: Handle allocation failures gracefully</li>
+<li><strong>Resource Cleanup</strong>: Ensure proper cleanup on failure paths</li>
+<li><strong>Status Reporting</strong>: Provide meaningful error codes to firmware</li>
+</ul>
+<h3 id="security-considerations"><a class="doc-anchor" href="#security-considerations">§</a>Security Considerations</h3><h4 id="memory-protection"><a class="doc-anchor" href="#memory-protection">§</a>Memory Protection</h4>
+<ul>
+<li><strong>NX-bit Enforcement</strong>: Prevent execution of data pages</li>
+<li><strong>Write Protection</strong>: Enable supervisor write protection</li>
+<li><strong>Privilege Separation</strong>: Establish kernel/user privilege levels</li>
+</ul>
+<h4 id="input-validation"><a class="doc-anchor" href="#input-validation">§</a>Input Validation</h4>
+<ul>
+<li><strong>ELF Parsing</strong>: Validate all ELF structures before use</li>
+<li><strong>Address Bounds</strong>: Verify all memory addresses are valid</li>
+<li><strong>Size Limits</strong>: Prevent integer overflow in size calculations</li>
+</ul>
+<h3 id="development-and-debugging"><a class="doc-anchor" href="#development-and-debugging">§</a>Development and Debugging</h3>
+<p>The loader integrates with QEMU debugging facilities:</p>
+<ul>
+<li><strong>Debug Logging</strong>: Comprehensive trace output for development</li>
+<li><strong>Memory Layout Tracing</strong>: Detailed memory allocation information</li>
+<li><strong>Boot Information</strong>: Complete system state at kernel handoff</li>
+<li><strong>Error Diagnostics</strong>: Detailed error reporting for troubleshooting</li>
+</ul>
+<h3 id="standards-compliance"><a class="doc-anchor" href="#standards-compliance">§</a>Standards Compliance</h3>
+<ul>
+<li><strong>UEFI Specification</strong>: Full compliance with UEFI 2.x requirements</li>
+<li><strong>ELF64 Standard</strong>: Correct interpretation of ELF file format</li>
+<li><strong>x86-64 ABI</strong>: Proper calling convention and stack management</li>
+<li><strong>PE/COFF Format</strong>: UEFI application binary format compliance</li>
+</ul>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="elf/index.html" title="mod uefi_loader::elf">elf</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>ELF file handling</dd><dt><a class="mod" href="file_system/index.html" title="mod uefi_loader::file_system">file_<wbr>system</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="framebuffer/index.html" title="mod uefi_loader::framebuffer">framebuffer</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>GOP for the Kernel</dd><dt><a class="mod" href="logger/index.html" title="mod uefi_loader::logger">logger</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="memory/index.html" title="mod uefi_loader::memory">memory</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="rsdp/index.html" title="mod uefi_loader::rsdp">rsdp</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Root/Extended System Description Pointer</dd><dt><a class="mod" href="tracing/index.html" title="mod uefi_loader::tracing">tracing</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Trace output</dd><dt><a class="mod" href="uefi_mmap/index.html" title="mod uefi_loader::uefi_mmap">uefi_<wbr>mmap</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>UEFI Memory Map Utilities</dd><dt><a class="mod" href="vmem/index.html" title="mod uefi_loader::vmem">vmem</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Virtual Memory Setup for Kernel loading (new typed API)</dd></dl><h2 id="constants" class="section-header">Constants<a href="#constants" class="anchor">§</a></h2><dl class="item-table"><dt><a class="constant" href="constant.TRAMPOLINE_STACK_SIZE_BYTES.html" title="constant uefi_loader::TRAMPOLINE_STACK_SIZE_BYTES">TRAMPOLINE_<wbr>STACK_<wbr>SIZE_<wbr>BYTES</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.efi_main.html" title="fn uefi_loader::efi_main">efi_<wbr>main</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="fn" href="fn.enable_wp_nxe_pge.html" title="fn uefi_loader::enable_wp_nxe_pge">enable_<wbr>wp_<wbr>nxe_<wbr>pge</a><span title="Restricted Visibility">&nbsp;🔒</span> <sup title="unsafe function">⚠</sup></dt><dt><a class="fn" href="fn.switch_to_kernel.html" title="fn uefi_loader::switch_to_kernel">switch_<wbr>to_<wbr>kernel</a><span title="Restricted Visibility">&nbsp;🔒</span> <sup title="unsafe function">⚠</sup></dt><dd>Enter the kernel via a tiny trampoline.</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.BootInfoVirtualAddress.html" title="type uefi_loader::BootInfoVirtualAddress">Boot<wbr>Info<wbr>Virtual<wbr>Address</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="type" href="type.KernelVirtualAddress.html" title="type uefi_loader::KernelVirtualAddress">Kernel<wbr>Virtual<wbr>Address</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="type" href="type.PageTablePhysicalAddress.html" title="type uefi_loader::PageTablePhysicalAddress">Page<wbr>Table<wbr>Physical<wbr>Address</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="type" href="type.TrampolineStackVirtualAddress.html" title="type uefi_loader::TrampolineStackVirtualAddress">Trampoline<wbr>Stack<wbr>Virtual<wbr>Address</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt></dl></section></div></main></body></html>

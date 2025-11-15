@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["SYSCALL_VECTOR"],"fn":["syscall_int80_handler","syscall_int80_rust"],"struct":["TrapFrame"],"trait":["SyscallInterrupt"]};

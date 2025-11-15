@@ -1,0 +1,44 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Naked jump pad: set RSP and jump; no Rust frame, no locals."><title>stage_one_switch_to_stack_and_enter in kernel::init - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="kernel" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc fn"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">stage_one_switch_to_stack_and_enter</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../kernel/index.html">kernel</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">stage_<wbr>one_<wbr>switch_<wbr>to_<wbr>stack_<wbr>and_<wbr>enter</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#safety" title="Safety">Safety</a><ul><li><a href="#calling-convention" title="Calling convention">Calling convention</a></li><li><a href="#operation" title="Operation">Operation</a></li><li><a href="#notes" title="Notes">Notes</a></li><li><a href="#invariants" title="Invariants">Invariants</a></li></ul></li></ul></section><div id="rustdoc-modnav"><h2><a href="index.html">In kernel::<wbr>init</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">kernel</a>::<wbr><a href="index.html">init</a></div><h1>Function <span class="fn">stage_<wbr>one_<wbr>switch_<wbr>to_<wbr>stack_<wbr>and_<wbr>enter</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/kernel/init.rs.html#348-362">Source</a> </span></div><pre class="rust item-decl"><code>unsafe extern &quot;C&quot; fn stage_one_switch_to_stack_and_enter(
+    _top: <a class="struct" href="../../kernel_memory_addresses/virtual_address/struct.VirtualAddress.html" title="struct kernel_memory_addresses::virtual_address::VirtualAddress">VirtualAddress</a>,
+    _entry: extern &quot;C&quot; <a class="primitive" href="https://doc.rust-lang.org/nightly/core/primitive.fn.html">fn</a>(<a class="primitive" href="https://doc.rust-lang.org/nightly/core/primitive.pointer.html">*const </a><a class="struct" href="../../kernel_info/boot/struct.KernelBootInfo.html" title="struct kernel_info::boot::KernelBootInfo">KernelBootInfo</a>, <a class="struct" href="../../kernel_memory_addresses/virtual_address/struct.VirtualAddress.html" title="struct kernel_memory_addresses::virtual_address::VirtualAddress">VirtualAddress</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/core/primitive.never.html">!</a>,
+    _boot_info: <a class="primitive" href="https://doc.rust-lang.org/nightly/core/primitive.pointer.html">*const </a><a class="struct" href="../../kernel_info/boot/struct.KernelBootInfo.html" title="struct kernel_info::boot::KernelBootInfo">KernelBootInfo</a>,
+) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/core/primitive.never.html">!</a></code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Naked jump pad: set RSP and jump; no Rust frame, no locals.</p>
+<h2 id="safety"><a class="doc-anchor" href="#safety">§</a>Safety</h2>
+<p>This is a <strong>naked jump pad</strong> that switches the active stack pointer (<code>RSP</code>)
+to a newly-mapped kernel stack and immediately jumps into another function.
+It performs no prologue or epilogue and must never return.</p>
+<h3 id="calling-convention"><a class="doc-anchor" href="#calling-convention">§</a>Calling convention</h3>
+<p>This function uses the System V AMD64 (Unix x86-64) C ABI.
+The caller must pass its arguments exactly as follows:</p>
+<div><table><thead><tr><th>Argument</th><th>Purpose</th><th>Register</th></tr></thead><tbody>
+<tr><td><code>top</code></td><td>New stack top (RSP target)</td><td><code>RDI</code></td></tr>
+<tr><td><code>entry</code></td><td>Function pointer to jump to</td><td><code>RSI</code></td></tr>
+<tr><td><code>boot_info</code></td><td>Pointer forwarded to <code>entry</code></td><td><code>RDX</code></td></tr>
+</tbody></table>
+</div>
+<p>The caller places these values in the given registers before the jump.
+No arguments are passed on the stack.</p>
+<h3 id="operation"><a class="doc-anchor" href="#operation">§</a>Operation</h3><div class="example-wrap"><pre class="language-text"><code>mov rsp, rdi      ; switch to new stack
+push 0            ; ensure RSP%16 == 8 for next call per SysV ABI
+mov  rdi, rdx     ; move boot_info into first argument register
+jmp  rsi          ; tail-jump to entry (never returns)</code></pre></div>
+<p>The <code>push 0</code> maintains correct 16-byte stack alignment expected at function
+entry. The trampoline then tail-jumps to <code>entry</code>, so control never returns
+to this function.</p>
+<h3 id="notes"><a class="doc-anchor" href="#notes">§</a>Notes</h3>
+<ul>
+<li>Do <strong>not</strong> mark this with <code>nostack</code>; it <em>does</em> modify <code>RSP</code>.</li>
+<li>The red-zone must be disabled for the kernel target (otherwise writes
+below <code>RSP</code> may corrupt memory).</li>
+<li>Interrupts should be disabled while switching stacks.</li>
+<li>Because this function is <code>#[naked]</code>, you <strong>must not</strong> use any Rust locals
+or reference its parameters in Rust code — only inline assembly may appear
+in the body.</li>
+</ul>
+<h3 id="invariants"><a class="doc-anchor" href="#invariants">§</a>Invariants</h3>
+<ul>
+<li>The target stack (<code>top</code>) must be fully mapped and writable.</li>
+<li><code>entry</code> must be a valid, non-returning function adhering to the same ABI.</li>
+<li>On success, control never returns; on failure, behavior is undefined.</li>
+</ul>
+</div></details></section></div></main></body></html>

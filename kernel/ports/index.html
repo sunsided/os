@@ -1,0 +1,94 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="x86 I/O Port Access"><title>kernel::ports - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="kernel" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module ports</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../kernel/index.html">kernel</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module ports</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#x86-io-port-access" title="x86 I/O Port Access">x86 I/O Port Access</a><ul><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#architecture-details" title="Architecture Details">Architecture Details</a></li><li><a href="#available-operations" title="Available Operations">Available Operations</a></li><li><a href="#safety-requirements" title="Safety Requirements">Safety Requirements</a></li><li><a href="#design-philosophy" title="Design Philosophy">Design Philosophy</a></li><li><a href="#future-extensions" title="Future Extensions">Future Extensions</a></li></ul></li></ul><h3><a href="#functions">Module Items</a></h3><ul class="block"><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate kernel</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">kernel</a></div><h1>Module <span>ports</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/kernel/ports.rs.html#1-164">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="x86-io-port-access"><a class="doc-anchor" href="#x86-io-port-access">§</a>x86 I/O Port Access</h2>
+<p>This module provides low-level access to the x86/x86-64 I/O port address space,
+offering safe wrappers around the <code>in</code> and <code>out</code> assembly instructions for
+legacy device communication. It enables kernel drivers to interact with
+hardware that uses port-mapped I/O rather than memory-mapped I/O (MMIO).</p>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>The x86 architecture provides two distinct address spaces for device communication:</p>
+<ul>
+<li><strong>I/O Port Space</strong>: Legacy 16-bit address space (0x0000-0xFFFF) accessed via
+special <code>in</code>/<code>out</code> instructions</li>
+<li><strong>Memory Space</strong>: Normal memory addresses accessed via standard load/store
+instructions (MMIO)</li>
+</ul>
+<p>This module handles the I/O port space, which is primarily used by legacy
+devices and some system controllers that maintain backward compatibility.</p>
+<h3 id="architecture-details"><a class="doc-anchor" href="#architecture-details">§</a>Architecture Details</h3><h4 id="io-port-space-characteristics"><a class="doc-anchor" href="#io-port-space-characteristics">§</a>I/O Port Space Characteristics</h4>
+<ul>
+<li><strong>16-bit Addressing</strong>: Port numbers range from 0x0000 to 0xFFFF</li>
+<li><strong>Separate Address Space</strong>: Completely distinct from physical memory</li>
+<li><strong>Special Instructions</strong>: Requires <code>in</code>/<code>out</code> instructions, not memory loads/stores</li>
+<li><strong>Privilege Controlled</strong>: Access controlled by CPL, IOPL, and I/O permission bitmap</li>
+</ul>
+<h4 id="common-port-ranges"><a class="doc-anchor" href="#common-port-ranges">§</a>Common Port Ranges</h4><div class="example-wrap"><pre class="language-text"><code>0x0000-0x001F   DMA Controllers
+0x0020-0x0021   Programmable Interrupt Controller (PIC) #1
+0x0040-0x0043   Programmable Interval Timer (PIT)
+0x0060-0x0064   Keyboard Controller
+0x0070-0x0071   CMOS/RTC
+0x00A0-0x00A1   PIC #2
+0x00F0-0x00FF   Math Coprocessor
+0x0170-0x0177   Secondary IDE Controller
+0x01F0-0x01F7   Primary IDE Controller
+0x0278-0x027A   Parallel Port #2
+0x02E8-0x02EF   Serial Port #4
+0x02F8-0x02FF   Serial Port #2
+0x0378-0x037A   Parallel Port #1
+0x03E8-0x03EF   Serial Port #3
+0x03F0-0x03F7   Floppy Disk Controller
+0x03F8-0x03FF   Serial Port #1</code></pre></div><h3 id="available-operations"><a class="doc-anchor" href="#available-operations">§</a>Available Operations</h3><h4 id="byte-operations"><a class="doc-anchor" href="#byte-operations">§</a>Byte Operations</h4>
+<ul>
+<li><a href="fn.outb.html" title="fn kernel::ports::outb"><code>outb</code></a> - Write a single byte to an I/O port</li>
+<li><a href="fn.inb.html" title="fn kernel::ports::inb"><code>inb</code></a> - Read a single byte from an I/O port</li>
+</ul>
+<h4 id="usage-example"><a class="doc-anchor" href="#usage-example">§</a>Usage Example</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span><span class="kw">crate</span>::ports::{inb, outb};
+
+<span class="comment">// Read keyboard status (port 0x64)
+</span><span class="kw">let </span>status = <span class="kw">unsafe </span>{ inb(<span class="number">0x64</span>) };
+
+<span class="comment">// Write to serial port (port 0x3F8)
+</span><span class="kw">unsafe </span>{ outb(<span class="number">0x3F8</span>, <span class="string">b'H'</span>) };</code></pre></div><h3 id="safety-requirements"><a class="doc-anchor" href="#safety-requirements">§</a>Safety Requirements</h3>
+<p>All I/O port operations are inherently unsafe due to their direct hardware
+interaction and potential system impact. Callers must ensure:</p>
+<h4 id="privilege-requirements"><a class="doc-anchor" href="#privilege-requirements">§</a>Privilege Requirements</h4>
+<ul>
+<li><strong>Ring 0 Execution</strong>: Most secure when running in kernel mode (CPL 0)</li>
+<li><strong>I/O Permission</strong>: If not in ring 0, IOPL bits or I/O permission bitmap
+must allow access to the specific port</li>
+</ul>
+<h4 id="hardware-safety"><a class="doc-anchor" href="#hardware-safety">§</a>Hardware Safety</h4>
+<ul>
+<li><strong>Correct Port</strong>: Target the intended device register, not arbitrary addresses</li>
+<li><strong>Device Presence</strong>: Ensure the device exists and is properly initialized</li>
+<li><strong>Protocol Compliance</strong>: Follow device-specific communication protocols</li>
+<li><strong>Timing Requirements</strong>: Respect device timing constraints and handshakes</li>
+</ul>
+<h4 id="concurrency-safety"><a class="doc-anchor" href="#concurrency-safety">§</a>Concurrency Safety</h4>
+<ul>
+<li><strong>Mutual Exclusion</strong>: Coordinate with interrupt handlers and other threads</li>
+<li><strong>Atomic Sequences</strong>: Protect multi-step device interactions from interruption</li>
+<li><strong>Driver Coordination</strong>: Ensure only one driver controls each device</li>
+</ul>
+<h4 id="memory-ordering"><a class="doc-anchor" href="#memory-ordering">§</a>Memory Ordering</h4>
+<ul>
+<li><strong>I/O Ordering</strong>: <code>in</code>/<code>out</code> instructions are ordered relative to each other</li>
+<li><strong>Memory Barriers</strong>: Insert appropriate fences when coordinating with MMIO</li>
+<li><strong>Compiler Barriers</strong>: Prevent unwanted optimization of I/O sequences</li>
+</ul>
+<h3 id="design-philosophy"><a class="doc-anchor" href="#design-philosophy">§</a>Design Philosophy</h3>
+<p>This module follows a minimal, explicit approach:</p>
+<ul>
+<li><strong>Thin Wrappers</strong>: Direct exposure of hardware capabilities without abstraction</li>
+<li><strong>Safety Documentation</strong>: Comprehensive safety requirements rather than runtime checks</li>
+<li><strong>Performance Focus</strong>: Zero-overhead inline assembly with optimal instruction selection</li>
+<li><strong>Explicit Unsafe</strong>: All hardware interaction requires explicit acknowledgment of risks</li>
+</ul>
+<h3 id="future-extensions"><a class="doc-anchor" href="#future-extensions">§</a>Future Extensions</h3>
+<p>Additional I/O operations may be added as needed:</p>
+<ul>
+<li>16-bit operations (<code>inw</code>/<code>outw</code>) for word-sized transfers</li>
+<li>32-bit operations (<code>inl</code>/<code>outl</code>) for double-word transfers</li>
+<li>String operations (<code>insb</code>/<code>outsb</code>) for bulk transfers</li>
+<li>I/O delay helpers for timing-sensitive devices</li>
+</ul>
+</div></details><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.inb.html" title="fn kernel::ports::inb">inb</a><sup title="unsafe function">⚠</sup></dt><dd>Read one byte from an I/O port (x86).</dd><dt><a class="fn" href="fn.outb.html" title="fn kernel::ports::outb">outb</a><sup title="unsafe function">⚠</sup></dt><dd>Write one byte to an I/O port (x86).</dd></dl></section></div></main></body></html>

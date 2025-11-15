@@ -1,0 +1,74 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Kernel Panic Handler"><title>kernel::panik - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="kernel" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module panik</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../kernel/index.html">kernel</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module panik</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#kernel-panic-handler" title="Kernel Panic Handler">Kernel Panic Handler</a><ul><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#panic-response-strategy" title="Panic Response Strategy">Panic Response Strategy</a></li><li><a href="#implementation-details" title="Implementation Details">Implementation Details</a></li><li><a href="#design-philosophy" title="Design Philosophy">Design Philosophy</a></li><li><a href="#usage-context" title="Usage Context">Usage Context</a></li><li><a href="#safety-considerations" title="Safety Considerations">Safety Considerations</a></li></ul></li></ul><h3><a href="#functions">Module Items</a></h3><ul class="block"><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate kernel</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">kernel</a></div><h1>Module <span>panik</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/kernel/panik.rs.html#1-115">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="kernel-panic-handler"><a class="doc-anchor" href="#kernel-panic-handler">§</a>Kernel Panic Handler</h2>
+<p>This module provides the kernel’s panic handling infrastructure, implementing
+the required <code>#[panic_handler]</code> function for the <code>no_std</code> environment. When
+unrecoverable errors occur, this module ensures graceful system halt with
+appropriate logging and visual feedback.</p>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>In a <code>no_std</code> kernel environment, Rust requires an explicit panic handler to
+define behavior when <code>panic!()</code> is called or when unrecoverable errors occur.
+This implementation prioritizes clear error reporting and system stability
+over recovery attempts.</p>
+<h3 id="panic-response-strategy"><a class="doc-anchor" href="#panic-response-strategy">§</a>Panic Response Strategy</h3>
+<p>When a panic occurs, the handler performs the following sequence:</p>
+<ol>
+<li><strong>Visual Indication</strong>: Displays ASCII art panic message for immediate recognition</li>
+<li><strong>Error Logging</strong>: Outputs detailed panic information via the logging system</li>
+<li><strong>System Halt</strong>: Enters an infinite loop to prevent further execution</li>
+<li><strong>CPU Relaxation</strong>: Uses <code>spin_loop()</code> to reduce CPU usage during halt</li>
+</ol>
+<h3 id="implementation-details"><a class="doc-anchor" href="#implementation-details">§</a>Implementation Details</h3><h4 id="panic-handler-function"><a class="doc-anchor" href="#panic-handler-function">§</a>Panic Handler Function</h4>
+<p>The <a href="https://doc.rust-lang.org/nightly/core/macro.panic.html" title="macro core::panic"><code>panic!</code></a> function serves as the kernel’s <code>#[panic_handler]</code>, accepting
+a <a href="https://doc.rust-lang.org/nightly/core/panic/panic_info/struct.PanicInfo.html" title="struct core::panic::panic_info::PanicInfo"><code>PanicInfo</code></a> structure containing:</p>
+<ul>
+<li>Panic message and formatting arguments</li>
+<li>Location information (file, line, column) where panic occurred</li>
+<li>Optional payload data from the panic trigger</li>
+</ul>
+<h4 id="visual-feedback"><a class="doc-anchor" href="#visual-feedback">§</a>Visual Feedback</h4>
+<p>The handler displays distinctive ASCII art spelling “PANIK” to provide:</p>
+<ul>
+<li>Immediate visual recognition of panic state</li>
+<li>Clear differentiation from normal kernel output</li>
+<li>Memorable indication for debugging and support</li>
+</ul>
+<h4 id="logging-integration"><a class="doc-anchor" href="#logging-integration">§</a>Logging Integration</h4>
+<p>Panic information is logged through the kernel’s standard logging infrastructure,
+ensuring panic details are:</p>
+<ul>
+<li>Preserved for post-mortem analysis</li>
+<li>Transmitted to debugging interfaces (QEMU, serial, etc.)</li>
+<li>Formatted consistently with other kernel messages</li>
+</ul>
+<h3 id="design-philosophy"><a class="doc-anchor" href="#design-philosophy">§</a>Design Philosophy</h3><h4 id="halt-dont-recover"><a class="doc-anchor" href="#halt-dont-recover">§</a>Halt, Don’t Recover</h4>
+<p>This panic handler follows a “fail-fast” philosophy:</p>
+<ul>
+<li><strong>No Recovery</strong>: Panics indicate unrecoverable errors; attempting recovery
+could lead to data corruption or security vulnerabilities</li>
+<li><strong>Clear Termination</strong>: System halts cleanly rather than continuing in
+undefined state</li>
+<li><strong>Debug Support</strong>: Maximum information preservation for debugging</li>
+</ul>
+<h4 id="resource-efficiency"><a class="doc-anchor" href="#resource-efficiency">§</a>Resource Efficiency</h4>
+<ul>
+<li><strong>Minimal Allocation</strong>: No dynamic memory allocation during panic handling</li>
+<li><strong>CPU Friendly</strong>: Uses <code>spin_loop()</code> hint to reduce CPU utilization</li>
+<li><strong>Simple Logic</strong>: Minimal code path to reduce chance of recursive panics</li>
+</ul>
+<h3 id="usage-context"><a class="doc-anchor" href="#usage-context">§</a>Usage Context</h3>
+<p>This panic handler is automatically invoked when:</p>
+<ul>
+<li>Explicit <code>panic!()</code> macro calls occur</li>
+<li>Assertion failures (<code>assert!</code>, <code>debug_assert!</code>) trigger</li>
+<li>Runtime errors in safe Rust code cause panics</li>
+<li>Bounds checking failures in array/slice access</li>
+<li>Unwrap operations on <code>None</code> or <code>Err</code> values fail</li>
+</ul>
+<h3 id="safety-considerations"><a class="doc-anchor" href="#safety-considerations">§</a>Safety Considerations</h3>
+<p>The panic handler must be extremely robust since it runs during error conditions:</p>
+<ul>
+<li><strong>No Unwinding</strong>: Uses <code>#![no_std]</code> panic=abort strategy</li>
+<li><strong>Minimal Dependencies</strong>: Relies only on core logging infrastructure</li>
+<li><strong>Infinite Loop</strong>: Ensures system never continues after panic</li>
+<li><strong>Interrupt Safe</strong>: Functions correctly regardless of interrupt state</li>
+</ul>
+</div></details><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.panic.html" title="fn kernel::panik::panic">panic</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt></dl></section></div></main></body></html>

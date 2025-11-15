@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["KERNEL_CS","KERNEL_CS_SEL","KERNEL_DS","KERNEL_DS_SEL","TSS_SEL","TSS_SYS_SEL","USER_CS","USER_CS_SEL","USER_DS","USER_DS_SEL"],"fn":["init_gdt_and_tss","load_gdt","load_task_register"],"mod":["descriptors","selectors","tss_desc"],"struct":["DescTablePtr","Gdt","Selectors"],"type":["LinearAddress"]};

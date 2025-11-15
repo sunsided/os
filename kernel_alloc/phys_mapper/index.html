@@ -1,0 +1,33 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="HHDM-based `PhysMapper` for Kernel Virtual Memory"><title>kernel_alloc::phys_mapper - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="kernel_alloc" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module phys_mapper</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../kernel_alloc/index.html">kernel_<wbr>alloc</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module phys_<wbr>mapper</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#hhdm-based-physmapper-for-kernel-virtual-memory" title="HHDM-based `PhysMapper` for Kernel Virtual Memory">HHDM-based <code>PhysMapper</code> for Kernel Virtual Memory</a><ul><li><a href="#why-is-this-needed" title="Why is this needed?">Why is this needed?</a></li><li><a href="#how-does-it-work" title="How does it work?">How does it work?</a></li><li><a href="#example" title="Example">Example</a></li><li><a href="#see-also" title="See also">See also</a></li></ul></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate kernel_<wbr>alloc</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">kernel_alloc</a></div><h1>Module <span>phys_<wbr>mapper</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/kernel_alloc/phys_mapper.rs.html#1-68">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="hhdm-based-physmapper-for-kernel-virtual-memory"><a class="doc-anchor" href="#hhdm-based-physmapper-for-kernel-virtual-memory">§</a>HHDM-based <a href="../../kernel_vmem/trait.PhysMapper.html" title="trait kernel_vmem::PhysMapper"><code>PhysMapper</code></a> for Kernel Virtual Memory</h2>
+<p>This module provides a <a href="../../kernel_vmem/trait.PhysMapper.html" title="trait kernel_vmem::PhysMapper"><code>PhysMapper</code></a> implementation for kernels that use a
+higher-half direct map (HHDM). It allows safe and portable access to physical
+memory by converting a physical address to a usable pointer in the current
+virtual address space.</p>
+<h3 id="why-is-this-needed"><a class="doc-anchor" href="#why-is-this-needed">§</a>Why is this needed?</h3>
+<ul>
+<li>Rust and C code can only dereference virtual addresses, not physical ones.</li>
+<li>When manipulating page tables or other physical memory, you need a way to
+“see” or “touch” a physical address from your code.</li>
+<li>The mapping strategy (HHDM, identity, temporary) may differ between bootloader,
+kernel, and tests, so this trait abstracts over those details.</li>
+</ul>
+<h3 id="how-does-it-work"><a class="doc-anchor" href="#how-does-it-work">§</a>How does it work?</h3>
+<ul>
+<li>With HHDM, every physical address is mapped at <code>HHDM_BASE + pa</code>.</li>
+<li>This implementation simply adds the HHDM base to the physical address and
+returns a pointer.</li>
+</ul>
+<h3 id="example"><a class="doc-anchor" href="#example">§</a>Example</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>kernel_memory_addresses::PhysicalAddress;
+<span class="kw">use </span>kernel_vmem::{page_table::pt::PageTable, PhysMapper};
+<span class="kw">use </span>kernel_alloc::phys_mapper::HhdmPhysMapper;
+<span class="kw">let </span>phys = PhysicalAddress::new(<span class="number">0x1234_0000</span>);
+<span class="kw">let </span>mapper = HhdmPhysMapper;
+<span class="kw">unsafe </span>{
+    <span class="kw">let </span>table: <span class="kw-2">&amp;mut </span>PageTable = mapper.phys_to_mut(phys);
+}</code></pre></div><h3 id="see-also"><a class="doc-anchor" href="#see-also">§</a>See also</h3>
+<ul>
+<li><a href="../../kernel_vmem/trait.PhysMapper.html" title="trait kernel_vmem::PhysMapper"><code>PhysMapper</code></a> trait in <code>kernel-vmem</code></li>
+<li>Your kernel’s memory layout and HHDM configuration</li>
+</ul>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.HhdmPhysMapper.html" title="struct kernel_alloc::phys_mapper::HhdmPhysMapper">Hhdm<wbr>Phys<wbr>Mapper</a></dt><dd><a href="../../kernel_vmem/trait.PhysMapper.html" title="trait kernel_vmem::PhysMapper"><code>PhysMapper</code></a> implementation for kernels with a higher-half direct map (HHDM).</dd></dl></section></div></main></body></html>

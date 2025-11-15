@@ -1,0 +1,68 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Interrupt Descriptor Table (IDT)"><title>kernel::idt - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="kernel" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module idt</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../kernel/index.html">kernel</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module idt</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#interrupt-descriptor-table-idt" title="Interrupt Descriptor Table (IDT)">Interrupt Descriptor Table (IDT)</a><ul><li><a href="#how-the-idt-relates-to-the-gdttss" title="How the IDT relates to the GDT/TSS">How the IDT relates to the GDT/TSS</a></li><li><a href="#what-this-module-provides" title="What this module provides">What this module provides</a></li><li><a href="#quick-start" title="Quick start">Quick start</a></li><li><a href="#safety--concurrency-model" title="Safety &#38; concurrency model">Safety &amp; concurrency model</a></li><li><a href="#ordering-checklist-typical-bootstrap" title="Ordering checklist (typical bootstrap)">Ordering checklist (typical bootstrap)</a></li></ul></li></ul><h3><a href="#statics">Module Items</a></h3><ul class="block"><li><a href="#statics" title="Statics">Statics</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate kernel</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">kernel</a></div><h1>Module <span>idt</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/kernel/idt.rs.html#1-168">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="interrupt-descriptor-table-idt"><a class="doc-anchor" href="#interrupt-descriptor-table-idt">§</a>Interrupt Descriptor Table (IDT)</h2>
+<p>The <strong>IDT</strong> tells the CPU which handler to call for each <strong>interrupt</strong>, <strong>exception</strong>,
+or <strong>software trap</strong>. In x86-64, the IDT is an array of 16-byte gate descriptors,
+and a pointer to it is stored in the <strong>IDTR</strong> (loaded via <code>lidt</code>).</p>
+<h3 id="how-the-idt-relates-to-the-gdttss"><a class="doc-anchor" href="#how-the-idt-relates-to-the-gdttss">§</a>How the IDT relates to the GDT/TSS</h3>
+<p>Although most <em>segmentation</em> is off in long mode, privilege transitions on
+interrupts still consult state provided by your <strong>GDT/TSS</strong> setup:</p>
+<ul>
+<li>On a transition from Ring-3 → Ring-0 (e.g., a syscall interrupt gate with DPL=3,
+or a user fault), the CPU <strong>loads the stack pointer from the TSS</strong> (<code>rsp0</code>).
+This requires that you have installed a valid TSS descriptor in the GDT and
+executed <code>ltr</code> once. See <a href="../gdt/fn.init_gdt_and_tss.html" title="fn kernel::gdt::init_gdt_and_tss"><code>crate::gdt::init_gdt_and_tss</code></a> and <a href="../gdt/constant.TSS_SEL.html" title="constant kernel::gdt::TSS_SEL"><code>crate::gdt::TSS_SEL</code></a>.</li>
+<li>If an IDT entry uses an <strong>IST</strong> (Interrupt Stack Table) slot, the CPU will switch
+to the corresponding <code>istN</code> stack from the <strong>TSS</strong> before entering the handler.
+This is how you can make double-fault or NMI handlers robust even if the
+current stack is corrupted. See <a href="../tss/struct.Tss64.html" title="struct kernel::tss::Tss64"><code>Tss64</code></a> and the TSS initialization.</li>
+</ul>
+<blockquote>
+<p>In short: <strong>load the GDT and TSS first</strong>, then <code>lidt</code>, then enable interrupts.</p>
+</blockquote>
+<h3 id="what-this-module-provides"><a class="doc-anchor" href="#what-this-module-provides">§</a>What this module provides</h3>
+<ul>
+<li>A single, <strong>global</strong> IDT storage (<code>static mut IDT</code>) and helpers to:
+<ul>
+<li>Install it once into the IDTR: <a href="fn.init_idt_once.html" title="fn kernel::idt::init_idt_once"><code>init_idt_once</code></a></li>
+<li>Mutate it safely in place without reloading IDTR: <a href="fn.idt_update_in_place.html" title="fn kernel::idt::idt_update_in_place"><code>idt_update_in_place</code></a></li>
+<li>Borrow a mutable reference when you know what you’re doing: <a href="fn.idt_mut.html" title="fn kernel::idt::idt_mut"><code>idt_mut</code></a></li>
+</ul>
+</li>
+</ul>
+<p>The pattern is intentionally simple for a bootstrap CPU. If we later move to a
+per-CPU IDT, we can keep the same call sites and swap the backing storage.</p>
+<h3 id="quick-start"><a class="doc-anchor" href="#quick-start">§</a>Quick start</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span><span class="kw">crate</span>::interrupts::Idt;
+
+<span class="comment">//Build an IDT with your stubs/gates.
+</span><span class="kw">let </span><span class="kw-2">mut </span>idt = Idt::new();
+idt.init_exceptions();            <span class="comment">// your helper
+</span>idt.init_irq_gates();             <span class="comment">// your helper
+</span>idt.init_syscall_gate(int80_stub); <span class="comment">// example
+
+// Make sure GDT+TSS are installed once (stack for ring changes / IST).
+//    See: crate::gdt::init_gdt_and_tss
+
+// Load the IDT into IDTR.
+</span><span class="kw">unsafe </span>{ <span class="kw">crate</span>::idt::init_idt_once(idt) };
+
+<span class="comment">// Enable interrupts when ready.
+</span><span class="kw">unsafe </span>{ <span class="macro">core::arch::asm!</span>(<span class="string">"sti"</span>) };</code></pre></div><h3 id="safety--concurrency-model"><a class="doc-anchor" href="#safety--concurrency-model">§</a>Safety &amp; concurrency model</h3>
+<ul>
+<li><strong>Install once per CPU</strong> before enabling interrupts. This module currently holds
+a single global IDT (shared by CPUs). If multiple cores update entries, serialize
+with your chosen mechanism (IPI + stop-the-world, spinlocks, etc.).</li>
+<li><a href="fn.idt_update_in_place.html" title="fn kernel::idt::idt_update_in_place"><code>idt_update_in_place</code></a> wraps updates in <code>cli</code>/<code>sti</code> on the <strong>local</strong> CPU and
+issues a full memory fence to make changes visible before interrupts resume.</li>
+<li>You <strong>do not</strong> need to execute <code>lidt</code> again when editing entries <strong>in place</strong>,
+as long as the base address and limit of the table remain unchanged.</li>
+</ul>
+<h3 id="ordering-checklist-typical-bootstrap"><a class="doc-anchor" href="#ordering-checklist-typical-bootstrap">§</a>Ordering checklist (typical bootstrap)</h3>
+<ol>
+<li>Map memory and enter long mode.</li>
+<li><strong>GDT/TSS:</strong> call <a href="../gdt/fn.init_gdt_and_tss.html" title="fn kernel::gdt::init_gdt_and_tss"><code>crate::gdt::init_gdt_and_tss</code></a> (loads GDT via <code>lgdt</code>, sets up TSS, executes <code>ltr</code>).</li>
+<li><strong>IDT:</strong> build an <code>Idt</code>, then call <a href="fn.init_idt_once.html" title="fn kernel::idt::init_idt_once"><code>init_idt_once</code></a> (loads IDTR via <code>lidt</code>).</li>
+<li>Configure PIC/APIC as needed, then <code>sti</code>.</li>
+</ol>
+<p>With this sequence, user→kernel transitions will get a sane Ring-0 stack via
+TSS.<code>rsp0</code>, and critical handlers can use IST stacks if you configured them.</p>
+</div></details><h2 id="statics" class="section-header">Statics<a href="#statics" class="anchor">§</a></h2><dl class="item-table"><dt><a class="static" href="static.IDT.html" title="static kernel::idt::IDT">IDT</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>The global interrupt descriptor table.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.idt_mut.html" title="fn kernel::idt::idt_mut">idt_mut</a><span title="Restricted Visibility">&nbsp;🔒</span> <sup title="unsafe function">⚠</sup></dt><dd>Borrow a mutable reference to the <strong>global IDT</strong>.</dd><dt><a class="fn" href="fn.idt_update_in_place.html" title="fn kernel::idt::idt_update_in_place">idt_<wbr>update_<wbr>in_<wbr>place</a></dt><dd>Update entries of the global IDT <strong>in place</strong>, without reloading <code>lidt</code>.</dd><dt><a class="fn" href="fn.init_idt_once.html" title="fn kernel::idt::init_idt_once">init_<wbr>idt_<wbr>once</a><sup title="unsafe function">⚠</sup></dt><dd>Initialize the <strong>global Interrupt Descriptor Table (IDT)</strong> once and load it into the CPU.</dd></dl></section></div></main></body></html>

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["log_ctrl_bits","trace_boot_info"]};

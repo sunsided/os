@@ -1,0 +1,49 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Privilege Levels (x86-64)"><title>kernel::privilege - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="kernel" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module privilege</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../kernel/index.html">kernel</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module privilege</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#privilege-levels-x86-64" title="Privilege Levels (x86-64)">Privilege Levels (x86-64)</a><ul><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#structure" title="Structure">Structure</a></li><li><a href="#example" title="Example">Example</a></li><li><a href="#references" title="References">References</a></li></ul></li></ul><h3><a href="#reexports">Module Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate kernel</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">kernel</a></div><h1>Module <span>privilege</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/kernel/privilege.rs.html#1-67">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="privilege-levels-x86-64"><a class="doc-anchor" href="#privilege-levels-x86-64">§</a>Privilege Levels (x86-64)</h2>
+<p>This module defines the <strong>privilege level hierarchy</strong> used by the CPU to
+isolate protection domains (e.g. kernel vs. user mode).</p>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>x86-64 implements four hierarchical <em>rings</em> (<code>0–3</code>), of which only two are
+normally used in long mode:</p>
+<ul>
+<li><strong>Ring 0</strong> — kernel / supervisor mode (highest privilege)</li>
+<li><strong>Ring 3</strong> — user mode (least privilege)</li>
+</ul>
+<p>These levels appear in three distinct contexts that the CPU enforces rules
+between:</p>
+<div><table><thead><tr><th>Concept</th><th>Stored in</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><a href="ring/enum.Ring.html" title="enum kernel::privilege::ring::Ring"><code>Ring</code></a></td><td>the current <code>CS</code> selector</td><td>the <strong>current privilege level</strong> (<code>CPL</code>)</td></tr>
+<tr><td><a href="rpl/enum.Rpl.html" title="enum kernel::privilege::rpl::Rpl"><code>Rpl</code></a></td><td>the low 2 bits of a selector</td><td>the <strong>requested privilege level</strong> from the requester</td></tr>
+<tr><td><a href="dpl/enum.Dpl.html" title="enum kernel::privilege::dpl::Dpl"><code>Dpl</code></a></td><td>bits 45–46 of a descriptor</td><td>the <strong>descriptor privilege level</strong> of the target</td></tr>
+</tbody></table>
+</div>
+<p>The CPU performs access checks such as:</p>
+<ul>
+<li><strong>Data segment load:</strong> <code>max(CPL, RPL) ≤ DPL</code></li>
+<li><strong>Non-conforming code:</strong> <code>CPL == DPL</code></li>
+<li><strong>Conforming code:</strong> <code>CPL ≤ DPL</code></li>
+<li><strong>Stack segment (long mode):</strong> <code>CPL == RPL == DPL</code></li>
+</ul>
+<h3 id="structure"><a class="doc-anchor" href="#structure">§</a>Structure</h3>
+<p>This module re-exports:</p>
+<ul>
+<li><a href="ring/enum.Ring.html" title="enum kernel::privilege::ring::Ring"><code>Ring</code></a> — enumeration of privilege rings (<code>Ring0</code> … <code>Ring3</code>).</li>
+<li><a href="rpl/enum.Rpl.html" title="enum kernel::privilege::rpl::Rpl"><code>Rpl</code></a> — requested privilege level plus helpers for selectors.</li>
+<li><a href="dpl/enum.Dpl.html" title="enum kernel::privilege::dpl::Dpl"><code>Dpl</code></a> — descriptor privilege level plus access-check predicates.</li>
+<li><a href="rpl/constant.KERNEL_RPL.html" title="constant kernel::privilege::rpl::KERNEL_RPL"><code>KERNEL_RPL</code></a>/<a href="rpl/constant.USER_RPL.html" title="constant kernel::privilege::rpl::USER_RPL"><code>USER_RPL</code></a> — constants for common use.</li>
+</ul>
+<p>Together, these types provide a clear, type-safe way to reason about
+privilege levels in descriptor and selector code, such as when building a
+GDT, TSS, or when transitioning between user and kernel mode.</p>
+<h3 id="example"><a class="doc-anchor" href="#example">§</a>Example</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arch_x86_64::privilege::{Ring, Rpl, Dpl, USER_RPL};
+
+<span class="kw">let </span>cpl = Ring::Ring0; <span class="comment">// current level
+</span><span class="kw">let </span>rpl = USER_RPL;    <span class="comment">// selector carries Ring3
+</span><span class="kw">let </span>dpl = Dpl::Ring3;  <span class="comment">// descriptor is user-accessible
+
+</span><span class="macro">assert!</span>(dpl.permits_data_load(cpl, rpl));</code></pre></div><h3 id="references"><a class="doc-anchor" href="#references">§</a>References</h3>
+<ul>
+<li>Intel® SDM, Vol 3A: <em>Protection; Descriptor Privilege Level (DPL)</em></li>
+<li>AMD64 Architecture Programmer’s Manual, Vol 2: <em>System Programming</em></li>
+</ul>
+</div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.Dpl"><code>pub use dpl::<a class="enum" href="dpl/enum.Dpl.html" title="enum kernel::privilege::dpl::Dpl">Dpl</a>;</code></dt><dt id="reexport.Ring"><code>pub use ring::<a class="enum" href="ring/enum.Ring.html" title="enum kernel::privilege::ring::Ring">Ring</a>;</code></dt><dt id="reexport.Rpl"><code>pub use rpl::<a class="enum" href="rpl/enum.Rpl.html" title="enum kernel::privilege::rpl::Rpl">Rpl</a>;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="dpl/index.html" title="mod kernel::privilege::dpl">dpl</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="ring/index.html" title="mod kernel::privilege::ring">ring</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="mod" href="rpl/index.html" title="mod kernel::privilege::rpl">rpl</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Requested Privilege Level (RPL).</dd></dl></section></div></main></body></html>

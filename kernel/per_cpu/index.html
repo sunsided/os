@@ -1,0 +1,68 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Per-CPU Data Structures and Management"><title>kernel::per_cpu - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="kernel" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module per_cpu</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../kernel/index.html">kernel</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module per_cpu</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#per-cpu-data-structures-and-management" title="Per-CPU Data Structures and Management">Per-CPU Data Structures and Management</a><ul><li><a href="#architecture-overview" title="Architecture Overview">Architecture Overview</a></li><li><a href="#key-components" title="Key Components">Key Components</a></li><li><a href="#virtual-memory-layout" title="Virtual Memory Layout">Virtual Memory Layout</a></li><li><a href="#stack-safety-features" title="Stack Safety Features">Stack Safety Features</a></li><li><a href="#fast-access-pattern" title="Fast Access Pattern">Fast Access Pattern</a></li><li><a href="#future-smp-considerations" title="Future SMP Considerations">Future SMP Considerations</a></li><li><a href="#safety-and-concurrency" title="Safety and Concurrency">Safety and Concurrency</a></li></ul></li></ul><h3><a href="#modules">Module Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate kernel</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">kernel</a></div><h1>Module <span>per_cpu</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/kernel/per_cpu.rs.html#1-166">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="per-cpu-data-structures-and-management"><a class="doc-anchor" href="#per-cpu-data-structures-and-management">§</a>Per-CPU Data Structures and Management</h2>
+<p>This module provides the foundation for per-CPU data storage and management
+in the kernel, enabling efficient CPU-specific state tracking and future
+symmetric multiprocessing (SMP) support. It centralizes all CPU-local
+resources including stacks, descriptors, and runtime state.</p>
+<h3 id="architecture-overview"><a class="doc-anchor" href="#architecture-overview">§</a>Architecture Overview</h3>
+<p>The per-CPU system is built around the <a href="struct.PerCpu.html" title="struct kernel::per_cpu::PerCpu"><code>PerCpu</code></a> structure, which serves as
+the central repository for all CPU-specific state. This design enables:</p>
+<ul>
+<li><strong>Cache-Friendly Access</strong>: 64-byte alignment prevents false sharing between CPUs</li>
+<li><strong>Fast Retrieval</strong>: GS-base MSR points directly to current CPU’s <a href="struct.PerCpu.html" title="struct kernel::per_cpu::PerCpu"><code>PerCpu</code></a> instance</li>
+<li><strong>Scalable Design</strong>: Virtual memory layout supports multiple CPUs with dedicated regions</li>
+<li><strong>Stack Safety</strong>: Guard pages and separate stack types prevent overflow corruption</li>
+</ul>
+<h3 id="key-components"><a class="doc-anchor" href="#key-components">§</a>Key Components</h3><h4 id="core-per-cpu-structure-percpu"><a class="doc-anchor" href="#core-per-cpu-structure-percpu">§</a>Core Per-CPU Structure (<a href="struct.PerCpu.html" title="struct kernel::per_cpu::PerCpu"><code>PerCpu</code></a>)</h4>
+<ul>
+<li><strong>CPU Identification</strong>: Logical CPU ID and Local APIC ID tracking</li>
+<li><strong>Task Management</strong>: Current task pointer for future scheduling support</li>
+<li><strong>Hardware Descriptors</strong>: TSS (Task State Segment), GDT, and selector storage</li>
+<li><strong>Stack Management</strong>: Kernel stack and IST (Interrupt Stack Table) pointers</li>
+<li><strong>Accounting</strong>: Tick counter and scratch space for CPU-specific data</li>
+</ul>
+<h4 id="stack-management-subsystem"><a class="doc-anchor" href="#stack-management-subsystem">§</a>Stack Management Subsystem</h4>
+<ul>
+<li><a href="kernel_stacks/index.html" title="mod kernel::per_cpu::kernel_stacks"><code>kernel_stacks</code></a>: Virtual memory layout for per-CPU kernel stacks</li>
+<li><a href="ist_stacks/index.html" title="mod kernel::per_cpu::ist_stacks"><code>ist_stacks</code></a>: IST stack allocation for exception handling</li>
+<li><a href="stack/index.html" title="mod kernel::per_cpu::stack"><code>stack</code></a>: Common stack mapping and guard page implementation</li>
+</ul>
+<h3 id="virtual-memory-layout"><a class="doc-anchor" href="#virtual-memory-layout">§</a>Virtual Memory Layout</h3>
+<p>The module defines separate virtual memory regions for different stack types:</p>
+<h4 id="kernel-stacks-0xffff_ff00_0000_0000-base"><a class="doc-anchor" href="#kernel-stacks-0xffff_ff00_0000_0000-base">§</a>Kernel Stacks (<code>0xffff_ff00_0000_0000</code> base)</h4><div class="example-wrap"><pre class="language-text"><code>CPU 0: [ Guard 4K ][ Stack up to 1M ]
+CPU 1: [ Guard 4K ][ Stack up to 1M ]  ← +1MB stride
+CPU 2: [ Guard 4K ][ Stack up to 1M ]  ← +2MB stride</code></pre></div><h4 id="ist-stacks-0xffff_ff10_0000_0000-base"><a class="doc-anchor" href="#ist-stacks-0xffff_ff10_0000_0000-base">§</a>IST Stacks (<code>0xffff_ff10_0000_0000</code> base)</h4><div class="example-wrap"><pre class="language-text"><code>CPU 0:
+  IST1: [ Guard 4K ][ Stack 128K ]
+  IST2: [ Guard 4K ][ Stack 128K ]  ← +128K stride per IST
+  ...
+CPU 1: (same layout at +1MB offset)</code></pre></div><h3 id="stack-safety-features"><a class="doc-anchor" href="#stack-safety-features">§</a>Stack Safety Features</h3>
+<ul>
+<li><strong>Guard Pages</strong>: Unmapped 4KiB pages below each stack catch overflow via page fault</li>
+<li><strong>ABI Alignment</strong>: All stack tops maintain 16-byte alignment for x86-64 System V ABI</li>
+<li><strong>Isolation</strong>: Separate virtual regions prevent stack type confusion</li>
+<li><strong>Size Limits</strong>: Configurable maximum sizes prevent excessive memory usage</li>
+</ul>
+<h3 id="fast-access-pattern"><a class="doc-anchor" href="#fast-access-pattern">§</a>Fast Access Pattern</h3>
+<p>The <a href="struct.PerCpu.html#method.current" title="associated function kernel::per_cpu::PerCpu::current"><code>PerCpu::current()</code></a> function provides constant-time access to the current
+CPU’s data structure:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>cpu = PerCpu::current();
+cpu.ticks.fetch_add(<span class="number">1</span>, Ordering::Relaxed);</code></pre></div>
+<p>This relies on the GS-base MSR pointing to the current CPU’s <a href="struct.PerCpu.html" title="struct kernel::per_cpu::PerCpu"><code>PerCpu</code></a> instance,
+set up during CPU initialization.</p>
+<h3 id="future-smp-considerations"><a class="doc-anchor" href="#future-smp-considerations">§</a>Future SMP Considerations</h3>
+<p>While currently supporting only the Bootstrap Processor (BSP), the design
+accommodates future Application Processor (AP) support:</p>
+<ul>
+<li><strong>Scalable Addressing</strong>: Virtual memory layout supports arbitrary CPU counts</li>
+<li><strong>Cache Line Alignment</strong>: 64-byte alignment prevents false sharing</li>
+<li><strong>Independent State</strong>: Each CPU maintains completely separate data structures</li>
+<li><strong>Atomic Operations</strong>: Tick counters and task pointers use atomic primitives</li>
+</ul>
+<h3 id="safety-and-concurrency"><a class="doc-anchor" href="#safety-and-concurrency">§</a>Safety and Concurrency</h3>
+<ul>
+<li><strong>Single Owner</strong>: Each <a href="struct.PerCpu.html" title="struct kernel::per_cpu::PerCpu"><code>PerCpu</code></a> instance belongs to exactly one CPU</li>
+<li><strong>Atomic Fields</strong>: Shared state uses appropriate atomic primitives</li>
+<li><strong>Memory Safety</strong>: Guard pages and bounds checking prevent corruption</li>
+<li><strong>Interrupt Safety</strong>: Access patterns work correctly during interrupt handling</li>
+</ul>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="ist_stacks/index.html" title="mod kernel::per_cpu::ist_stacks">ist_<wbr>stacks</a></dt><dd>Virtual layout for IST stacks: per-CPU × per-IST slots with a guard page.</dd><dt><a class="mod" href="kernel_stacks/index.html" title="mod kernel::per_cpu::kernel_stacks">kernel_<wbr>stacks</a></dt><dd>Virtual layout for <strong>per-CPU kernel stacks</strong>.</dd><dt><a class="mod" href="stack/index.html" title="mod kernel::per_cpu::stack">stack</a></dt></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.PerCpu.html" title="struct kernel::per_cpu::PerCpu">PerCpu</a></dt><dt><a class="struct" href="struct.PerCpuScratch.html" title="struct kernel::per_cpu::PerCpuScratch">PerCpu<wbr>Scratch</a></dt><dt><a class="struct" href="struct.Task.html" title="struct kernel::per_cpu::Task">Task</a></dt></dl></section></div></main></body></html>

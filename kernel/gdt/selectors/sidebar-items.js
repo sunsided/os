@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CodeSel","DataSel","Table","TssSel"],"struct":["SegmentSelector","SegmentSelectorRaw"],"trait":["SelectorKind"]};

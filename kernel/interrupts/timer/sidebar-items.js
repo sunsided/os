@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["LAPIC_TIMER_VECTOR"],"fn":["lapic_timer_handler","lapic_timer_handler_rust"],"trait":["TimerInterrupt"]};

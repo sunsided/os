@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["VGA_LIKE_OFFSET"],"fn":["fill_solid"]};

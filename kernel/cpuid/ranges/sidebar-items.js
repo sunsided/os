@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["LEAF_00H","LEAF_MAX_EXTENDED"],"enum":["CpuVendor"],"struct":["CpuidRanges"]};

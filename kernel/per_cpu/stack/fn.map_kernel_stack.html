@@ -1,0 +1,40 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Map a new kernel stack at a predefined virtual address range, leaving one guard page unmapped below it."><title>map_kernel_stack in kernel::per_cpu::stack - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="kernel" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc fn"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">map_kernel_stack</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../kernel/index.html">kernel</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">map_<wbr>kernel_<wbr>stack</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#parameters" title="Parameters">Parameters</a></li><li><a href="#layout-1" title="Layout">Layout</a></li><li><a href="#implementation-details" title="Implementation details">Implementation details</a></li><li><a href="#returns" title="Returns">Returns</a></li><li><a href="#safety--invariants" title="Safety &#38; invariants">Safety &amp; invariants</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="index.html">In kernel::<wbr>per_<wbr>cpu::<wbr>stack</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">kernel</a>::<wbr><a href="../index.html">per_cpu</a>::<wbr><a href="index.html">stack</a></div><h1>Function <span class="fn">map_<wbr>kernel_<wbr>stack</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/kernel/per_cpu/stack.rs.html#57-91">Source</a> </span></div><pre class="rust item-decl"><code>pub fn map_kernel_stack(
+    vmm: &amp;mut <a class="struct" href="../../../kernel_alloc/vmm/struct.Vmm.html" title="struct kernel_alloc::vmm::Vmm">Vmm</a>&lt;'_, <a class="struct" href="../../../kernel_alloc/phys_mapper/struct.HhdmPhysMapper.html" title="struct kernel_alloc::phys_mapper::HhdmPhysMapper">HhdmPhysMapper</a>, <a class="struct" href="../../../kernel_alloc/frame_alloc/struct.BitmapFrameAlloc.html" title="struct kernel_alloc::frame_alloc::BitmapFrameAlloc">BitmapFrameAlloc</a>&gt;,
+    slot: <a class="struct" href="../../../kernel_memory_addresses/virtual_page/struct.VirtualPage.html" title="struct kernel_memory_addresses::virtual_page::VirtualPage">VirtualPage</a>&lt;<a class="struct" href="../../../kernel_memory_addresses/page_size/struct.Size4K.html" title="struct kernel_memory_addresses::page_size::Size4K">Size4K</a>&gt;,
+    stack_bytes: <a class="primitive" href="https://doc.rust-lang.org/nightly/core/primitive.u64.html">u64</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.CpuStack.html" title="struct kernel::per_cpu::stack::CpuStack">CpuStack</a>, <a class="enum" href="../../../kernel_alloc/vmm/enum.VmmError.html" title="enum kernel_alloc::vmm::VmmError">VmmError</a>&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Map a new <strong>kernel stack</strong> at a predefined virtual address range,
+leaving one guard page unmapped below it.</p>
+<h2 id="parameters"><a class="doc-anchor" href="#parameters">§</a>Parameters</h2>
+<ul>
+<li><code>vmm</code> — active virtual memory manager used to allocate and map pages.</li>
+<li><code>slot</code> — base page of the intended stack region. The first 4 KiB page
+starting at <code>slot.base()</code> will be reserved as a <strong>guard page</strong>.</li>
+<li><code>stack_bytes</code> — usable stack size in bytes (must be a multiple of 4 KiB).</li>
+</ul>
+<h2 id="layout-1"><a class="doc-anchor" href="#layout-1">§</a>Layout</h2><div class="example-wrap"><pre class="language-text"><code>[ guard (4 KiB, unmapped) ][ stack_bytes mapped as writable, NX ]
+^ slot.base()              ^ base
+                           ^ top (aligned 16 B below upper end)</code></pre></div><h2 id="implementation-details"><a class="doc-anchor" href="#implementation-details">§</a>Implementation details</h2>
+<ul>
+<li><code>Size4K::SIZE</code> (= 4096 bytes) — size of one 4 KiB page.
+Adding this value to <code>slot.base()</code> skips the guard page so the
+mapped stack begins immediately above it.</li>
+<li><code>&amp; !0xFu64</code> — rounds the computed stack top down to a <strong>16-byte
+boundary</strong> (<code>0xF</code> = 15). The x86-64 System V ABI requires the stack
+pointer to be 16-byte aligned at function entry; clearing the lower
+4 bits enforces that invariant.</li>
+</ul>
+<h2 id="returns"><a class="doc-anchor" href="#returns">§</a>Returns</h2>
+<p>A <a href="struct.CpuStack.html" title="struct kernel::per_cpu::stack::CpuStack"><code>CpuStack</code></a> describing:</p>
+<ul>
+<li><code>base</code> — first mapped byte above the guard page.</li>
+<li><code>top</code> — 16-byte-aligned stack pointer where execution should start.</li>
+<li><code>len</code> — total mapped stack size (in bytes).</li>
+</ul>
+<h2 id="safety--invariants"><a class="doc-anchor" href="#safety--invariants">§</a>Safety &amp; invariants</h2>
+<ul>
+<li>The mapping must occur in a writable, kernel-only region (user bit clear).</li>
+<li>The caller must not access the guard page; it is intentionally unmapped
+to catch stack overflows by raising a page fault.</li>
+<li><code>stack_bytes</code> must be page-aligned; partial pages are not supported.</li>
+</ul>
+</div></details></section></div></main></body></html>

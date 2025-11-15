@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["GateType"],"fn":["current_cs"],"mod":["bp","df","gp","ist","page_fault","spurious","ss","syscall","timer"],"struct":["Idt","IdtEntry","IdtEntryBuilder","IdtGateAttr","Idtr"]};

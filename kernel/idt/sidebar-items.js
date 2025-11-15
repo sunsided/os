@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["idt_mut","idt_update_in_place","init_idt_once"],"static":["IDT"]};

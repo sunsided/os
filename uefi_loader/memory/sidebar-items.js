@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["alloc_trampoline_stack"],"static":["GLOBAL_ALLOC"],"struct":["UefiBootAllocator"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["TRAMPOLINE_STACK_SIZE_BYTES"],"fn":["efi_main","enable_wp_nxe_pge","switch_to_kernel"],"mod":["elf","file_system","framebuffer","logger","memory","rsdp","tracing","uefi_mmap","vmem"],"type":["BootInfoVirtualAddress","KernelVirtualAddress","PageTablePhysicalAddress","TrampolineStackVirtualAddress"]};

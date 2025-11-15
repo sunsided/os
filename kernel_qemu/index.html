@@ -1,0 +1,150 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="QEMU Development and Debug Support"><title>kernel_qemu - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="kernel_qemu" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate kernel_qemu</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../kernel_qemu/index.html">kernel_<wbr>qemu</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#qemu-development-and-debug-support" title="QEMU Development and Debug Support">QEMU Development and Debug Support</a><ul><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#key-features" title="Key Features">Key Features</a></li><li><a href="#architecture" title="Architecture">Architecture</a></li><li><a href="#core-components" title="Core Components">Core Components</a></li><li><a href="#feature-system" title="Feature System">Feature System</a></li><li><a href="#usage-patterns" title="Usage Patterns">Usage Patterns</a></li><li><a href="#qemu-integration" title="QEMU Integration">QEMU Integration</a></li><li><a href="#performance-characteristics" title="Performance Characteristics">Performance Characteristics</a></li><li><a href="#safety-considerations" title="Safety Considerations">Safety Considerations</a></li><li><a href="#development-workflow" title="Development Workflow">Development Workflow</a></li></ul></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#macros" title="Macros">Macros</a></li><li><a href="#structs" title="Structs">Structs</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>kernel_<wbr>qemu</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/kernel_qemu/lib.rs.html#1-264">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="qemu-development-and-debug-support"><a class="doc-anchor" href="#qemu-development-and-debug-support">§</a>QEMU Development and Debug Support</h2>
+<p>This crate provides specialized debugging and development utilities for kernels
+running under the QEMU emulator. It enables efficient logging, tracing, and
+diagnostic output that significantly simplifies kernel development and debugging
+in virtualized environments.</p>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>Kernel development presents unique debugging challenges: no standard I/O,
+limited debugging tools, and the need for early-boot diagnostics. This crate
+addresses these challenges by leveraging QEMU’s built-in debugging features,
+particularly the debug port mechanism for host-side output.</p>
+<h3 id="key-features"><a class="doc-anchor" href="#key-features">§</a>Key Features</h3>
+<ul>
+<li><strong>Zero-Allocation Logging</strong>: Efficient output without dynamic memory allocation</li>
+<li><strong>Standard Log Integration</strong>: Compatible with Rust’s <code>log</code> crate ecosystem</li>
+<li><strong>Feature-Gated Operation</strong>: Can be completely disabled for release builds</li>
+<li><strong>UTF-8 Support</strong>: Proper Unicode character encoding for debug output</li>
+<li><strong>Early Boot Support</strong>: Works before full kernel initialization</li>
+</ul>
+<h3 id="architecture"><a class="doc-anchor" href="#architecture">§</a>Architecture</h3><h4 id="qemu-debug-port-interface"><a class="doc-anchor" href="#qemu-debug-port-interface">§</a>QEMU Debug Port Interface</h4>
+<p>The crate communicates with QEMU through a dedicated I/O port:</p>
+<ul>
+<li><strong>Port Address</strong>: <code>0x402</code> (QEMU’s standard debug port)</li>
+<li><strong>Protocol</strong>: Simple byte-by-byte character transmission</li>
+<li><strong>Direction</strong>: Kernel-to-host output only</li>
+<li><strong>Performance</strong>: Extremely fast, no buffering required</li>
+</ul>
+<h4 id="output-mechanism"><a class="doc-anchor" href="#output-mechanism">§</a>Output Mechanism</h4><div class="example-wrap"><pre class="language-text"><code>Kernel Code
+    ↓
+qemu_trace! macro
+    ↓
+QemuSink (fmt::Write)
+    ↓
+dbg_putc() → I/O port 0x402
+    ↓
+QEMU Debug Output
+    ↓
+Host Terminal/Console</code></pre></div><h3 id="core-components"><a class="doc-anchor" href="#core-components">§</a>Core Components</h3><h4 id="qemu-logger-qemulogger"><a class="doc-anchor" href="#qemu-logger-qemulogger">§</a>QEMU Logger (<a href="struct.QemuLogger.html" title="struct kernel_qemu::QemuLogger"><code>QemuLogger</code></a>)</h4>
+<p>A <code>log::Log</code> implementation that routes log messages to QEMU’s debug port:</p>
+<ul>
+<li><strong>Level Filtering</strong>: Configurable log level thresholds</li>
+<li><strong>Target Support</strong>: Module and component-specific logging</li>
+<li><strong>Static Initialization</strong>: No-allocation setup for kernel environments</li>
+<li><strong>Format Control</strong>: Structured log message formatting</li>
+</ul>
+<h4 id="trace-macro-qemu_trace"><a class="doc-anchor" href="#trace-macro-qemu_trace">§</a>Trace Macro (<a href="macro.qemu_trace.html" title="macro kernel_qemu::qemu_trace"><code>qemu_trace!</code></a>)</h4>
+<p>Direct debug output bypassing the logging framework:</p>
+<ul>
+<li><strong>Zero-Overhead</strong>: Compile-time format string processing</li>
+<li><strong>UTF-8 Encoding</strong>: Proper multi-byte character support</li>
+<li><strong>Feature Gating</strong>: Completely removed when <code>enabled</code> feature is disabled</li>
+<li><strong>Format Compatibility</strong>: Supports <code>format!</code>-style argument patterns</li>
+</ul>
+<h4 id="output-sink-qemu_fmtqemusink"><a class="doc-anchor" href="#output-sink-qemu_fmtqemusink">§</a>Output Sink ([<code>qemu_fmt::QemuSink</code>])</h4>
+<p>A <code>core::fmt::Write</code> implementation for structured output:</p>
+<ul>
+<li><strong>Character-by-Character</strong>: Immediate output with no buffering</li>
+<li><strong>UTF-8 Encoding</strong>: Proper Unicode character decomposition</li>
+<li><strong>Error Resilience</strong>: Best-effort output with graceful degradation</li>
+</ul>
+<h3 id="feature-system"><a class="doc-anchor" href="#feature-system">§</a>Feature System</h3>
+<p>The crate uses Cargo features to control compilation and runtime behavior:</p>
+<h4 id="enabled-feature-default"><a class="doc-anchor" href="#enabled-feature-default">§</a><code>enabled</code> Feature (default)</h4>
+<p>When enabled:</p>
+<ul>
+<li>Full QEMU debug port functionality</li>
+<li>Active trace macro implementation</li>
+<li>I/O port operations compiled in</li>
+<li>UTF-8 encoding and formatting support</li>
+</ul>
+<p>When disabled:</p>
+<ul>
+<li>All debug operations become no-ops</li>
+<li>Zero runtime overhead</li>
+<li>No I/O port access</li>
+<li>Suitable for production builds</li>
+</ul>
+<h3 id="usage-patterns"><a class="doc-anchor" href="#usage-patterns">§</a>Usage Patterns</h3><h4 id="basic-logging-setup"><a class="doc-anchor" href="#basic-logging-setup">§</a>Basic Logging Setup</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>kernel_qemu::QemuLogger;
+<span class="kw">use </span>log::{LevelFilter, info};
+
+<span class="comment">// Early in kernel initialization
+</span><span class="kw">let </span>logger = QemuLogger::new(LevelFilter::Debug);
+logger.init().expect(<span class="string">"logger initialization"</span>);
+
+<span class="comment">// Standard logging throughout kernel
+</span><span class="macro">info!</span>(<span class="string">"Kernel subsystem initialized"</span>);</code></pre></div><h4 id="direct-trace-output"><a class="doc-anchor" href="#direct-trace-output">§</a>Direct Trace Output</h4>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>kernel_qemu::qemu_trace;
+
+<span class="comment">// Immediate debug output
+</span><span class="macro">qemu_trace!</span>(<span class="string">"Debug value: {:#x}\n"</span>, register_value);
+
+<span class="comment">// Complex formatting
+</span><span class="macro">qemu_trace!</span>(<span class="string">"CPU {}: Exception {} at RIP={:#x}\n"</span>,
+            cpu_id, exception_number, instruction_pointer);</code></pre></div><h4 id="conditional-compilation"><a class="doc-anchor" href="#conditional-compilation">§</a>Conditional Compilation</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="attr">#[cfg(feature = <span class="string">"qemu-debug"</span>)]
+</span><span class="kw">use </span>kernel_qemu::qemu_trace;
+
+<span class="kw">fn </span>debug_memory_layout() {
+    <span class="attr">#[cfg(feature = <span class="string">"qemu-debug"</span>)]
+    </span><span class="macro">qemu_trace!</span>(<span class="string">"Memory layout: base={:#x} size={:#x}\n"</span>, base, size);
+}</code></pre></div><h3 id="qemu-integration"><a class="doc-anchor" href="#qemu-integration">§</a>QEMU Integration</h3><h4 id="host-side-configuration"><a class="doc-anchor" href="#host-side-configuration">§</a>Host-Side Configuration</h4>
+<p>To capture kernel debug output on the host:</p>
+<div class="example-wrap"><pre class="language-bash"><code># Standard QEMU invocation with debug output
+qemu-system-x86_64 -kernel kernel.bin -debugcon stdio
+
+# Redirect to file
+qemu-system-x86_64 -kernel kernel.bin -debugcon file:debug.log
+
+# Network debugging (advanced)
+qemu-system-x86_64 -kernel kernel.bin -debugcon tcp:127.0.0.1:1234,server</code></pre></div><h4 id="debug-port-mechanism"><a class="doc-anchor" href="#debug-port-mechanism">§</a>Debug Port Mechanism</h4>
+<p>QEMU’s debug console feature (<code>-debugcon</code>) captures writes to port <code>0x402</code>:</p>
+<ul>
+<li><strong>Real-time Output</strong>: Immediate visibility of kernel messages</li>
+<li><strong>No Guest Impact</strong>: Zero performance impact on kernel execution</li>
+<li><strong>Flexible Routing</strong>: Output can go to stdio, files, or network</li>
+<li><strong>Cross-Platform</strong>: Works on all QEMU-supported host platforms</li>
+</ul>
+<h3 id="performance-characteristics"><a class="doc-anchor" href="#performance-characteristics">§</a>Performance Characteristics</h3>
+<ul>
+<li><strong>Macro Overhead</strong>: Zero when <code>enabled</code> feature is disabled</li>
+<li><strong>I/O Latency</strong>: Sub-microsecond output latency in QEMU</li>
+<li><strong>Memory Usage</strong>: No dynamic allocation, minimal static footprint</li>
+<li><strong>CPU Impact</strong>: Negligible processing overhead</li>
+</ul>
+<h3 id="safety-considerations"><a class="doc-anchor" href="#safety-considerations">§</a>Safety Considerations</h3><h4 id="io-port-access"><a class="doc-anchor" href="#io-port-access">§</a>I/O Port Access</h4>
+<ul>
+<li><strong>Privilege Requirements</strong>: Requires kernel-mode execution (Ring 0)</li>
+<li><strong>Port Safety</strong>: QEMU debug port is read-only from host perspective</li>
+<li><strong>Hardware Compatibility</strong>: Safe no-op on real hardware (port typically unused)</li>
+<li><strong>Error Handling</strong>: Graceful degradation if QEMU features unavailable</li>
+</ul>
+<h4 id="utf-8-encoding"><a class="doc-anchor" href="#utf-8-encoding">§</a>UTF-8 Encoding</h4>
+<ul>
+<li><strong>Memory Safety</strong>: No buffer overflows in character encoding</li>
+<li><strong>Encoding Validity</strong>: Proper UTF-8 sequence generation</li>
+<li><strong>Error Recovery</strong>: Invalid characters handled gracefully</li>
+</ul>
+<h3 id="development-workflow"><a class="doc-anchor" href="#development-workflow">§</a>Development Workflow</h3>
+<p>This crate is essential for iterative kernel development:</p>
+<ol>
+<li><strong>Early Debugging</strong>: Debug boot process and initialization</li>
+<li><strong>Runtime Diagnostics</strong>: Monitor kernel operation and state changes</li>
+<li><strong>Performance Analysis</strong>: Trace timing-critical operations</li>
+<li><strong>Error Investigation</strong>: Capture crash information and stack traces</li>
+<li><strong>Feature Development</strong>: Validate new subsystem implementation</li>
+</ol>
+<p>The integration with QEMU makes it an indispensable tool for productive
+kernel development, providing the debugging visibility essential for
+complex systems programming.</p>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="logger/index.html" title="mod kernel_qemu::logger">logger</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt></dl><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><dl class="item-table"><dt><a class="macro" href="macro.qemu_trace.html" title="macro kernel_qemu::qemu_trace">qemu_<wbr>trace</a></dt></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.QemuLogger.html" title="struct kernel_qemu::QemuLogger">Qemu<wbr>Logger</a></dt></dl></section></div></main></body></html>

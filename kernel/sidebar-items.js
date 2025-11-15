@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["fast_sin","kernel_main","measure_timer_hz"],"mod":["alloc","apic","cpuid","framebuffer","gdt","idt","init","interrupts","msr","panik","per_cpu","ports","privilege","smap","syscall","task","tracing","tsc","tss","userland","userland_demo"],"static":["TIMER_HZ"]};

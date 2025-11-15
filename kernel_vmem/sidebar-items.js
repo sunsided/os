@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["invalidate_tlb_page","read_cr3_phys"],"mod":["address_space","bits","info","page_table"],"struct":["VirtualMemoryPageBits"],"trait":["PhysFrameAlloc","PhysMapper","PhysMapperExt"]};

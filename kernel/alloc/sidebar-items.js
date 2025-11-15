@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["FlushTlb"],"fn":["init_kernel_vmm","init_physical_memory_allocator_once","try_with_kernel_vmm","with_kernel_vmm"],"mod":["debug"],"static":["KVM","PMM"],"struct":["KernelVm"],"type":["KernelVmm"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["FRAME_SIZE","NUM_FRAMES","PHYS_MEM_SIZE","PHYS_MEM_START"],"struct":["BitmapFrameAlloc"]};

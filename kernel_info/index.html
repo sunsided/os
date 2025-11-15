@@ -1,0 +1,149 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Kernel Configuration and Boot Interface"><title>kernel_info - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="kernel_info" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate kernel_info</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../kernel_info/index.html">kernel_<wbr>info</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#kernel-configuration-and-boot-interface" title="Kernel Configuration and Boot Interface">Kernel Configuration and Boot Interface</a><ul><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#architecture" title="Architecture">Architecture</a></li><li><a href="#virtual-memory-architecture" title="Virtual Memory Architecture">Virtual Memory Architecture</a></li><li><a href="#boot-protocol" title="Boot Protocol">Boot Protocol</a></li><li><a href="#physical-memory-layout" title="Physical Memory Layout">Physical Memory Layout</a></li><li><a href="#configuration-management" title="Configuration Management">Configuration Management</a></li><li><a href="#abi-compatibility" title="ABI Compatibility">ABI Compatibility</a></li><li><a href="#safety-guarantees" title="Safety Guarantees">Safety Guarantees</a></li><li><a href="#usage-patterns" title="Usage Patterns">Usage Patterns</a></li></ul></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>kernel_<wbr>info</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/kernel_info/lib.rs.html#1-180">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="kernel-configuration-and-boot-interface"><a class="doc-anchor" href="#kernel-configuration-and-boot-interface">§</a>Kernel Configuration and Boot Interface</h2>
+<p>This crate defines the core data structures, memory layout constants, and
+boot interface contracts that govern the kernel’s initialization and runtime
+operation. It serves as the authoritative source for system-wide configuration
+and provides stable ABI definitions for communication between the bootloader
+and kernel.</p>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>The kernel requires precise coordination between multiple components during
+boot and runtime operation. This crate centralizes critical configuration
+information that must be shared across the bootloader, kernel, and various
+kernel subsystems, ensuring consistency and preventing configuration drift.</p>
+<h3 id="architecture"><a class="doc-anchor" href="#architecture">§</a>Architecture</h3>
+<p>The crate is organized into two primary modules:</p>
+<h4 id="boot-information-boot"><a class="doc-anchor" href="#boot-information-boot">§</a>Boot Information (<a href="boot/index.html" title="mod kernel_info::boot"><code>boot</code></a>)</h4>
+<p>Defines the bootloader-to-kernel handoff interface:</p>
+<ul>
+<li><strong>Kernel Entry Point</strong>: Function signature and calling convention</li>
+<li><strong>Boot Data Structures</strong>: Memory map, ACPI information, framebuffer details</li>
+<li><strong>ABI Stability</strong>: C-compatible structures for cross-component communication</li>
+<li><strong>UEFI Integration</strong>: Direct compatibility with UEFI GOP and memory services</li>
+</ul>
+<h4 id="memory-layout-memory"><a class="doc-anchor" href="#memory-layout-memory">§</a>Memory Layout (<a href="memory/index.html" title="mod kernel_info::memory"><code>memory</code></a>)</h4>
+<p>Establishes the kernel’s virtual memory architecture:</p>
+<ul>
+<li><strong>Address Space Layout</strong>: User/kernel space boundaries and reserved regions</li>
+<li><strong>Higher Half Design</strong>: Kernel execution at high virtual addresses</li>
+<li><strong>Physical Memory Mapping</strong>: HHDM (Higher Half Direct Mapping) configuration</li>
+<li><strong>Stack and Code Placement</strong>: Compile-time memory organization</li>
+</ul>
+<h3 id="virtual-memory-architecture"><a class="doc-anchor" href="#virtual-memory-architecture">§</a>Virtual Memory Architecture</h3>
+<p>The kernel employs a higher-half design with carefully planned address space layout:</p>
+<div class="example-wrap"><pre class="language-text"><code>Virtual Address Space Layout (64-bit):
+
+0x0000_0000_0000_0000 ┌─────────────────────────────────┐
+                      │                                 │
+                      │         User Space              │
+                      │    (Applications &amp; Libraries)   │
+                      │                                 │
+LAST_USERSPACE_ADDRESS├─────────────────────────────────┤ 0xffff_efff_ffff_ffff
+                      │        Guard Region             │
+HHDM_BASE             ├─────────────────────────────────┤ 0xffff_8880_0000_0000
+                      │   Higher Half Direct Mapping    │
+                      │   (Physical Memory Access)      │
+KERNEL_BASE           ├─────────────────────────────────┤ 0xffff_ffff_8000_0000
+                      │       Kernel Text &amp; Data        │
+                      │     (Kernel Executable)         │
+0xFFFF_FFFF_FFFF_FFFF └─────────────────────────────────┘</code></pre></div><h4 id="design-principles"><a class="doc-anchor" href="#design-principles">§</a>Design Principles</h4>
+<ul>
+<li><strong>Canonical Addressing</strong>: All kernel addresses use the canonical higher half</li>
+<li><strong>Guard Regions</strong>: Large unmapped areas prevent accidental user/kernel overlap</li>
+<li><strong>Direct Mapping</strong>: HHDM enables efficient physical memory access</li>
+<li><strong>Fixed Layout</strong>: Compile-time constants enable static optimization</li>
+</ul>
+<h3 id="boot-protocol"><a class="doc-anchor" href="#boot-protocol">§</a>Boot Protocol</h3>
+<p>The bootloader-to-kernel handoff follows a well-defined protocol:</p>
+<h4 id="entry-point-convention"><a class="doc-anchor" href="#entry-point-convention">§</a>Entry Point Convention</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub type </span>KernelEntryFn = <span class="kw">extern </span><span class="string">"win64" </span><span class="kw">fn</span>(<span class="kw-2">*const </span>KernelBootInfo) -&gt; !;</code></pre></div>
+<ul>
+<li><strong>Calling Convention</strong>: Windows x64 ABI for UEFI compatibility</li>
+<li><strong>Parameter</strong>: Single pointer to boot information structure</li>
+<li><strong>No Return</strong>: Kernel assumes control permanently</li>
+</ul>
+<h4 id="boot-information-structure"><a class="doc-anchor" href="#boot-information-structure">§</a>Boot Information Structure</h4>
+<p>The <a href="boot/struct.KernelBootInfo.html" title="struct kernel_info::boot::KernelBootInfo"><code>KernelBootInfo</code></a> structure provides:</p>
+<ul>
+<li><strong>Memory Map</strong>: UEFI memory map for physical memory management</li>
+<li><strong>ACPI Root</strong>: RSDP address for hardware discovery</li>
+<li><strong>Framebuffer</strong>: GOP framebuffer for early graphics output</li>
+</ul>
+<h3 id="physical-memory-layout"><a class="doc-anchor" href="#physical-memory-layout">§</a>Physical Memory Layout</h3>
+<p>The kernel’s physical memory placement is coordinated with the linker:</p>
+<div class="example-wrap"><pre class="language-text"><code>Physical Memory Layout:
+0x0000_0000 ┌─────────────────────────────────┐
+            │     Low Memory (&lt; 1MiB)         │
+            │  (BIOS, VGA, DMA buffers)       │
+PHYS_LOAD   ├─────────────────────────────────┤ 0x0010_0000 (1 MiB)
+            │       Kernel Image              │
+            │   (Text, Data, BSS)             │
+            ├─────────────────────────────────┤
+            │    Available RAM                │
+            │  (Managed by allocator)         │
+            └─────────────────────────────────┘</code></pre></div>
+<ul>
+<li><strong>Low Memory Avoidance</strong>: Kernel loads at 1 MiB to avoid legacy conflicts</li>
+<li><strong>Identity Mapping</strong>: Small identity region for paging setup</li>
+<li><strong>Linker Integration</strong>: Constants used in kernel linker script</li>
+</ul>
+<h3 id="configuration-management"><a class="doc-anchor" href="#configuration-management">§</a>Configuration Management</h3><h4 id="compile-time-constants"><a class="doc-anchor" href="#compile-time-constants">§</a>Compile-Time Constants</h4>
+<p>All layout constants are <code>const</code> values computed at compile time:</p>
+<ul>
+<li><strong>Memory Safety</strong>: Compile-time assertions prevent invalid configurations</li>
+<li><strong>Performance</strong>: No runtime computation of layout information</li>
+<li><strong>Consistency</strong>: Single source of truth for all kernel components</li>
+</ul>
+<h4 id="build-integration"><a class="doc-anchor" href="#build-integration">§</a>Build Integration</h4>
+<p>The constants are consumed by the kernel’s <code>build.rs</code>:</p>
+<ul>
+<li><strong>Linker Script Generation</strong>: Dynamic linker script creation</li>
+<li><strong>Symbol Definition</strong>: Automatic symbol generation for assembly</li>
+<li><strong>Validation</strong>: Build-time verification of layout constraints</li>
+</ul>
+<h3 id="abi-compatibility"><a class="doc-anchor" href="#abi-compatibility">§</a>ABI Compatibility</h3>
+<p>All public structures maintain strict ABI compatibility:</p>
+<h4 id="c-representation"><a class="doc-anchor" href="#c-representation">§</a>C Representation</h4>
+<ul>
+<li><strong><code>#[repr(C)]</code></strong>: Predictable memory layout for cross-language use</li>
+<li><strong>Fixed-Size Types</strong>: Explicit integer sizes for platform independence</li>
+<li><strong>No Rust Enums</strong>: Simple discriminated unions for ABI stability</li>
+</ul>
+<h4 id="uefi-integration"><a class="doc-anchor" href="#uefi-integration">§</a>UEFI Integration</h4>
+<ul>
+<li><strong>GOP Compatibility</strong>: Direct mapping from UEFI graphics structures</li>
+<li><strong>Memory Map Format</strong>: Native UEFI memory descriptor compatibility</li>
+<li><strong>Calling Conventions</strong>: UEFI-compatible function signatures</li>
+</ul>
+<h3 id="safety-guarantees"><a class="doc-anchor" href="#safety-guarantees">§</a>Safety Guarantees</h3>
+<p>This crate maintains several safety invariants:</p>
+<h4 id="memory-layout-safety"><a class="doc-anchor" href="#memory-layout-safety">§</a>Memory Layout Safety</h4>
+<ul>
+<li><strong>No Overlaps</strong>: Compile-time verification of non-overlapping regions</li>
+<li><strong>Canonical Addresses</strong>: All kernel addresses are in canonical form</li>
+<li><strong>Alignment Requirements</strong>: Page and stack alignment guarantees</li>
+</ul>
+<h4 id="abi-safety"><a class="doc-anchor" href="#abi-safety">§</a>ABI Safety</h4>
+<ul>
+<li><strong>Stable Layouts</strong>: No unexpected structure reorganization</li>
+<li><strong>Version Compatibility</strong>: Backward-compatible structure evolution</li>
+<li><strong>No Unsafe Code</strong>: Marked <code>#![deny(unsafe_code)]</code> for safety assurance</li>
+</ul>
+<h3 id="usage-patterns"><a class="doc-anchor" href="#usage-patterns">§</a>Usage Patterns</h3><h4 id="build-script-integration"><a class="doc-anchor" href="#build-script-integration">§</a>Build Script Integration</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// In build.rs
+</span><span class="kw">use </span>kernel_info::memory::{KERNEL_BASE, PHYS_LOAD};
+
+<span class="macro">println!</span>(<span class="string">"cargo:rustc-link-arg=--defsym=KERNEL_BASE={:#x}"</span>, KERNEL_BASE.as_u64());
+<span class="macro">println!</span>(<span class="string">"cargo:rustc-link-arg=--defsym=PHYS_LOAD={:#x}"</span>, PHYS_LOAD.as_u64());</code></pre></div><h4 id="bootloader-integration"><a class="doc-anchor" href="#bootloader-integration">§</a>Bootloader Integration</h4>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>kernel_info::boot::{KernelBootInfo, KernelEntryFn};
+
+<span class="kw">let </span>boot_info = KernelBootInfo {
+    mmap: <span class="comment">/* memory map info */</span>,
+    rsdp_addr: <span class="comment">/* ACPI root */</span>,
+    fb: <span class="comment">/* framebuffer info */</span>,
+};
+
+<span class="kw">let </span>kernel_entry: KernelEntryFn = <span class="comment">/* kernel entry point */</span>;
+kernel_entry(<span class="kw-2">&amp;</span>boot_info); <span class="comment">// Transfer control to kernel</span></code></pre></div>
+<p>This crate serves as the foundation for all kernel configuration, ensuring
+consistency across the entire operating system implementation while maintaining
+clear interfaces between system components.</p>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="boot/index.html" title="mod kernel_info::boot">boot</a></dt><dd>Kerrnel Boot Information</dd><dt><a class="mod" href="memory/index.html" title="mod kernel_info::memory">memory</a></dt><dd>Memory Layout</dd></dl></section></div></main></body></html>

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PAGE_FAULT_VECTOR"],"fn":["log_page_fault","page_fault_handler"],"struct":["PageFaultError"],"trait":["PageFaultInterrupt"]};

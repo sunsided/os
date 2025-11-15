@@ -1,0 +1,75 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Kernel Initialization and Bootstrap"><title>kernel::init - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="kernel" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (b6d7ff3aa 2025-11-14)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module init</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../kernel/index.html">kernel</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module init</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#kernel-initialization-and-bootstrap" title="Kernel Initialization and Bootstrap">Kernel Initialization and Bootstrap</a><ul><li><a href="#boot-sequence-overview" title="Boot Sequence Overview">Boot Sequence Overview</a></li><li><a href="#critical-components" title="Critical Components">Critical Components</a></li><li><a href="#architecture-details" title="Architecture Details">Architecture Details</a></li><li><a href="#safety-considerations" title="Safety Considerations">Safety Considerations</a></li><li><a href="#error-handling" title="Error Handling">Error Handling</a></li></ul></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#constants" title="Constants">Constants</a></li><li><a href="#statics" title="Statics">Statics</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate kernel</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">kernel</a></div><h1>Module <span>init</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/kernel/init.rs.html#1-547">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="kernel-initialization-and-bootstrap"><a class="doc-anchor" href="#kernel-initialization-and-bootstrap">§</a>Kernel Initialization and Bootstrap</h2>
+<p>This module handles the critical early boot sequence that transforms the kernel
+from its initial UEFI-loaded state into a fully functional operating system.
+It orchestrates the complex multi-phase initialization process required to
+establish a complete runtime environment.</p>
+<h3 id="boot-sequence-overview"><a class="doc-anchor" href="#boot-sequence-overview">§</a>Boot Sequence Overview</h3>
+<p>The kernel initialization follows a carefully ordered sequence to safely
+transition from UEFI firmware control to autonomous kernel operation:</p>
+<ol>
+<li><strong>UEFI Handoff</strong> (<a href="fn._start_kernel.html" title="fn kernel::init::_start_kernel"><code>_start_kernel</code></a>) - Naked assembly entry point</li>
+<li><strong>Boot Stack Setup</strong> - Temporary stack for early initialization</li>
+<li><strong>Memory Management</strong> - Physical allocator and virtual memory initialization</li>
+<li><strong>Stack Migration</strong> - Transition to properly allocated kernel stack</li>
+<li><strong>CPU Configuration</strong> - GDT, TSS, IDT, and per-CPU structure setup</li>
+<li><strong>Hardware Initialization</strong> - APIC, timers, and interrupt controllers</li>
+<li><strong>Final Handoff</strong> - Transfer control to main kernel loop</li>
+</ol>
+<h3 id="critical-components"><a class="doc-anchor" href="#critical-components">§</a>Critical Components</h3><h4 id="entry-points"><a class="doc-anchor" href="#entry-points">§</a>Entry Points</h4>
+<ul>
+<li><a href="fn._start_kernel.html" title="fn kernel::init::_start_kernel"><code>_start_kernel</code></a> - Raw assembly entry point called directly by UEFI loader</li>
+<li><a href="fn.kernel_entry_on_boot_stack.html" title="fn kernel::init::kernel_entry_on_boot_stack"><code>kernel_entry_on_boot_stack</code></a> - First Rust code executed on temporary stack</li>
+<li><a href="fn.stage_two_init_bootstrap_processor.html" title="fn kernel::init::stage_two_init_bootstrap_processor"><code>stage_two_init_bootstrap_processor</code></a> - Main initialization on proper kernel stack</li>
+</ul>
+<h4 id="stack-management"><a class="doc-anchor" href="#stack-management">§</a>Stack Management</h4>
+<ul>
+<li><a href="static.BOOT_STACK.html" title="static kernel::init::BOOT_STACK"><code>BOOT_STACK</code></a> - 64KiB temporary stack in dedicated BSS section</li>
+<li><a href="struct.Aligned16.html" title="struct kernel::init::Aligned16"><code>Aligned16</code></a> - 16-byte aligned buffer wrapper for ABI compliance</li>
+<li><a href="fn.stage_one_switch_to_stack_and_enter.html" title="fn kernel::init::stage_one_switch_to_stack_and_enter"><code>stage_one_switch_to_stack_and_enter</code></a> - Naked stack switching trampoline</li>
+</ul>
+<h4 id="subsystem-initialization"><a class="doc-anchor" href="#subsystem-initialization">§</a>Subsystem Initialization</h4>
+<ul>
+<li><a href="fn.initialize_memory_management.html" title="fn kernel::init::initialize_memory_management"><code>initialize_memory_management</code></a> - Sets up physical and virtual memory management</li>
+<li><a href="fn.initialize_kernel_stack.html" title="fn kernel::init::initialize_kernel_stack"><code>initialize_kernel_stack</code></a> - Allocates and maps per-CPU kernel stack</li>
+<li><a href="fn.allocate_ist1_stack.html" title="fn kernel::init::allocate_ist1_stack"><code>allocate_ist1_stack</code></a> - Creates IST1 stack for exception handling</li>
+<li><a href="fn.remap_framebuffer_memory.html" title="fn kernel::init::remap_framebuffer_memory"><code>remap_framebuffer_memory</code></a> - Maps UEFI GOP framebuffer into kernel space</li>
+</ul>
+<h3 id="architecture-details"><a class="doc-anchor" href="#architecture-details">§</a>Architecture Details</h3><h4 id="abi-compliance"><a class="doc-anchor" href="#abi-compliance">§</a>ABI Compliance</h4>
+<p>The initialization sequence carefully maintains x86-64 System V ABI requirements:</p>
+<ul>
+<li>16-byte stack alignment at function entry points</li>
+<li>Proper register usage for parameter passing</li>
+<li>Red-zone avoidance in kernel space</li>
+</ul>
+<h4 id="memory-layout"><a class="doc-anchor" href="#memory-layout">§</a>Memory Layout</h4><div class="example-wrap"><pre class="language-text"><code>UEFI Loader → _start_kernel (naked asm)
+                  ↓
+              BOOT_STACK (temporary, .bss.boot section)
+                  ↓
+          kernel_entry_on_boot_stack (early Rust init)
+                  ↓
+              Kernel Stack (properly allocated via VMM)
+                  ↓
+      stage_two_init_bootstrap_processor (full initialization)</code></pre></div><h4 id="privilege-and-control-flow"><a class="doc-anchor" href="#privilege-and-control-flow">§</a>Privilege and Control Flow</h4>
+<ul>
+<li><strong>Ring 0</strong>: All initialization occurs in kernel mode with full privileges</li>
+<li><strong>Interrupts</strong>: Disabled during critical initialization phases</li>
+<li><strong>Virtual Memory</strong>: Higher-half kernel mapped at <code>0xffffffff80000000</code></li>
+<li><strong>Stack Safety</strong>: Multiple stack transitions with careful alignment management</li>
+</ul>
+<h3 id="safety-considerations"><a class="doc-anchor" href="#safety-considerations">§</a>Safety Considerations</h3>
+<p>This module contains extensive unsafe code for:</p>
+<ul>
+<li>Naked assembly functions for low-level CPU control</li>
+<li>Direct memory manipulation and stack switching</li>
+<li>Hardware register programming and MSR access</li>
+<li>Static mutable global state management</li>
+</ul>
+<p>All unsafe operations are carefully isolated and documented, with safety
+invariants clearly established for each phase of initialization.</p>
+<h3 id="error-handling"><a class="doc-anchor" href="#error-handling">§</a>Error Handling</h3>
+<p>Early boot failures are generally unrecoverable and result in kernel panic.
+The initialization sequence uses <code>.expect()</code> patterns to provide meaningful
+error messages for debugging boot failures.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Aligned16.html" title="struct kernel::init::Aligned16">Aligned16</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>A byte buffer with a <strong>guaranteed 16-byte alignment</strong>.</dd></dl><h2 id="constants" class="section-header">Constants<a href="#constants" class="anchor">§</a></h2><dl class="item-table"><dt><a class="constant" href="constant.BOOT_STACK_SIZE.html" title="constant kernel::init::BOOT_STACK_SIZE">BOOT_<wbr>STACK_<wbr>SIZE</a></dt><dd>Earliest boot stack size. This stack is used only when handing over from UEFI
+to the Kernel, and then immediately changed for a properly allocated stack.</dd></dl><h2 id="statics" class="section-header">Statics<a href="#statics" class="anchor">§</a></h2><dl class="item-table"><dt><a class="static" href="static.BOOT_STACK.html" title="static kernel::init::BOOT_STACK">BOOT_<wbr>STACK</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Early <strong>boot stack</strong> memory placed in a dedicated BSS section,
+used by the boostrap CPU (BSP).</dd><dt><a class="static" href="static.PER_CPU0.html" title="static kernel::init::PER_CPU0">PER_<wbr>CPU0</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Per-CPU configuration (GDT, IST, stack, …)</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn._start_kernel.html" title="fn kernel::init::_start_kernel">_start_<wbr>kernel</a></dt><dd>The kernel entry point</dd><dt><a class="fn" href="fn.allocate_ist1_stack.html" title="fn kernel::init::allocate_ist1_stack">allocate_<wbr>ist1_<wbr>stack</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="fn" href="fn.enable_supervisor_protections.html" title="fn kernel::init::enable_supervisor_protections">enable_<wbr>supervisor_<wbr>protections</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="fn" href="fn.init_syscall.html" title="fn kernel::init::init_syscall">init_<wbr>syscall</a><span title="Restricted Visibility">&nbsp;🔒</span> <sup title="unsafe function">⚠</sup></dt><dt><a class="fn" href="fn.initialize_kernel_stack.html" title="fn kernel::init::initialize_kernel_stack">initialize_<wbr>kernel_<wbr>stack</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="fn" href="fn.initialize_memory_management.html" title="fn kernel::init::initialize_memory_management">initialize_<wbr>memory_<wbr>management</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="fn" href="fn.initialize_percpu_config_for_bsp.html" title="fn kernel::init::initialize_percpu_config_for_bsp">initialize_<wbr>percpu_<wbr>config_<wbr>for_<wbr>bsp</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="fn" href="fn.kernel_entry_on_boot_stack.html" title="fn kernel::init::kernel_entry_on_boot_stack">kernel_<wbr>entry_<wbr>on_<wbr>boot_<wbr>stack</a></dt><dd>Kernel entry running on the boot stack (<a href="static.BOOT_STACK.html" title="static kernel::init::BOOT_STACK"><code>BOOT_STACK</code></a>).</dd><dt><a class="fn" href="fn.remap_framebuffer_memory.html" title="fn kernel::init::remap_framebuffer_memory">remap_<wbr>framebuffer_<wbr>memory</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Remaps the boot framebuffer memory into the kernel’s virtual address space.</dd><dt><a class="fn" href="fn.stage_one_switch_to_stack_and_enter.html" title="fn kernel::init::stage_one_switch_to_stack_and_enter">stage_<wbr>one_<wbr>switch_<wbr>to_<wbr>stack_<wbr>and_<wbr>enter</a><span title="Restricted Visibility">&nbsp;🔒</span> <sup title="unsafe function">⚠</sup></dt><dd>Naked jump pad: set RSP and jump; no Rust frame, no locals.</dd><dt><a class="fn" href="fn.stage_two_init_bootstrap_processor.html" title="fn kernel::init::stage_two_init_bootstrap_processor">stage_<wbr>two_<wbr>init_<wbr>bootstrap_<wbr>processor</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="fn" href="fn.trace_tsc_frequency.html" title="fn kernel::init::trace_tsc_frequency">trace_<wbr>tsc_<wbr>frequency</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.Ist1StackTop.html" title="type kernel::init::Ist1StackTop">Ist1<wbr>Stack<wbr>Top</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="type" href="type.KernelStackTop.html" title="type kernel::init::KernelStackTop">Kernel<wbr>Stack<wbr>Top</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt></dl></section></div></main></body></html>
