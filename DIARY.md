@@ -11,6 +11,19 @@ Expectedly, enabling SMAP (Access Prevention) immediately caused a page fault wh
 the userland binary since the kernel writes to a user page. Adding a little drop guard
 that calls `stac` on enter and `clac` on exit made this a no-brainer, too.
 
+Added a proper Rust binary (with a custom linker script and entrypoint) and added a bundler
+to provide a simple "initramfs" without actual `cpio`. Hacked in ELF loading (again),
+this time without a global allocator, and failed miserably once more while remapping pages
+for the init binary. In the end, it worked. I added a `println!` style macro in my
+"standard library". It had a fancy little bug (page faults, again) whenever I tried to
+print a value in hex formatting. Without it, or simply interpolating an integer,
+worked just fine. The moment I turned it `:04x`, it'd fail with a load from `0x04`.
+Turns out that the syscall was missing a crucial bit of restoring `rbx` (where I stashed
+the user `rsp`). I tried to mark it as clobbered in the caller-side assembly, but
+`rbx` is an LLVM-reserved register, so that would fail differently now. So I changed
+the stash to `r12`, define the ABI to always clobber `rcx` and `r11` (from syscall/sysret)
+_and_ `r12` ... and it works.
+
 ## 2025-11-13
 
 Syscall today. Refactored the crates a bit and upon wiring up the STAR/LSTAR registers

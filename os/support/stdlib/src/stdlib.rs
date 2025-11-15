@@ -1,3 +1,7 @@
+#[doc(hidden)]
+#[macro_use]
+pub mod fmt;
+
 use crate::syscall::debug_byte;
 
 #[inline(always)]

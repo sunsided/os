@@ -12,8 +12,9 @@ pub fn debug_byte(b: u8) {
             "syscall",
             inlateout("rax") Sysno::DebugWriteByte as u64 => _,
             in("rdi") u64::from(b),
-            lateout("rcx") _, // clobbered by SYSCALL
-            lateout("r11") _, // clobbered by SYSCALL
+            out("rcx") _, // syscall clobbers
+            out("r11") _, // syscall clobbers
+            out("r12") _, // syscall stub clobbers
             options(nostack)
         );
     }
@@ -27,8 +28,9 @@ pub fn sys_bogus() -> u64 {
         core::arch::asm!(
             "syscall",
             inlateout("rax") Sysno::Bogus as u64 => ret,
-            lateout("rcx") _, // syscall clobbers
-            lateout("r11") _,
+            out("rcx") _, // syscall clobbers
+            out("r11") _, // syscall clobbers
+            out("r12") _, // syscall stub clobbers
             options(nostack)
         );
     }
