@@ -59,6 +59,7 @@
 mod alloc;
 mod apic;
 mod cpuid;
+mod elf;
 mod framebuffer;
 mod gdt;
 mod idt;
@@ -76,19 +77,22 @@ mod tracing;
 mod tsc;
 mod tss;
 mod userland;
-mod userland_demo;
 
-use crate::alloc::with_kernel_vmm;
+use crate::alloc::{FlushTlb, try_with_kernel_vmm};
 use crate::framebuffer::fill_solid;
 use crate::per_cpu::PerCpu;
+use crate::smap::SmapGuard;
+use crate::tracing::log_ctrl_bits;
 use crate::tsc::{estimate_tsc_hz, rdtsc};
-use crate::userland::boot_single_user_task;
+use crate::userland::{enter_user_mode, parse_userland_bundle};
 use core::f32::consts::{PI, TAU};
 use core::hint::spin_loop;
+use core::num::NonZeroU64;
 use core::sync::atomic::{AtomicU64, Ordering};
+use kernel_alloc::phys_mapper::HhdmPhysMapper;
 use kernel_info::boot::{FramebufferInfo, UserBundleInfo};
+use kernel_memory_addresses::VirtualAddress;
 use log::info;
-use packer_abi::unbundle::Bundle;
 
 /// Main kernel loop, running with all memory (including framebuffer) properly mapped.
 ///
@@ -111,7 +115,13 @@ use packer_abi::unbundle::Bundle;
 fn kernel_main(fb_virt: &FramebufferInfo, user: &UserBundleInfo) -> ! {
     info!("Kernel doing kernel things now ...");
 
-    parse_userland_bundle(user);
+    let ustack_top = VirtualAddress::new(0x0000_7fff_f000);
+    let num_stack_pages = unsafe { NonZeroU64::new_unchecked(2048) }; // 8 MiB
+    let (va, ustack_top) = try_with_kernel_vmm(FlushTlb::OnSuccess, |vmm| {
+        let _guard = SmapGuard::enter();
+        parse_userland_bundle(user, vmm, ustack_top, num_stack_pages)
+    })
+    .expect("Failed to parse userland bundle");
 
     let cpu = unsafe { PerCpu::current() };
     let start = cpu.ticks.load(Ordering::Acquire);
@@ -157,30 +167,14 @@ fn kernel_main(fb_virt: &FramebufferInfo, user: &UserBundleInfo) -> ! {
         spin_loop();
 
         if prev == 2 {
+            info!("About to enter user mode ...");
+            log_ctrl_bits();
+            alloc::debug::dump_walk(&HhdmPhysMapper, va);
+
             info!("Jumping into userland code - will not refresh screen anymore");
-            with_kernel_vmm(|vmm| {
-                boot_single_user_task(vmm);
-            });
+            unsafe { enter_user_mode(va, ustack_top) }
         }
     }
-}
-
-#[allow(clippy::cast_possible_truncation)]
-fn parse_userland_bundle(bundle: &UserBundleInfo) {
-    let slice: &[u8] = unsafe {
-        core::slice::from_raw_parts(bundle.bytes_ptr as *const u8, bundle.length as usize)
-    };
-
-    let bundle = Bundle::parse(slice).expect("failed to parse userland bundle");
-    info!("Userland bundle has {num} entries", num = bundle.len());
-
-    let init_bytes = bundle
-        .entries()
-        .filter_map(Result::ok)
-        .find(|(name, _bytes)| "init".eq(*name))
-        .map(|(_name, bytes)| bytes)
-        .expect("userland bundle has no init binary");
-    info!("Init binary is {len} bytes", len = init_bytes.len());
 }
 
 #[inline]

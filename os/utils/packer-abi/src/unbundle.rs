@@ -44,7 +44,11 @@ fn read_u64_le(buf: &[u8], off: usize) -> Result<u64, BundleError> {
 
 impl<'a> Bundle<'a> {
     /// Parse and validate a bundle blob.
-    #[allow(clippy::missing_errors_doc, clippy::cast_possible_truncation)]
+    #[allow(
+        clippy::missing_errors_doc,
+        clippy::cast_possible_truncation,
+        clippy::missing_panics_doc
+    )]
     pub fn parse(blob: &'a [u8]) -> Result<Self, BundleError> {
         use BundleError::{BadAlignment, BadMagic, OutOfBounds, TooShort};
         // Need at least a Header.

@@ -1,10 +1,13 @@
 use crate::syscall::debug_byte;
 
 #[inline(always)]
+#[allow(clippy::inline_always)]
+#[must_use]
 const fn hex_digit(n: u8) -> u8 {
     if n < 10 { b'0' + n } else { b'A' + (n - 10) }
 }
 
+#[allow(clippy::cast_possible_truncation)]
 pub fn print_hex(mut x: u64) {
     for _ in 0..16 {
         x = x.rotate_left(4);
@@ -14,7 +17,7 @@ pub fn print_hex(mut x: u64) {
 }
 
 #[deprecated(note = "Use print_hex instead")]
-#[allow(deprecated)]
+#[allow(deprecated, clippy::cast_possible_truncation)]
 pub fn print_hex_int80(mut x: u64) {
     for _ in 0..16 {
         x = x.rotate_left(4);

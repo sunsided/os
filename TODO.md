@@ -28,10 +28,6 @@ _Auto-generated from code comments. Do not edit manually, recreate with `just to
 
 - Line [89](./os/kernel/kernel/src/interrupts/syscall.rs#L89): Validate the CPU frame is indeed in the correct location here.
 
-## [os/kernel/kernel/src/userland.rs](./os/kernel/kernel/src/userland.rs)
-
-- Line [51](./os/kernel/kernel/src/userland.rs#L51): Remove later
-
 ## [os/uefi/uefi-loader/src/main.rs](./os/uefi/uefi-loader/src/main.rs)
 
 - Line [246](./os/uefi/uefi-loader/src/main.rs#L246): Add proper documentation.
